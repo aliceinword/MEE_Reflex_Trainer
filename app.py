@@ -2550,12 +2550,15 @@ def render_sample_answer_text(title, text):
 
 def render_sample_answer_section(qd, expanded=False):
     model_points = qd.get("model_points", "") if isinstance(qd, dict) else ""
-
     if not model_points:
-        st.info("No sample answer/model analysis available for this question yet.")
+        model_points = qd.get("rules", "") if isinstance(qd, dict) else ""
+
+    if not model_points or not str(model_points).strip():
+        with st.expander("Compare With Sample Answer", expanded=expanded):
+            st.info("No sample answer/model analysis available for this question yet.")
         return
 
-    with st.expander("Compare With Sample Answer - open after self-grading", expanded=expanded):
+    with st.expander("Compare With Sample Answer", expanded=expanded):
         st.warning("Open this only after you attempted the issue/rule. No passive reading.")
         render_sample_answer_text("Sample Answer / Model Analysis", model_points)
 
@@ -5779,7 +5782,7 @@ def get_model_section_for_subquestion(qd, subq_index, subpart=None):
             heading = f"Point {subq_index} - Combined"
             return heading, combined
 
-    if model_text and len(model_text.strip()) >= 100:
+    if model_text and model_text.strip():
         heading = f"Full Available Model Analysis - Question {subq_index}"
         fallback = (
             "No separate Point section was detected for this call in the imported answer material.\n\n"
@@ -5799,8 +5802,9 @@ def render_sample_answer_for_subquestion(qd, subq_index, label, subpart=None):
     except Exception:
         section_heading, model_text = "", ""
 
-    if not model_text:
-        st.info(f"No sample answer/model analysis is available for {title} yet.")
+    if not model_text or not str(model_text).strip():
+        with st.expander(f"Compare With Sample Answer - {title}", expanded=False):
+            st.info("No sample answer/model analysis available for this question yet.")
         return
 
     with st.expander(f"Compare With Sample Answer - {title}", expanded=False):
