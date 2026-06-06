@@ -1629,21 +1629,26 @@ def render_attack_rule_box(rule):
         source_file,
     ) = rule
 
-    st.caption(
-        f"Subject: {subject or 'n/a'} | Appearance Rate: {appearance_rate or 'n/a'} | "
-        f"PDF Page: {pdf_page or 'n/a'}"
-    )
+    caption_parts = []
+    if subject:
+        caption_parts.append(f"Subject: {subject}")
+    if appearance_rate:
+        caption_parts.append(f"Appearance Rate: {appearance_rate}")
+    if pdf_page:
+        caption_parts.append(f"PDF Page: {pdf_page}")
+
+    if caption_parts:
+        st.caption(" | ".join(caption_parts))
 
     render_outline_rule_text(rule_title or "Attack Outline Rule", rule_text)
 
-    try:
+    if pdf_page:
         link = outline_pdf_link(pdf_page)
-        st.markdown(
-            f'<a href="{link}" target="_blank">Open Outline Page</a>',
-            unsafe_allow_html=True,
-        )
-    except Exception:
-        st.info("No page link available.")
+        if link:
+            st.markdown(
+                f'<a href="{link}" target="_blank">Open Outline Page</a>',
+                unsafe_allow_html=True,
+            )
 
 
 def first_nonempty_lines(text, n=3):
@@ -3895,7 +3900,10 @@ elif menu == "Attack Outline Rules":
     st.caption(f"{len(outline_results)} result(s)")
 
     for rule in outline_results:
-        with st.expander(f"{rule[2]} - {rule[1]} - {rule[3] or 'n/a'}", expanded=False):
+        _label = f"{rule[2]} - {rule[1]}"
+        if rule[3]:
+            _label += f" - {rule[3]}"
+        with st.expander(_label, expanded=False):
             render_attack_rule_box(rule)
 
 
