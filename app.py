@@ -42,6 +42,67 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
+def _auth_users():
+    """Return the configured {username: {name, password}} map, or {} if auth is off.
+
+    Credentials live in st.secrets so they are never committed to the repo.
+    When no users are configured (e.g. local use), the app runs open.
+    """
+    try:
+        users = st.secrets["auth"]["users"]
+    except Exception:
+        return {}
+    try:
+        return {u: dict(v) for u, v in dict(users).items()}
+    except Exception:
+        return {}
+
+
+def require_login():
+    users = _auth_users()
+    if not users:
+        return  # auth not configured -> open access (local/dev)
+
+    if st.session_state.get("_authed_user"):
+        return
+
+    st.markdown(
+        "<div style='max-width:380px;margin:8vh auto 0'>"
+        "<h2 style='text-align:center;color:#1D4E89'>MEE Reflex Trainer</h2>"
+        "<p style='text-align:center;color:#5A7A9A;font-size:0.9rem'>Please sign in to continue.</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    col_l, col_m, col_r = st.columns([1, 2, 1])
+    with col_m:
+        with st.form("login_form"):
+            username = st.text_input("Username").strip().lower()
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Sign in", use_container_width=True)
+
+        if submitted:
+            record = users.get(username)
+            ok = False
+            if record and record.get("password"):
+                try:
+                    import bcrypt
+                    ok = bcrypt.checkpw(password.encode("utf-8"), str(record["password"]).encode("utf-8"))
+                except Exception:
+                    ok = False
+            if ok:
+                st.session_state["_authed_user"] = username
+                st.session_state["_authed_name"] = record.get("name", username)
+                st.rerun()
+            else:
+                st.error("Incorrect username or password.")
+
+    st.stop()
+
+
+require_login()
+
 init_db()
 
 
@@ -432,6 +493,30 @@ textarea::placeholder, input::placeholder {
     color: #102033 !important;
 }
 
+[data-testid="stCheckbox"] label {
+    min-height: 42px !important;
+    align-items: center !important;
+}
+
+[data-testid="stCheckbox"] label p,
+[data-testid="stCheckbox"] label span {
+    font-size: 16px !important;
+    line-height: 1.35 !important;
+    font-weight: 650 !important;
+}
+
+[data-testid="stCheckbox"] input,
+[data-testid="stCheckbox"] [role="checkbox"] {
+    transform: scale(1.15);
+}
+
+.review-controls-title {
+    color: #1D4E89;
+    font-weight: 850;
+    font-size: 1.02rem;
+    margin-bottom: 0.25rem;
+}
+
 [data-baseweb="input"] *,
 [data-baseweb="textarea"] *,
 [data-baseweb="base-input"] * {
@@ -791,6 +876,78 @@ header *,
     font-weight: 850;
     margin-right: 0.45rem;
     font-size: 0.82rem;
+}
+
+.rule-break-card {
+    background: rgba(255, 255, 255, 0.98);
+    border: 1.5px solid #A7F3D0;
+    border-radius: 18px;
+    padding: 1rem 1.15rem;
+    margin: 0.8rem 0 1rem 0;
+    box-shadow: 0 8px 22px rgba(16, 185, 129, 0.08);
+    max-width: 1000px;
+    width: 100%;
+}
+
+.rule-break-title {
+    color: #047857;
+    font-weight: 900;
+    font-size: 1.08rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 2px solid #D1FAE5;
+}
+
+.rule-break-section {
+    margin-bottom: 0.75rem;
+}
+
+.rule-break-label {
+    color: #065F46;
+    font-weight: 850;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+
+.rule-break-text {
+    color: #1E293B;
+    font-size: 16px;
+    line-height: 1.55;
+}
+
+.rule-break-list {
+    margin: 0.25rem 0 0 1.2rem;
+    color: #1E293B;
+    font-size: 16px;
+    line-height: 1.55;
+}
+
+.rule-break-list li {
+    margin-bottom: 0.25rem;
+}
+
+.rule-break-trap {
+    background: #FFF7ED;
+    border-left: 4px solid #F97316;
+    border-radius: 10px;
+    padding: 0.65rem 0.8rem;
+    color: #7C2D12;
+    font-size: 15px;
+    line-height: 1.45;
+    margin-top: 0.6rem;
+}
+
+.rule-break-note {
+    background: #EFF6FF;
+    border-left: 4px solid #3B82F6;
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem;
+    color: #1E3A8A;
+    font-size: 14px;
+    line-height: 1.45;
+    margin-top: 0.6rem;
 }
 
 /* Compact question/fact pattern boxes */
@@ -1805,6 +1962,132 @@ div[data-baseweb="select"] {
     grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)) !important;
 }
 
+.trap-warning-box {
+    background: rgba(255, 255, 255, 0.98);
+    border: 1.5px solid #FDBA74;
+    border-radius: 18px;
+    padding: 1rem 1.2rem;
+    margin: 0.85rem 0 1.1rem 0;
+    box-shadow: 0 6px 18px rgba(249, 115, 22, 0.10);
+    max-width: 1000px;
+    overflow: visible !important;
+}
+
+.trap-warning-title {
+    color: #C2410C;
+    font-weight: 900;
+    font-size: 1.05rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid #FED7AA;
+}
+
+.trap-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: #FFF7ED;
+    border: 1px solid #FED7AA;
+    border-left: 5px solid #F97316;
+    border-radius: 14px;
+    padding: 0.75rem 0.85rem;
+    margin-bottom: 0.6rem;
+    overflow: visible !important;
+    white-space: normal !important;
+}
+
+.trap-number {
+    min-width: 1.7rem;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 999px;
+    background: #F97316;
+    color: white;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    margin-right: 0 !important;
+}
+
+.trap-text {
+    color: #7C2D12;
+    font-size: 16px;
+    line-height: 1.5;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+    overflow-wrap: anywhere;
+    flex: 1;
+}
+
+.mini-progress-box {
+    background: rgba(255,255,255,0.96);
+    border: 1px solid #D6E4FF;
+    border-radius: 16px;
+    padding: 0.85rem 1rem;
+    margin: 0.75rem 0 1rem 0;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.06);
+}
+
+.mini-progress-title {
+    color: #2F5597;
+    font-weight: 900;
+    font-size: 0.95rem;
+    margin-bottom: 0.55rem;
+}
+
+.mini-progress-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.mini-step-chip {
+    border-radius: 999px;
+    padding: 0.35rem 0.65rem;
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+    font-size: 0.85rem;
+    border: 1px solid #E2E8F0;
+}
+
+.mini-step-chip span {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.mini-step-active {
+    background: #DBEAFE;
+    color: #1E3A8A;
+    border-color: #93C5FD;
+}
+
+.mini-step-done {
+    background: #DCFCE7;
+    color: #166534;
+    border-color: #86EFAC;
+}
+
+.mini-step-locked {
+    background: #F8FAFC;
+    color: #64748B;
+    border-color: #E2E8F0;
+}
+
+.mini-question-panel {
+    background: rgba(255,255,255,0.98);
+    border: 1.5px solid #D6E4FF;
+    border-radius: 18px;
+    padding: 1rem 1.15rem;
+    margin: 0.8rem 0 1rem 0;
+    box-shadow: 0 8px 22px rgba(37, 99, 235, 0.06);
+}
+
 @media (max-width: 900px) {
     .block-container {
         padding-left: 1rem !important;
@@ -2091,51 +2374,87 @@ def render_sample_answer_section(qd, expanded=False):
         render_sample_answer_text("Sample Answer / Model Analysis", model_points)
 
 
-def clean_trap_items(traps_text):
-    if not traps_text:
+def clean_trap_text(text):
+    if not text:
+        return ""
+
+    text = str(text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\u00a0", " ")
+    text = re.sub(r"(?<!\d)(\d)([A-Z])", r"\1. \2", text)
+    text = re.sub(r"\bTrap\s*:\s*", "Trap: ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*-\s*Trap:\s*", "\nTrap: ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+Trap:\s*", "\nTrap: ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+(\d+[.)])\s+", r"\n\1 ", text)
+
+    junk_patterns = [
+        r"\bFEBRUARY\s+\d{4}\s+MEE\b",
+        r"\bJULY\s+\d{4}\s+MEE\b",
+        r"Â©\s*\d{4}.*",
+        r"Studicata.*",
+        r"National Conference of Bar Examiners.*",
+    ]
+
+    for pat in junk_patterns:
+        text = re.sub(pat, "", text, flags=re.IGNORECASE)
+
+    lines = []
+    for line in text.splitlines():
+        line = re.sub(r"[ \t]+", " ", line).strip()
+        if line:
+            lines.append(line)
+
+    return "\n".join(lines).strip()
+
+
+def extract_trap_items(traps_text):
+    text = clean_trap_text(traps_text)
+
+    if not text:
         return []
 
-    text = normalize_extracted_text(str(traps_text))
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"[ \t]+", " ", text)
+    raw_parts = re.split(
+        r"(?:\n+|(?:^|\s)-\s+|(?:^|\s)\d+[.)]\s+)",
+        text,
+    )
 
     items = []
 
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        line = re.sub(r"^[-*•]\s*", "", line)
-        line = re.sub(r"^\d+[.)]\s*", "", line)
-        line = re.sub(r"^Trap:\s*", "", line, flags=re.IGNORECASE)
-        line = re.sub(r"\s+", " ", line).strip()
-        if line:
-            items.append(line)
+    for part in raw_parts:
+        part = part.strip(" -â€¢\t")
+        part = re.sub(r"^Trap:\s*", "", part, flags=re.IGNORECASE).strip()
+        part = re.sub(r"^\d+[.)]?\s*", "", part).strip()
+        part = re.sub(r"\s+", " ", part).strip()
 
-    if not items:
-        for part in re.split(r"(?<=[.!?])\s+(?=[A-Z])", text):
-            part = re.sub(r"^Trap:\s*", "", part.strip(), flags=re.IGNORECASE)
-            if part:
-                items.append(part)
+        if len(part) < 8:
+            continue
+
+        subparts = re.split(r"\s+Trap:\s+", part, flags=re.IGNORECASE)
+        for sp in subparts:
+            sp = sp.strip(" -â€¢\t")
+            sp = re.sub(r"\s+", " ", sp).strip()
+
+            if len(sp) >= 8:
+                items.append(sp)
 
     clean = []
     seen = set()
+
     for item in items:
-        item = item.strip(" -;")
-        if len(item) < 5:
-            continue
-        if len(item) > 240:
-            item = item[:240].rsplit(" ", 1)[0] + "..."
         key = item.lower()
         if key not in seen:
             seen.add(key)
             clean.append(item)
 
-    return clean[:6]
+    return clean
+
+
+def clean_trap_items(traps_text):
+    return extract_trap_items(traps_text)
 
 
 def render_trap_warnings(title, traps_text):
-    traps = clean_trap_items(traps_text)
+    traps = extract_trap_items(traps_text)
 
     if not traps:
         st.info("No trap warnings available yet.")
@@ -2145,20 +2464,302 @@ def render_trap_warnings(title, traps_text):
     for idx, trap in enumerate(traps, start=1):
         cards_html += (
             '<div class="trap-card">'
-            f'<span class="trap-number">{idx}</span>'
-            f'{escape_display_text(trap)}'
+            f'<div class="trap-number">{idx}</div>'
+            f'<div class="trap-text">{escape_display_text(trap)}</div>'
             '</div>'
         )
 
     st.markdown(
         (
-            '<div class="trap-box">'
-            f'<div class="trap-title">{escape_display_text(title)}</div>'
+            '<div class="trap-warning-box">'
+            f'<div class="trap-warning-title">{escape_display_text(title)}</div>'
             f'{cards_html}'
             '</div>'
         ),
         unsafe_allow_html=True,
     )
+
+
+def render_rule_breakdown_card(
+    title,
+    rule_text="",
+    elements=None,
+    trigger_facts=None,
+    application_hint="",
+    trap="",
+    source="",
+):
+    elements = elements or []
+    trigger_facts = trigger_facts or []
+    rule_text = re.sub(r"\s+", " ", str(rule_text or "")).strip()
+
+    if len(rule_text) > 900:
+        rule_text = rule_text[:900].rsplit(" ", 1)[0] + "..."
+
+    elements_html = "".join(f"<li>{escape(str(el))}</li>" for el in elements)
+    facts_html = "".join(f"<li>{escape(str(fact))}</li>" for fact in trigger_facts)
+    note_html = ""
+
+    if source == "Model-derived fallback":
+        note_html = (
+            '<div class="rule-break-note">'
+            'Note: This rule was pulled from model analysis. Prefer importing flashcards or Attack Outline rules for cleaner rules.'
+            '</div>'
+        )
+
+    st.markdown(
+        f"""
+        <div class="rule-break-card">
+            <div class="rule-break-title">{escape(str(title))}</div>
+
+            <div class="rule-break-section">
+                <div class="rule-break-label">Rule</div>
+                <div class="rule-break-text">{escape(str(rule_text)) if rule_text else "Rule support not found yet."}</div>
+            </div>
+
+            <div class="rule-break-section">
+                <div class="rule-break-label">Elements / Test</div>
+                <ul class="rule-break-list">{elements_html if elements_html else "<li>Identify the elements from the rule.</li>"}</ul>
+            </div>
+
+            <div class="rule-break-section">
+                <div class="rule-break-label">Trigger Facts</div>
+                <ul class="rule-break-list">{facts_html if facts_html else "<li>No trigger facts matched yet.</li>"}</ul>
+            </div>
+
+            <div class="rule-break-section">
+                <div class="rule-break-label">How facts apply</div>
+                <div class="rule-break-text">{escape(str(application_hint)) if application_hint else "Connect each fact to a rule element."}</div>
+            </div>
+
+            <div class="rule-break-trap">
+                <strong>Trap:</strong> {escape(str(trap)) if trap else "Do not jump to conclusion before applying each element."}
+            </div>
+            {note_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def split_rule_into_elements(rule_text):
+    if not rule_text:
+        return []
+
+    text = str(rule_text).replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"\s+", " ", text).strip()
+    elements = []
+
+    numbered = re.findall(r"(?:\(\d+\)|\d+\.)\s*([^;.\n]+(?:;|\.|$))", text)
+    for item in numbered:
+        item = item.strip(" ;.")
+        if 5 <= len(item) <= 220:
+            elements.append(item)
+
+    if not elements:
+        semi_parts = re.split(r";|\bAND\b|\bOR\b", text)
+        for part in semi_parts:
+            part = part.strip(" .;:")
+            if 8 <= len(part) <= 220:
+                elements.append(part)
+
+    return elements[:6]
+
+
+def infer_rule_title_from_call(call_text, subject):
+    text = (call_text or "").lower()
+    subject_l = (subject or "").lower()
+
+    if "summary judgment" in text:
+        return "Summary Judgment"
+    if "proximate cause" in text or "causation" in text:
+        return "Proximate Cause"
+    if "negligence" in text and "statute" in text:
+        return "Negligence Per Se"
+    if "false imprisonment" in text or "detain" in text:
+        return "False Imprisonment"
+    if "forum" in text and ("first amendment" in subject_l or "constitutional" in subject_l):
+        return "First Amendment Forum"
+    if "content-based" in text or "content neutral" in text or "content-neutral" in text:
+        return "Content-Based vs Content-Neutral Speech Regulation"
+    if "actual authority" in text:
+        return "Actual Authority"
+    if "apparent authority" in text:
+        return "Apparent Authority"
+    if "agency" in text or "agent" in text:
+        return "Creation of Agency"
+    if "partnership" in text:
+        return "Partnership Formation"
+    if "diversity" in text:
+        return "Diversity Jurisdiction"
+    if "personal jurisdiction" in text:
+        return "Personal Jurisdiction"
+    if "hearsay" in text:
+        return "Hearsay"
+    if "statute of frauds" in text:
+        return "Statute of Frauds"
+    if "parol evidence" in text:
+        return "Parol Evidence"
+    if "adverse possession" in text:
+        return "Adverse Possession"
+
+    return "Rule Tested"
+
+
+def find_rule_support_for_call(qd, call_text):
+    subject = qd.get("subject", "")
+    query = f"{call_text} {qd.get('tested_issues', '')}"
+
+    try:
+        flash_results = search_rule_flashcards(query, subject=subject, limit=3)
+        if flash_results:
+            card = flash_results[0]
+            return {
+                "title": card[2],
+                "rule_text": card[3],
+                "source": "Flashcards",
+            }
+    except Exception:
+        pass
+
+    try:
+        outline_results = search_outline_rules(query, subject=subject, limit=3)
+        if outline_results:
+            rule = outline_results[0]
+            return {
+                "title": rule[2],
+                "rule_text": rule[4],
+                "source": "Attack Outline",
+            }
+    except Exception:
+        pass
+
+    try:
+        plug_results = search_plug_play_templates(query, subject=subject, limit=3)
+        if plug_results:
+            tpl = plug_results[0]
+            return {
+                "title": tpl[2],
+                "rule_text": tpl[5],
+                "source": "Plug & Play",
+            }
+    except Exception:
+        pass
+
+    return {
+        "title": infer_rule_title_from_call(call_text, subject),
+        "rule_text": qd.get("rules", ""),
+        "source": "Model-derived fallback",
+    }
+
+
+def get_trigger_facts_for_call(qd, call_text, max_facts=5):
+    call_l = (call_text or "").lower()
+
+    try:
+        mapping = get_fact_sentences_for_subquestions(qd, max_per_question=max_facts)
+        for item in mapping:
+            item_text = item.get("call", {}).get("text", "")
+            item_l = item_text.lower()
+            if item_l and (item_l in call_l or call_l in item_l):
+                return item.get("facts", [])[:max_facts]
+    except Exception:
+        pass
+
+    try:
+        facts = get_clean_trigger_facts(qd, max_items=max_facts)
+        return facts[:max_facts]
+    except Exception:
+        pass
+
+    return []
+
+
+def infer_application_hint(rule_title, call_text, facts, qd):
+    title = (rule_title or "").lower()
+    call_l = (call_text or "").lower()
+
+    if "summary judgment" in title or "summary judgment" in call_l:
+        return "Ask whether the admitted facts leave any genuine dispute of material fact. Draw reasonable inferences against the moving party."
+    if "proximate" in title or "causation" in title:
+        return "Connect the defendant's conduct to the harm. Ask whether the harm was a reasonably foreseeable consequence."
+    if "negligence per se" in title or ("negligence" in call_l and "statute" in call_l):
+        return "Do not stop at statutory violation. Ask whether the plaintiff is in the protected class and whether the harm is the type the statute was designed to prevent."
+    if "false imprisonment" in title or "detain" in call_l:
+        return "Apply intent, confinement, lack of consent, and awareness or harm to the facts."
+    if "actual authority" in title:
+        return "Look for principal-to-agent manifestations and whether the agent reasonably believed they were authorized."
+    if "apparent authority" in title:
+        return "Look for principal-to-third-party manifestations and the third party's reasonable belief."
+    if "agency" in title:
+        return "Apply consent plus control. Do not assume agency merely because someone helped or acted voluntarily."
+    if "forum" in title:
+        return "Classify the location first. The forum determines the First Amendment test."
+    if "content" in title:
+        return "Ask whether the law targets speech because of message/topic or regulates conduct, time, place, or manner."
+
+    return "Apply each rule element to the specific trigger facts. Do not write a rule dump."
+
+
+def infer_rule_trap(rule_title, call_text, qd):
+    title = (rule_title or "").lower()
+
+    if "summary judgment" in title:
+        return "Do not weigh evidence or draw inferences for the moving party."
+    if "proximate" in title:
+        return "Foreseeability can be a jury question; do not treat every causation issue as resolved as a matter of law."
+    if "negligence per se" in title:
+        return "Statutory violation is not enough unless protected class and protected harm are satisfied."
+    if "false imprisonment" in title:
+        return "Physical force is not required, but there must be confinement or restraint."
+    if "actual authority" in title:
+        return "Actual authority is based on principal-to-agent manifestations, not what the third party believed."
+    if "apparent authority" in title:
+        return "Apparent authority is based on principal-to-third-party manifestations, not secret instructions to the agent."
+    if "forum" in title:
+        return "Do not pick strict scrutiny or intermediate scrutiny before classifying the forum."
+    if "content" in title:
+        return "A safety purpose in the preamble does not automatically make a speech law content-neutral."
+
+    traps = clean_trap_items(qd.get("traps", ""))
+    return traps[0] if traps else "Do not jump to conclusion before applying every element."
+
+
+def render_rules_tested_by_call(qd):
+    st.markdown("### Rules Tested and Fact Application")
+
+    subquestions = extract_subquestions(qd.get("call_of_question", "")) if "extract_subquestions" in globals() else []
+
+    if not subquestions:
+        subquestions = [{"label": "Question", "text": qd.get("call_of_question", ""), "subparts": []}]
+
+    for subq in subquestions:
+        call_text = subq.get("text", "")
+
+        if subq.get("subparts"):
+            subpart_text = " ".join([f"{sp.get('label', '')} {sp.get('text', '')}" for sp in subq["subparts"]])
+            full_call = f"{call_text} {subpart_text}".strip()
+        else:
+            full_call = call_text
+
+        rule_support = find_rule_support_for_call(qd, full_call)
+        rule_title = rule_support.get("title", infer_rule_title_from_call(full_call, qd.get("subject", "")))
+        rule_text = rule_support.get("rule_text", "")
+        source = rule_support.get("source", "")
+        elements = split_rule_into_elements(rule_text)
+        facts = get_trigger_facts_for_call(qd, full_call)
+        application_hint = infer_application_hint(rule_title, full_call, facts, qd)
+        trap = infer_rule_trap(rule_title, full_call, qd)
+
+        render_rule_breakdown_card(
+            f"{subq.get('label', 'Question')} - {rule_title}",
+            rule_text=rule_text,
+            elements=elements,
+            trigger_facts=facts,
+            application_hint=application_hint,
+            trap=trap,
+            source=source,
+        )
 
 
 def clean_question_text(question_text):
@@ -4565,6 +5166,219 @@ def get_rule_flash_prompts(qd):
     return clean[:8]
 
 
+def mini_drill_state_key(qd, suffix):
+    return f"mini_drill_{qd['id']}_{suffix}"
+
+
+def init_mini_drill_state(qd, total_questions):
+    active_key = mini_drill_state_key(qd, "active_index")
+    done_key = mini_drill_state_key(qd, "done_questions")
+
+    if active_key not in st.session_state:
+        st.session_state[active_key] = 0
+
+    if done_key not in st.session_state:
+        st.session_state[done_key] = set()
+    elif not isinstance(st.session_state[done_key], set):
+        st.session_state[done_key] = set(st.session_state[done_key] or [])
+
+    if total_questions <= 0:
+        st.session_state[active_key] = 0
+    elif st.session_state[active_key] >= total_questions:
+        st.session_state[active_key] = max(0, total_questions - 1)
+
+
+def render_mini_drill_progress(qd, subquestions):
+    active_key = mini_drill_state_key(qd, "active_index")
+    done_key = mini_drill_state_key(qd, "done_questions")
+
+    active_idx = st.session_state.get(active_key, 0)
+    done = st.session_state.get(done_key, set())
+
+    chips = []
+    for i, subq in enumerate(subquestions):
+        label = escape_display_text(subq.get("label", f"Question {i + 1}"))
+        if i in done:
+            status_class = "mini-step-done"
+            status_text = "Done"
+        elif i == active_idx:
+            status_class = "mini-step-active"
+            status_text = "Active"
+        else:
+            status_class = "mini-step-locked"
+            status_text = "Next"
+
+        chips.append(
+            f'<div class="mini-step-chip {status_class}"><strong>{label}</strong><span>{status_text}</span></div>'
+        )
+
+    st.markdown(
+        (
+            '<div class="mini-progress-box">'
+            '<div class="mini-progress-title">Mini Drill Progress</div>'
+            f'<div class="mini-progress-row">{"".join(chips)}</div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def reset_mini_drill_progress(qd):
+    prefixes = (
+        f"mini_drill_{qd['id']}_",
+        f"mini_answer_piece_{qd['id']}_",
+        f"mini_score_piece_{qd['id']}_",
+        f"mini_missed_piece_{qd['id']}_",
+        f"mini_fix_piece_{qd['id']}_",
+        f"mini_reveal_{qd['id']}_",
+    )
+
+    for key in list(st.session_state.keys()):
+        if any(str(key).startswith(prefix) for prefix in prefixes):
+            del st.session_state[key]
+
+
+def render_sample_answer_for_subquestion(qd, display_index, label=None):
+    title = label or f"Question {display_index}"
+    model_text = ""
+
+    if "get_model_section_for_subquestion" in globals():
+        try:
+            model_text = get_model_section_for_subquestion(qd, display_index) or ""
+        except Exception:
+            model_text = ""
+
+    if not model_text:
+        model_text = qd.get("model_points", "")
+
+    if not model_text:
+        st.info(f"No sample answer/model analysis available for {title} yet.")
+        return
+
+    with st.expander(f"Compare With Sample Answer - {title}", expanded=False):
+        st.warning("Open this only after you attempted the issue/rule. No passive reading.")
+        render_sample_answer_text("Sample Answer / Model Analysis", model_text)
+
+
+def render_single_mini_question_workflow(qd, subq, display_index, hints_used=0):
+    label = subq.get("label", f"Question {display_index}")
+    answer_piece = render_subquestion_card(qd, subq, display_index, hints_used)
+
+    st.markdown("### Step 2: Check this question")
+    reveal_key = f"mini_reveal_{qd['id']}_{display_index}"
+
+    if st.button(f"Reveal / Check {label}", key=f"{reveal_key}_button"):
+        st.session_state[f"{reveal_key}_shown"] = True
+
+    if st.session_state.get(f"{reveal_key}_shown", False):
+        call_text = subq.get("text", "").strip()
+        if subq.get("subparts"):
+            subpart_text = "\n".join(
+                [f"{part.get('label', '')} {part.get('text', '')}".strip() for part in subq["subparts"]]
+            )
+            full_call = f"{call_text}\n{subpart_text}".strip()
+        else:
+            full_call = call_text or "No call text available."
+
+        try:
+            rule_support = find_rule_support_for_call(qd, full_call)
+            rule_title = rule_support.get("title", "Rule Tested")
+            rule_text = rule_support.get("rule_text", "")
+            source = rule_support.get("source", "")
+            elements = split_rule_into_elements(rule_text) if "split_rule_into_elements" in globals() else []
+            facts = get_trigger_facts_for_call(qd, full_call) if "get_trigger_facts_for_call" in globals() else []
+            application_hint = (
+                infer_application_hint(rule_title, full_call, facts, qd)
+                if "infer_application_hint" in globals()
+                else ""
+            )
+            trap = infer_rule_trap(rule_title, full_call, qd) if "infer_rule_trap" in globals() else ""
+
+            render_rule_breakdown_card(
+                rule_title,
+                rule_text=rule_text,
+                elements=elements,
+                trigger_facts=facts,
+                application_hint=application_hint,
+                trap=trap,
+                source=source,
+            )
+        except Exception:
+            st.warning("Rule breakdown unavailable for this call.")
+
+        render_sample_answer_for_subquestion(qd, display_index, label)
+
+        st.markdown("### Step 3: Score this question")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            issue_score = st.slider(
+                f"{label} issue score",
+                0,
+                5,
+                0,
+                key=f"mini_issue_score_{qd['id']}_{display_index}",
+            )
+        with col2:
+            rule_score = st.slider(
+                f"{label} rule score",
+                0,
+                5,
+                0,
+                key=f"mini_rule_score_{qd['id']}_{display_index}",
+            )
+        with col3:
+            fact_score = st.slider(
+                f"{label} fact score",
+                0,
+                5,
+                0,
+                key=f"mini_fact_score_{qd['id']}_{display_index}",
+            )
+
+        avg_score = round((issue_score + rule_score + fact_score) / 3)
+
+        missed = st.text_area(
+            f"{label} - What did you miss?",
+            placeholder="Example: I missed the exception or the key trigger fact.",
+            height=80,
+            key=f"mini_missed_{qd['id']}_{display_index}",
+        )
+
+        fix_note = st.text_area(
+            f"{label} - Fix note",
+            placeholder="One sentence for future you.",
+            height=80,
+            key=f"mini_fix_{qd['id']}_{display_index}",
+        )
+
+        st.metric(f"{label} score", f"{avg_score}/5")
+
+        done_key = mini_drill_state_key(qd, "done_questions")
+        active_key = mini_drill_state_key(qd, "active_index")
+
+        if st.button(f"Mark {label} Done", key=f"mini_done_{qd['id']}_{display_index}"):
+            if done_key not in st.session_state or not isinstance(st.session_state[done_key], set):
+                st.session_state[done_key] = set(st.session_state.get(done_key, []))
+
+            st.session_state[done_key].add(display_index - 1)
+            st.session_state[f"mini_answer_piece_{qd['id']}_{display_index}"] = answer_piece
+            st.session_state[f"mini_score_piece_{qd['id']}_{display_index}"] = avg_score
+            st.session_state[f"mini_missed_piece_{qd['id']}_{display_index}"] = missed
+            st.session_state[f"mini_fix_piece_{qd['id']}_{display_index}"] = fix_note
+
+            total = len(extract_subquestions(qd.get("call_of_question", "")))
+            if display_index < total:
+                st.session_state[active_key] = display_index
+            else:
+                st.session_state[active_key] = display_index - 1
+
+            st.success(f"{label} marked done.")
+            st.rerun()
+
+    return answer_piece
+
+
 def render_subquestion_card(qd, subq, index, hints_used=0):
     label = subq.get("label") or f"Call {index}"
     call_text = subq.get("text", "").strip()
@@ -5044,6 +5858,17 @@ for _group_name, _pages in NAV_GROUPS:
             st.rerun()
 
 menu = _menu_aliases.get(st.session_state["current_page"], st.session_state["current_page"])
+
+if st.session_state.get("_authed_user"):
+    st.sidebar.markdown(
+        f"<div style='font-size:0.8rem;color:#4A6585;margin-top:0.6rem'>Signed in as "
+        f"<b>{escape(str(st.session_state.get('_authed_name', st.session_state['_authed_user'])))}</b></div>",
+        unsafe_allow_html=True,
+    )
+    if st.sidebar.button("Sign out", key="logout_btn", use_container_width=True):
+        st.session_state.pop("_authed_user", None)
+        st.session_state.pop("_authed_name", None)
+        st.rerun()
 
 st.sidebar.markdown("### Reading Comfort")
 if "adhd_mode" not in st.session_state:
@@ -5646,10 +6471,14 @@ TRIGGER FACTS:
             if st.button("Reveal Answer Bank"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
                 render_raw_tested_issues_expander(qd)
-                render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
+                render_rules_tested_by_call(qd)
+                with st.expander("Raw Model Rule / Analysis - open only after self-grading", expanded=False):
+                    render_readable_text("Model Rule / Analysis", qd["rules"], READING_FONT_SIZE)
                 render_trigger_facts("Trigger Facts", qd)
                 render_raw_trigger_facts_expander(qd)
                 render_trap_warnings("Trap Warnings", qd["traps"])
+                with st.expander("Raw trap text", expanded=False):
+                    st.text(qd.get("traps", "") or "")
                 render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
                 render_trigger_candidate_diagnostics(qd)
                 render_sample_answer_section(qd, expanded=False)
@@ -5799,6 +6628,8 @@ elif menu == "Mini Essay Drill":
                     render_trigger_facts("Trigger Facts", qd)
                     render_raw_trigger_facts_expander(qd)
                     render_trap_warnings("Trap Warnings", qd["traps"])
+                    with st.expander("Raw trap text", expanded=False):
+                        st.text(qd.get("traps", "") or "")
                     render_sample_answer_section(qd, expanded=False)
 
             with main_col:
@@ -5919,14 +6750,16 @@ elif menu == "Issue Spotting Drill":
                 st.markdown("### Study Tools")
                 render_stopwatch(f"issue_{qd['id']}")
 
-                show_highlights_early = st.checkbox(
-                    "Review mode: show trigger fact highlights immediately",
-                    value=False,
-                )
-                show_explanations = st.checkbox(
-                    "Show explanation bubbles on highlighted facts",
-                    value=True,
-                )
+                with st.container(border=True):
+                    st.markdown('<div class="review-controls-title">Review Controls</div>', unsafe_allow_html=True)
+                    show_highlights_early = st.checkbox(
+                        "Review mode: show trigger fact highlights immediately",
+                        value=False,
+                    )
+                    show_explanations = st.checkbox(
+                        "Show explanation bubbles on highlighted facts",
+                        value=True,
+                    )
 
                 render_trigger_candidate_diagnostics(qd)
 
@@ -5940,6 +6773,8 @@ elif menu == "Issue Spotting Drill":
                     render_trigger_facts("Trigger Facts", qd)
                     render_raw_trigger_facts_expander(qd)
                     render_trap_warnings("Trap Warnings", qd["traps"])
+                    with st.expander("Raw trap text", expanded=False):
+                        st.text(qd.get("traps", "") or "")
                     render_question_highlights_with_fallback(
                         "Fact Pattern with Trigger Facts Highlighted by Question",
                         qd,
@@ -6559,6 +7394,8 @@ elif menu == "Timed IRAC Drill":
                 render_trigger_facts("Trigger Facts", qd)
                 render_raw_trigger_facts_expander(qd)
                 render_trap_warnings("Trap Warnings", qd["traps"])
+                with st.expander("Raw trap text", expanded=False):
+                    st.text(qd.get("traps", "") or "")
                 render_sample_answer_section(qd, expanded=False)
                 with st.expander("Fact Pattern with Trigger Facts Highlighted", expanded=False):
                     render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
@@ -6608,6 +7445,8 @@ elif menu == "Due Review Queue":
                 render_trigger_facts("Trigger Facts", qd)
                 render_raw_trigger_facts_expander(qd)
                 render_trap_warnings("Trap Warnings", qd["traps"])
+                with st.expander("Raw trap text", expanded=False):
+                    st.text(qd.get("traps", "") or "")
                 render_sample_answer_section(qd, expanded=False)
 
             score = st.slider("Review score", 0, 5, 0)
