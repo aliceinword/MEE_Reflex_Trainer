@@ -138,6 +138,25 @@ python import_master_rules.py "path/to/your-rule-book.docx"
 Re-running is safe — duplicate rules (same subject + title + source) are skipped,
 so you can edit your document and re-import anytime.
 
+### Importing Plug & Play essay templates (.docx)
+
+`import_plug_play_docx.py` loads your own essay templates. Expected structure
+(Word paragraph styles):
+
+| Style | Meaning |
+|-------|---------|
+| `Heading 1` | Subject (e.g. "AGENCY & PARTNERSHIPS") |
+| `Heading 2` | Module title (e.g. "ISSUE MODULE 1: ...") |
+| `Heading 3` | `SCENARIO TRIGGER` |
+| `Normal` | Body with label lines: `Issue:`, `Rule`, `Analysis Template`, `Conclusion` |
+
+```bash
+python import_plug_play_docx.py "path/to/your-templates.docx"
+```
+
+Re-running is safe — templates already present (same subject + title + source)
+are skipped.
+
 ---
 
 ## Project structure
