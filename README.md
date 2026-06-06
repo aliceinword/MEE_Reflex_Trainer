@@ -87,6 +87,18 @@ python import_plug_play_templates.py "path/to/your-templates.pdf"
 These scripts write to a local SQLite database (`mee_reflex.db`) that is ignored
 by git and never leaves your computer.
 
+## Adding your own rules
+
+You do not need a PDF for rules. On the **Attack Outline Rules** page, open
+**"Add your own rules"** to:
+
+- **Add one rule** at a time (subject, title, rule text) — handy whenever you
+  notice something missing.
+- **Bulk add from CSV** — download the template, fill in your own
+  (non-copyrighted) outline rules, and upload it.
+
+Everything you add stays in your local database.
+
 ---
 
 ## Project structure

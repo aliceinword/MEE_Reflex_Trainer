@@ -124,9 +124,9 @@ def add_outline_rule(subject, rule_title, appearance_rate, rule_text, pdf_page, 
         WHERE source_file = ?
         AND subject = ?
         AND rule_title = ?
-        AND pdf_page = ?
+        AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
         LIMIT 1
-    """, (source_file, subject, rule_title, pdf_page))
+    """, (source_file, subject, rule_title, pdf_page, pdf_page))
 
     existing = c.fetchone()
 

@@ -20,6 +20,7 @@ from database import (
     get_statuses,
     get_dashboard_stats,
     get_outline_rules,
+    add_outline_rule,
     search_outline_rules,
     find_best_outline_rules_for_question,
     get_plug_play_templates,
@@ -3740,16 +3741,134 @@ elif menu == "Due Review Queue":
 
 elif menu == "Attack Outline Rules":
     st.header("Attack Outline Rules")
-    st.caption("Search exact rules imported from your local Attack Outline PDF.")
+    st.caption("Search your rule outline, and add your own rules any time.")
 
     all_rules = get_outline_rules()
-    outline_subjects = ["All"] + sorted({row[1] for row in all_rules if row[1]})
+    existing_subjects = sorted({row[1] for row in all_rules if row[1]})
+    outline_subjects = ["All"] + existing_subjects
 
     if not all_rules:
-        st.warning(
-            "No Attack Outline rules imported yet. Put bar attack.pdf in this folder "
-            "or static/bar_attack.pdf, then run: python import_attack_outline.py \"bar attack.pdf\""
+        st.info(
+            "No rules yet. Use \"Add your own rules\" below to type or paste rules from "
+            "your own outline. You can also bulk-import from a CSV."
         )
+
+    with st.expander("Add your own rules", expanded=not all_rules):
+        add_tab, bulk_tab = st.tabs(["Add one rule", "Bulk add (CSV)"])
+
+        with add_tab:
+            with st.form("add_outline_rule_form", clear_on_submit=True):
+                rc1, rc2 = st.columns([2, 1])
+                with rc1:
+                    new_subject = st.text_input(
+                        "Subject",
+                        placeholder="e.g., Evidence, Contracts, Civil Procedure",
+                    )
+                with rc2:
+                    new_appearance = st.text_input(
+                        "Appearance rate (optional)",
+                        placeholder="e.g., High",
+                    )
+
+                if existing_subjects:
+                    st.caption("Existing subjects: " + ", ".join(existing_subjects))
+
+                new_title = st.text_input(
+                    "Rule title",
+                    placeholder="e.g., Hearsay - definition and exceptions",
+                )
+                new_rule_text = st.text_area(
+                    "Rule text",
+                    placeholder="Write or paste the rule statement, elements, and any exceptions.",
+                    height=180,
+                )
+                new_source = st.text_input("Source label", value="My outline")
+
+                submitted_rule = st.form_submit_button("Save rule")
+
+                if submitted_rule:
+                    if not new_subject.strip() or not new_title.strip() or not new_rule_text.strip():
+                        st.error("Subject, rule title, and rule text are all required.")
+                    else:
+                        created = add_outline_rule(
+                            new_subject.strip(),
+                            new_title.strip(),
+                            new_appearance.strip(),
+                            new_rule_text.strip(),
+                            None,
+                            "",
+                            new_source.strip() or "My outline",
+                        )
+                        if created:
+                            st.success("Rule added.")
+                            st.rerun()
+                        else:
+                            st.warning("A matching rule already exists (same subject, title, and source).")
+
+        with bulk_tab:
+            st.caption(
+                "Upload a CSV with columns: subject, rule_title, rule_text "
+                "(optional: appearance_rate, source)."
+            )
+
+            rule_template = pd.DataFrame([
+                {
+                    "subject": "Evidence",
+                    "rule_title": "Hearsay - definition",
+                    "rule_text": "Hearsay is an out-of-court statement offered to prove the truth of the matter asserted...",
+                    "appearance_rate": "High",
+                    "source": "My outline",
+                }
+            ])
+            rule_buffer = StringIO()
+            rule_template.to_csv(rule_buffer, index=False)
+            st.download_button(
+                "Download CSV template",
+                data=rule_buffer.getvalue(),
+                file_name="outline_rules_template.csv",
+                mime="text/csv",
+            )
+
+            rules_csv = st.file_uploader("Upload rules CSV", type=["csv"], key="rules_csv")
+
+            if rules_csv is not None:
+                rules_df = pd.read_csv(rules_csv).fillna("")
+                required = ["subject", "rule_title", "rule_text"]
+                missing = [c for c in required if c not in rules_df.columns]
+
+                if missing:
+                    st.error(f"Missing required columns: {missing}")
+                else:
+                    st.dataframe(rules_df.head(20), use_container_width=True)
+
+                    if st.button("Import rules from CSV"):
+                        added = 0
+                        skipped = 0
+                        for _, row in rules_df.iterrows():
+                            subject_value = str(row.get("subject", "")).strip()
+                            title_value = str(row.get("rule_title", "")).strip()
+                            text_value = str(row.get("rule_text", "")).strip()
+
+                            if not subject_value or not title_value or not text_value:
+                                skipped += 1
+                                continue
+
+                            created = add_outline_rule(
+                                subject_value,
+                                title_value,
+                                str(row.get("appearance_rate", "")).strip(),
+                                text_value,
+                                None,
+                                "",
+                                str(row.get("source", "")).strip() or "My outline (CSV)",
+                            )
+                            if created:
+                                added += 1
+                            else:
+                                skipped += 1
+
+                        st.success(f"Imported {added} rule(s). Skipped {skipped} (duplicate or incomplete).")
+                        st.rerun()
 
     col1, col2 = st.columns([2, 1])
 
