@@ -36,7 +36,7 @@ init_db()
 
 
 st.title("MEE Reflex Trainer")
-st.caption("Cute but deadly: issue spotting -> rule retrieval -> IRAC under pressure.")
+st.caption("Focused MEE training: issue spotting -> rule retrieval -> IRAC under pressure.")
 
 st.markdown("""
 <style>
@@ -48,25 +48,42 @@ st.markdown("""
 
 /* Main content container */
 .block-container {
-    padding-top: 2rem;
-    padding-bottom: 3rem;
-    max-width: 1200px;
+    width: 100%;
+    max-width: 1760px;
+    padding-top: 0.75rem;
+    padding-right: clamp(1rem, 2vw, 2rem);
+    padding-bottom: 2rem;
+    padding-left: clamp(1rem, 2vw, 2rem);
+}
+
+.main .block-container > div:first-child {
+    padding-top: 0;
 }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #EAF4FF 0%, #E8FFF9 100%);
     border-right: 2px solid #CDEBFF;
-    min-width: 290px !important;
-    width: 290px !important;
+    min-width: 320px !important;
+    width: 320px !important;
 }
 
 [data-testid="stSidebar"] * {
     color: #102033 !important;
 }
 
+[data-testid="stSidebar"] {
+    font-size: 16px !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] span {
+    font-size: 16px !important;
+}
+
 [data-testid="stSidebar"] > div {
-    min-width: 290px !important;
+    min-width: 320px !important;
 }
 
 /* Headers */
@@ -76,16 +93,44 @@ h1, h2, h3 {
 }
 
 h1 {
-    background: linear-gradient(90deg, #2563EB, #0F766E);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    background: none !important;
+    color: #2563EB !important;
+    -webkit-text-fill-color: #2563EB !important;
+    text-align: center !important;
+    line-height: 1.22 !important;
+    padding-top: 0.35rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+[data-testid="stHeading"]:has(h1),
+[data-testid="stHeading"] h1 {
+    width: 100% !important;
+    text-align: center !important;
+    overflow: visible !important;
+}
+
+[data-testid="stHeading"]:has(h1),
+[data-testid="stHeadingWithActionElements"]:has(h1),
+[data-testid="stHeading"] [data-testid="stMarkdownContainer"]:has(h1) {
+    min-height: 4.8rem !important;
+    overflow: visible !important;
+}
+
+h2, h3 {
+    margin-top: 0.75rem !important;
+    margin-bottom: 0.35rem !important;
+}
+
+div[data-testid="stCaptionContainer"],
+div[data-testid="stMarkdownContainer"] p {
+    margin-bottom: 0.35rem;
 }
 
 /* Cute cards */
 div[data-testid="stMetric"] {
     background: rgba(255, 255, 255, 0.85);
     border: 1.5px solid #CDEBFF;
-    border-radius: 18px;
+    border-radius: 14px;
     padding: 18px;
     box-shadow: 0 8px 24px rgba(29, 78, 137, 0.08);
 }
@@ -294,7 +339,7 @@ div[data-testid="stNumberInput"] button svg * {
 
 /* Info/success/warning boxes */
 div[data-testid="stAlert"] {
-    border-radius: 18px;
+    border-radius: 14px;
     border: 1.5px solid #CDEBFF;
 }
 
@@ -309,10 +354,10 @@ div[data-testid="stAlert"] {
 [role="radiogroup"] label {
     background-color: rgba(255, 255, 255, 0.65);
     color: #102033 !important;
-    padding: 8px 12px;
+    padding: 10px 13px;
     border-radius: 12px;
-    margin-bottom: 6px;
-    min-height: 38px;
+    margin-bottom: 7px;
+    min-height: 44px;
     width: 100%;
     white-space: normal !important;
     overflow: visible !important;
@@ -326,7 +371,20 @@ div[data-testid="stAlert"] {
     white-space: normal !important;
     overflow: visible !important;
     text-overflow: clip !important;
-    line-height: 1.25 !important;
+    line-height: 1.3 !important;
+}
+
+[data-testid="stSidebar"] [role="radiogroup"] label,
+[data-testid="stSidebar"] [role="radiogroup"] label div,
+[data-testid="stSidebar"] [role="radiogroup"] label p,
+[data-testid="stSidebar"] [role="radiogroup"] label span {
+    font-size: 18px !important;
+    line-height: 1.32 !important;
+}
+
+[data-testid="stSidebar"] [role="radiogroup"] label {
+    min-height: 50px !important;
+    padding: 11px 14px !important;
 }
 
 [role="radio"][aria-checked="true"],
@@ -385,11 +443,11 @@ header *,
 .readable-box {
     background: rgba(255, 255, 255, 0.92);
     border: 1.5px solid #CDEBFF;
-    border-radius: 20px;
-    padding: 1.2rem 1.4rem;
-    margin: 0.9rem 0 1.2rem 0;
-    box-shadow: 0 8px 24px rgba(29, 78, 137, 0.08);
-    max-width: 950px;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    margin: 0.55rem 0 0.8rem 0;
+    box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
+    max-width: 100%;
 }
 
 .readable-box.compact {
@@ -400,10 +458,10 @@ header *,
 .readable-title {
     color: #1D4E89;
     font-weight: 850;
-    font-size: 1.08rem;
-    margin-bottom: 0.8rem;
-    padding-bottom: 0.45rem;
-    border-bottom: 2px solid #EAF4FF;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid #DBEAFE;
 }
 
 .readable-box.compact .readable-title {
@@ -413,9 +471,10 @@ header *,
 
 .readable-text {
     color: #102033;
-    line-height: 1.8;
-    letter-spacing: 0.15px;
-    white-space: pre-wrap;
+    font-size: 16.5px;
+    line-height: 1.5;
+    letter-spacing: 0;
+    white-space: pre-line;
     word-break: normal;
     overflow-wrap: break-word;
 }
@@ -432,27 +491,27 @@ header *,
 .question-box {
     background: rgba(255, 255, 255, 0.96);
     border: 1.5px solid #CDEBFF;
-    border-radius: 18px;
-    padding: 1rem 1.15rem;
-    margin: 0.8rem 0 1rem 0;
-    box-shadow: 0 6px 18px rgba(29, 78, 137, 0.08);
-    max-width: 950px;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    margin: 0.55rem 0 0.8rem 0;
+    box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
+    max-width: 100%;
 }
 
 .question-title {
     color: #1D4E89;
     font-weight: 850;
     font-size: 1rem;
-    margin-bottom: 0.6rem;
-    padding-bottom: 0.35rem;
-    border-bottom: 2px solid #EAF4FF;
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid #DBEAFE;
 }
 
 .question-text {
     color: #102033;
-    font-size: 17px;
-    line-height: 1.55;
-    white-space: pre-wrap;
+    font-size: 16.5px;
+    line-height: 1.45;
+    white-space: pre-line;
     word-break: normal;
     overflow-wrap: break-word;
 }
@@ -461,32 +520,74 @@ header *,
     background: #DDF4FF;
 }
 
+.trigger-facts-text {
+    color: #102033;
+    font-size: 16.5px;
+    line-height: 1.38;
+    white-space: pre-line;
+    word-break: normal;
+    overflow-wrap: break-word;
+}
+
+.trigger-facts-text::selection {
+    background: #DDF4FF;
+}
+
+.hint-box {
+    background: rgba(255, 255, 255, 0.97);
+    border: 1.5px solid #BDE0FE;
+    border-radius: 14px;
+    padding: 0.8rem 1rem;
+    margin: 0.45rem 0 0.65rem 0;
+    box-shadow: 0 4px 14px rgba(29, 78, 137, 0.06);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.hint-title {
+    color: #1D4E89;
+    font-weight: 850;
+    font-size: 1rem;
+    margin-bottom: 0.35rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid #DBEAFE;
+}
+
+.hint-text {
+    color: #102033;
+    font-size: 16.5px;
+    line-height: 1.38;
+    white-space: pre-line;
+    word-break: normal;
+    overflow-wrap: break-word;
+}
+
 /* Compact calls of the question */
 .call-box {
     background: rgba(255, 255, 255, 0.96);
     border: 1.5px solid #BDE0FE;
-    border-radius: 18px;
+    border-radius: 14px;
     padding: 0.9rem 1rem;
-    margin: 0.75rem 0 1rem 0;
-    box-shadow: 0 6px 18px rgba(86, 207, 225, 0.10);
-    max-width: 920px;
+    margin: 0.55rem 0 0.8rem 0;
+    box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
+    max-width: 100%;
 }
 
 .call-title {
     color: #2563EB;
     font-weight: 850;
     font-size: 1rem;
-    margin-bottom: 0.6rem;
-    padding-bottom: 0.35rem;
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.25rem;
     border-bottom: 2px solid #DBEAFE;
 }
 
 .call-card {
     background: #F8FBFF;
     border: 1px solid #DBEAFE;
-    border-radius: 14px;
-    padding: 0.75rem 0.9rem;
-    margin: 0.55rem 0;
+    border-radius: 12px;
+    padding: 0.65rem 0.8rem;
+    margin: 0.45rem 0;
 }
 
 .call-card-label {
@@ -498,16 +599,16 @@ header *,
 
 .call-card-text {
     color: #1E293B;
-    font-size: 17px;
-    line-height: 1.45;
+    font-size: 16.5px;
+    line-height: 1.4;
     margin: 0;
 }
 
 .call-subpart {
     color: #1E293B;
-    font-size: 16.5px;
-    line-height: 1.45;
-    margin-top: 0.45rem;
+    font-size: 16px;
+    line-height: 1.4;
+    margin-top: 0.35rem;
     padding-left: 0.65rem;
     border-left: 3px solid #BFDBFE;
 }
@@ -521,36 +622,36 @@ header *,
 /* Compact Attack Outline rule boxes */
 .outline-rule-box {
     background: rgba(255, 255, 255, 0.97);
-    border: 1.5px solid #D8B4FE;
-    border-radius: 18px;
-    padding: 1rem 1.25rem;
-    margin: 0.75rem 0 1rem 0;
-    box-shadow: 0 6px 18px rgba(90, 24, 154, 0.08);
-    max-width: 880px;
+    border: 1.5px solid #BDE0FE;
+    border-radius: 14px;
+    padding: 0.8rem 1rem;
+    margin: 0.45rem 0 0.65rem 0;
+    box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
+    max-width: 100%;
 }
 
 .outline-rule-title {
-    color: #6D28D9;
+    color: #1D4E89;
     font-weight: 850;
-    font-size: 1.05rem;
-    margin-bottom: 0.55rem;
-    padding-bottom: 0.35rem;
-    border-bottom: 2px solid #EDE9FE;
+    font-size: 1rem;
+    margin-bottom: 0.35rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid #DBEAFE;
 }
 
 .outline-rule-text {
-    color: #2D1B3D;
-    font-size: 17px;
-    line-height: 1.62;
-    letter-spacing: 0.1px;
-    white-space: pre-wrap;
+    color: #102033;
+    font-size: 16.5px;
+    line-height: 1.38;
+    letter-spacing: 0;
+    white-space: pre-line;
     word-break: normal;
     overflow-wrap: break-word;
 }
 
 .outline-rule-box.reading-mode .outline-rule-text {
     font-size: 18px;
-    line-height: 1.7;
+    line-height: 1.55;
 }
 
 .outline-rule-text::selection {
@@ -560,37 +661,61 @@ header *,
 /* Plug & Play template boxes */
 .plug-box {
     background: rgba(255, 255, 255, 0.97);
-    border: 1.5px solid #FFAFCC;
-    border-radius: 20px;
-    padding: 1rem 1.25rem;
-    margin: 0.85rem 0 1.1rem 0;
-    box-shadow: 0 6px 18px rgba(255, 143, 171, 0.12);
-    max-width: 900px;
+    border: 1.5px solid #BDE0FE;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    margin: 0.55rem 0 0.8rem 0;
+    box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: none;
+}
+
+.plug-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    width: 100%;
+}
+
+.plug-section {
+    min-width: 0;
 }
 
 .plug-title {
-    color: #BE185D;
+    color: #1D4E89;
     font-weight: 850;
-    font-size: 1.08rem;
-    margin-bottom: 0.55rem;
-    padding-bottom: 0.35rem;
-    border-bottom: 2px solid #FFE4EF;
+    font-size: 1.02rem;
+    margin-bottom: 0.35rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 2px solid #DBEAFE;
 }
 
 .plug-section-title {
-    color: #7C2D12;
+    color: #0F766E;
     font-weight: 800;
-    margin-top: 0.8rem;
+    margin-top: 0.15rem;
     margin-bottom: 0.25rem;
 }
 
 .plug-text {
-    color: #2D1B3D;
-    font-size: 16.5px;
-    line-height: 1.65;
-    white-space: pre-wrap;
+    color: #102033;
+    font-size: 16px;
+    line-height: 1.42;
+    white-space: pre-line;
     word-break: normal;
     overflow-wrap: break-word;
+}
+
+.plug-meta {
+    margin-bottom: 0.75rem;
+}
+
+@media (max-width: 900px) {
+    .plug-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Little soft divider vibe */
@@ -599,6 +724,13 @@ hr {
     height: 2px;
     background: linear-gradient(90deg, #2563EB, #14B8A6, #7DD3FC);
     border-radius: 999px;
+}
+
+/* Practice page — thin metadata strip metric labels */
+[data-testid="stMetricLabel"] p,
+[data-testid="stMetricLabel"] {
+    font-size: 0.72rem !important;
+    line-height: 1.2 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -828,6 +960,42 @@ def render_question_text(title, question_text):
     )
 
 
+def render_prompt(text):
+    if not text:
+        paragraphs = ["No prompt available."]
+    else:
+        formatted = str(text).replace("\r\n", "\n").replace("\r", "\n").replace("\u00a0", " ")
+        formatted = re.sub(r"(?<=[a-z0-9][.!?])\s*(?=[A-Z])", "\n\n", formatted)
+        paragraphs = [
+            paragraph.strip()
+            for paragraph in re.split(r"\n+", formatted)
+            if paragraph.strip()
+        ]
+
+    paragraph_html = "".join(
+        f'<p style="margin-bottom:1.2em">{escape_display_text(paragraph)}</p>'
+        for paragraph in paragraphs
+    )
+
+    st.markdown(
+        (
+            '<div style="'
+            'font-size: 1.05rem;'
+            'line-height: 1.9;'
+            'color: #1a1a2e;'
+            'background: #f8f9fa;'
+            'padding: 1.2rem 1.5rem;'
+            'border-radius: 8px;'
+            'border-left: 4px solid #4a90d9;'
+            'white-space: pre-wrap;'
+            '">'
+            f'{paragraph_html}'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+
 def clean_trigger_facts_text(text):
     if not text:
         return "No trigger facts available."
@@ -843,14 +1011,26 @@ def clean_trigger_facts_text(text):
 
     text = " ".join(lines)
     text = re.sub(r"\s*;\s*", ";\n", text)
-    text = re.sub(r"\s+(\(\d+\)|\d+\.|[a-z]\.)\s+", r"\n\1 ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+(\(\d+\)|\d+\.)\s+", r"\n\1 ", text)
 
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     return "\n".join(lines).strip()
 
 
 def render_trigger_facts_text(title, text):
-    render_question_text(title, clean_trigger_facts_text(text))
+    formatted = clean_trigger_facts_text(text)
+    safe_title = escape_display_text(title)
+    safe_text = escape_display_text(formatted)
+
+    st.markdown(
+        (
+            '<div class="question-box">'
+            f'<div class="question-title">{safe_title}</div>'
+            f'<div class="trigger-facts-text">{safe_text}</div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 def clean_tested_issues_text(text):
@@ -998,6 +1178,8 @@ def clean_outline_text(text):
     text = str(text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("\u00a0", " ")
+    text = text.replace("Ãƒâ€šÃ‚Â§", "§").replace("Ã‚Â§", "§").replace("Â§", "§")
+    text = text.replace("Ãƒâ€šÃ‚Â©", "©").replace("Ã‚Â©", "©").replace("Â©", "©")
 
     junk_patterns = [
         r"Ã‚Â©\s*\d{4}\s+Studicata.*",
@@ -1016,6 +1198,8 @@ def clean_outline_text(text):
         text = re.sub(pattern, "", text, flags=re.IGNORECASE)
 
     text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"§\s+(\d+)\.\s+(\d+)", r"§ \1.\2", text)
+    text = re.sub(r"(?<=[a-z0-9])\.(?=[A-Z])", ". ", text)
     text = re.sub(r"Ã‚Â§\s+(\d+)\.\s+(\d+)", r"Â§ \1.\2", text)
     text = re.sub(r"Â§\s+(\d+)\.\s+(\d+)", r"Â§ \1.\2", text)
 
@@ -1033,7 +1217,7 @@ def clean_outline_text(text):
     ]
 
     for word in transitions:
-        text = re.sub(rf"\s+({re.escape(word)})", r"\n\n\1", text)
+        text = re.sub(rf"\s+({re.escape(word)})", r"\n\1", text)
 
     lines = [line.rstrip() for line in text.splitlines()]
     cleaned_lines = []
@@ -1041,10 +1225,7 @@ def clean_outline_text(text):
     for line in lines:
         line = line.strip()
 
-        if not line:
-            if cleaned_lines and cleaned_lines[-1] != "":
-                cleaned_lines.append("")
-        else:
+        if line:
             cleaned_lines.append(line)
 
     compact_lines = []
@@ -1072,7 +1253,8 @@ def clean_outline_text(text):
         index += 1
 
     text = "\n".join(compact_lines)
-    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"\n{2,}", "\n", text)
+    text = re.sub(r"(?<!\n)\s+(Rule:|Exception:|Example:|Note:)", r"\n\1", text, flags=re.IGNORECASE)
 
     return text.strip()
 
@@ -1102,8 +1284,10 @@ def render_plug_section(title, text):
     safe_text = escape_display_text(str(text).strip())
 
     return (
+        '<div class="plug-section">'
         f'<div class="plug-section-title">{safe_title}</div>'
         f'<div class="plug-text">{safe_text}</div>'
+        '</div>'
     )
 
 
@@ -1138,8 +1322,8 @@ def render_plug_play_template(template):
         (
             '<div class="plug-box">'
             f'<div class="plug-title">Plug & Play Template: {safe_title}</div>'
-            f'<div class="plug-text"><strong>{safe_meta}</strong></div>'
-            f'{section_html}'
+            f'<div class="plug-text plug-meta"><strong>{safe_meta}</strong></div>'
+            f'<div class="plug-grid">{section_html}</div>'
             '</div>'
         ),
         unsafe_allow_html=True,
@@ -1165,7 +1349,6 @@ def render_attack_rule_box(rule):
         source_file,
     ) = rule
 
-    st.markdown("### Exact Rule from Attack Outline")
     st.caption(
         f"Subject: {subject or 'n/a'} | Appearance Rate: {appearance_rate or 'n/a'} | "
         f"PDF Page: {pdf_page or 'n/a'}"
@@ -1193,7 +1376,7 @@ def first_nonempty_lines(text, n=3):
     if not lines:
         return "No hint available yet."
 
-    return "\n\n".join(lines[:n])
+    return "\n".join(lines[:n])
 
 
 def make_rule_skeleton(rules):
@@ -1228,7 +1411,7 @@ def make_rule_skeleton(rules):
             break
 
     if rule_sentences:
-        return "\n\n".join(rule_sentences)
+        return "\n".join(rule_sentences)
 
     return make_short_hint(text, max_sentences=3, max_chars=800)
 
@@ -1275,10 +1458,10 @@ def make_short_hint(text, max_sentences=3, max_chars=900):
         selected.append(sentence)
         total += len(sentence)
 
-    result = "\n\n".join(selected)
+    result = "\n".join(selected)
 
     if len(result) < len(make_readable_legal_text(text)):
-        result += "\n\n..."
+        result += "\n..."
 
     return result
 
@@ -1286,10 +1469,13 @@ def make_short_hint(text, max_sentences=3, max_chars=900):
 def make_trigger_fact_hint(qd):
     trigger_text = qd.get("trigger_facts", "")
 
-    if trigger_text and len(trigger_text) < 1200:
-        return make_short_hint(trigger_text, max_sentences=4, max_chars=900)
+    if trigger_text:
+        return first_nonempty_lines(clean_trigger_facts_text(trigger_text), n=5)
 
-    question_text = qd.get("question_text", "")
+    question_text = extract_fact_pattern_only(
+        qd.get("question_text", ""),
+        qd.get("call_of_question", ""),
+    )
 
     if not question_text:
         return "No trigger facts available yet."
@@ -1329,7 +1515,7 @@ def make_trigger_fact_hint(qd):
             break
 
     if picked:
-        return "\n\n".join(picked)
+        return "\n".join(picked)
 
     return make_short_hint(question_text, max_sentences=4, max_chars=900)
 
@@ -1351,13 +1537,58 @@ def make_progressive_hints(qd):
     return {
         "Hint 1 - Read the call": clean_call_text(qd.get("call_of_question", "")),
         "Hint 2 - Subject bucket": (
-            f"Primary subject: {qd.get('subject', 'Unknown')}.\n\n"
+            f"Primary subject: {qd.get('subject', 'Unknown')}.\n"
             "Ask: which doctrine inside this subject controls the answer?"
         ),
         "Hint 3 - Rule skeleton": rule_hint,
         "Hint 4 - Trigger facts": make_trigger_fact_hint(qd),
         "Hint 5 - Trap warning": make_short_hint(qd.get("traps", ""), max_sentences=3, max_chars=700),
     }
+
+
+def clean_hint_display_text(text):
+    if not text:
+        return "No hint available yet."
+
+    lines = []
+
+    for line in str(text).replace("\r\n", "\n").replace("\r", "\n").splitlines():
+        line = re.sub(r"[ \t]+", " ", line).strip()
+
+        if not line:
+            continue
+
+        if re.match(r"^\d+\.\s*(?:\.\.\.)?$", line):
+            continue
+
+        if re.match(r"^\d+\.\s+", line) and re.search(
+            r"\b(Explain|Should|Would|Did|Does|Is|Are|Can|May|Assuming)\b",
+            line,
+            flags=re.IGNORECASE,
+        ):
+            continue
+
+        lines.append(line)
+
+    cleaned = "\n".join(lines)
+    cleaned = re.sub(r"\n{2,}", "\n", cleaned)
+    cleaned = re.sub(r"^[A-Z]\.\s+(?=[A-Z][a-z])", "", cleaned)
+    return cleaned.strip() or "No hint available yet."
+
+
+def render_hint_text(title, text):
+    safe_title = escape_display_text(title)
+    safe_text = escape_display_text(clean_hint_display_text(text))
+
+    st.markdown(
+        (
+            '<div class="hint-box">'
+            f'<div class="hint-title">{safe_title}</div>'
+            f'<div class="hint-text">{safe_text}</div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 def render_progressive_hints(qd):
@@ -1377,8 +1608,10 @@ def render_progressive_hints(qd):
         with st.expander(hint_title, expanded=False):
             if hint_title.startswith("Hint 1"):
                 render_call_text("Call of the Question", qd.get("call_of_question", ""))
+            elif hint_title.startswith("Hint 4"):
+                render_hint_text(hint_title, clean_trigger_facts_text(hint_text))
             else:
-                render_readable_text(hint_title, hint_text)
+                render_hint_text(hint_title, hint_text)
             st.warning("Try to write again before opening the next hint.")
 
         if hint_title.startswith("Hint 2"):
@@ -1758,7 +1991,7 @@ def render_subquestion_card(qd, subq, index, hints_used=0):
 
         plug_search_term = st.text_input(
             f"Search Plug & Play templates for {label}",
-            placeholder="agency authority, personal jurisdiction, statute of frauds",
+            placeholder="personal jurisdiction, hearsay, statute of frauds",
             key=f"plug_search_{qd['id']}_{index}",
         )
 
@@ -1804,7 +2037,7 @@ def render_subquestion_card(qd, subq, index, hints_used=0):
 
     issue_spotted = st.text_area(
         f"{label} - Your issue",
-        placeholder="Example: Whether Kim was Comet's agent when she bought the treadmill.",
+        placeholder="Example: Whether the facts satisfy the legal test asked by this call.",
         height=90,
         key=f"{key_prefix}_issue",
     )
@@ -1965,16 +2198,6 @@ def question_picker(active_default=True, due_only=False):
 
     st.caption(f"{len(questions)} matching questions")
 
-    picker_key = f"question_picker_{active_default}_{due_only}_{subject_filter}_{status_filter}_{search}"
-    surprise_col, count_col = st.columns([1, 3])
-
-    with surprise_col:
-        if st.button("Pick for me", key=f"{picker_key}_surprise"):
-            st.session_state[picker_key] = random.randrange(len(questions))
-
-    with count_col:
-        st.write("Use the picker when you know what you want; use random when starting is the hard part.")
-
     labels = []
     for row in questions:
         due = f" | Due {format_review_date(row[6])}" if row[6] else ""
@@ -1982,11 +2205,32 @@ def question_picker(active_default=True, due_only=False):
             f"{row[0]} - {row[1]} Q{row[2]} - {row[3]} - {row[4]} - Priority {row[5]}{due}"
         )
 
-    selected_index = min(st.session_state.get(picker_key, 0), len(labels) - 1)
-    selected_label = st.selectbox("Pick a question", labels, index=selected_index, key=f"{picker_key}_select")
-    st.session_state[picker_key] = labels.index(selected_label)
+    picker_key = f"question_picker_{active_default}_{due_only}_{subject_filter}_{status_filter}_{search}"
+    select_key = f"{picker_key}_select"
 
-    return questions[st.session_state[picker_key]][0]
+    selected_index = min(st.session_state.get(picker_key, 0), len(labels) - 1)
+
+    if select_key not in st.session_state or st.session_state[select_key] not in labels:
+        st.session_state[select_key] = labels[selected_index]
+    else:
+        selected_index = labels.index(st.session_state[select_key])
+
+    surprise_col, count_col = st.columns([1, 3])
+
+    with surprise_col:
+        if st.button("Pick for me", key=f"{picker_key}_surprise"):
+            selected_index = random.randrange(len(questions))
+            st.session_state[picker_key] = selected_index
+            st.session_state[select_key] = labels[selected_index]
+
+    with count_col:
+        st.write("Use the picker when you know what you want; use random when starting is the hard part.")
+
+    selected_label = st.selectbox("Pick a question", labels, key=select_key)
+    selected_index = labels.index(selected_label)
+    st.session_state[picker_key] = selected_index
+
+    return questions[selected_index][0]
 
 
 menu = st.sidebar.radio(
@@ -2018,9 +2262,9 @@ if ADHD_READING_MODE:
     COMPACT_MODE = False
 else:
     READING_FONT_SIZE = st.sidebar.slider("Legal text size", 15, 24, 18)
-    READING_LINE_HEIGHT = 1.8
-    READING_MAX_WIDTH = 950
-    READING_BOX_PADDING = "1.2rem 1.4rem"
+    READING_LINE_HEIGHT = 1.55
+    READING_MAX_WIDTH = 1280
+    READING_BOX_PADDING = "0.9rem 1rem"
     COMPACT_MODE = st.sidebar.checkbox("Compact mode", value=False)
 
 if COMPACT_MODE and not ADHD_READING_MODE:
@@ -2033,34 +2277,34 @@ st.markdown(f"""
 .readable-box {{
     background: rgba(255, 255, 255, 0.96) !important;
     border: 1.5px solid #CDEBFF !important;
-    border-radius: 22px !important;
+    border-radius: 14px !important;
     padding: {READING_BOX_PADDING} !important;
-    margin: 1rem 0 1.4rem 0 !important;
-    box-shadow: 0 8px 24px rgba(29, 78, 137, 0.08) !important;
-    max-width: {READING_MAX_WIDTH}px !important;
+    margin: 0.55rem 0 0.8rem 0 !important;
+    box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07) !important;
+    max-width: min({READING_MAX_WIDTH}px, 100%) !important;
 }}
 
 .readable-title {{
     color: #1D4E89 !important;
     font-weight: 850 !important;
-    font-size: 1.1rem !important;
-    margin-bottom: 0.9rem !important;
-    padding-bottom: 0.5rem !important;
-    border-bottom: 2px solid #EAF4FF !important;
+    font-size: 1rem !important;
+    margin-bottom: 0.4rem !important;
+    padding-bottom: 0.25rem !important;
+    border-bottom: 2px solid #DBEAFE !important;
 }}
 
 .readable-text {{
     color: #102033 !important;
     font-size: {READING_FONT_SIZE}px !important;
     line-height: {READING_LINE_HEIGHT} !important;
-    letter-spacing: 0.2px !important;
-    white-space: pre-wrap !important;
+    letter-spacing: 0 !important;
+    white-space: pre-line !important;
     word-break: normal !important;
     overflow-wrap: break-word !important;
 }}
 
 .readable-text p {{
-    margin-bottom: 1.1rem !important;
+    margin-bottom: 0.6rem !important;
 }}
 
 .readable-text::selection {{
@@ -2106,7 +2350,7 @@ if menu == "Dashboard":
     col3.metric("Unpracticed Questions", stats["unpracticed_questions"])
 
     st.markdown("""
-    ### Minimum ADHD Session: 35 minutes
+    ### Minimum Practice Session: 35 minutes
 
     1. **5 min** - Issue spotting
     2. **7 min** - Rule retrieval
@@ -2114,12 +2358,12 @@ if menu == "Dashboard":
     4. **5 min** - Self-grade
     5. **3 min** - Make one weak-rule note
 
-    **Rule:** no passive rereading before retrieval.
+    **Rule:** attempt retrieval before reviewing the answer.
     """)
 
-    st.info("Your goal is not to feel ready. Your goal is to create reflexes.")
+    st.info("The goal is to build reliable recall, not to wait until the question feels easy.")
 
-    st.subheader("Today's Tiny Win")
+    st.subheader("Today's Quick Win")
     st.markdown("""
     - **Do one Level 1 Mini Run**
     - **Save the attempt**
@@ -2178,7 +2422,7 @@ if menu == "Dashboard":
             st.dataframe(subject_df, use_container_width=True, hide_index=True)
         else:
             st.subheader("Weakest Subjects First")
-            st.info("No attempts yet. One ugly rep will make this useful.")
+            st.info("No attempts yet. Complete one short practice attempt to activate this view.")
 
     with col2:
         st.subheader("Due and Untouched")
@@ -2193,9 +2437,9 @@ if menu == "Dashboard":
             )
             st.dataframe(untouched_df, use_container_width=True, hide_index=True)
         else:
-            st.success("No due reviews and no untouched active questions. Nice.")
+            st.success("No due reviews and no untouched active questions.")
 
-    st.success("Start ugly. Retrieval beats inspiration.")
+    st.success("Start with retrieval. Polish after the first attempt.")
 
 
 elif menu == "Bulk Import MEE Bank":
@@ -2210,7 +2454,7 @@ elif menu == "Bulk Import MEE Bank":
     3. Mark July 2026 relevance.  
     4. Practice from the app.
 
-    **ADHD rule:** import 10-20 questions at a time. Do not spend all day organizing instead of practicing.
+    **Practice rule:** import 10-20 questions at a time, then return to training.
     """)
 
     template = pd.DataFrame([
@@ -2219,15 +2463,15 @@ elif menu == "Bulk Import MEE Bank":
             "exam_year": 2021,
             "exam_season": "February",
             "question_number": "1",
-            "subject": "Agency & Partnership",
-            "secondary_subjects": "Torts",
+            "subject": "Civil Procedure",
+            "secondary_subjects": "",
             "question_text": "[Paste private question text here]",
-            "call_of_question": "Are the parties partners? Is there vicarious liability? Employee or independent contractor?",
-            "tested_issues": "Partnership formation; profit-sharing presumption; partner liability; employee vs independent contractor; respondeat superior",
-            "rules": "Agency requires consent and control. A general partnership requires two or more persons carrying on as co-owners of a business for profit. An employer may be liable for employee torts within the scope of employment. A principal generally is not liable for independent contractor torts.",
-            "trigger_facts": "10% of profits; $20 daily delivery; woman texts produce requests; man chooses vendors; own car; own credit card; accident while parking at market",
-            "traps": "Profit sharing is evidence but not automatically partnership. Control determines employee vs independent contractor. Scope of employment matters.",
-            "model_points": "Discuss partnership first, then liability if partnership, then employee status, then independent contractor status.",
+            "call_of_question": "What legal result should the court reach? Explain.",
+            "tested_issues": "Issue one; issue two; issue three",
+            "rules": "Rule one. Rule two. Rule three.",
+            "trigger_facts": "Fact that triggers issue one; fact that triggers issue two; fact that creates a trap",
+            "traps": "Common wrong turn; missing element; misleading fact",
+            "model_points": "What a passing answer must discuss.",
             "active_for_july_2026": 1,
             "july_2026_status": "Active standalone MEE",
             "priority": 5,
@@ -2244,6 +2488,7 @@ elif menu == "Bulk Import MEE Bank":
         file_name="mee_import_template.csv",
         mime="text/csv"
     )
+    st.caption("💡 Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
 
     uploaded_file = st.file_uploader("Upload completed CSV", type=["csv"])
 
@@ -2305,7 +2550,7 @@ elif menu == "Bulk Import MEE Bank":
 elif menu == "Add MEE Question":
     st.header("Add MEE Question")
 
-    st.markdown("Manual entry is for high-value questions only. Do not turn this into data-entry prison.")
+    st.markdown("Manual entry is best for high-value questions that need custom tagging.")
 
     with st.form("add_question_form"):
         col1, col2, col3 = st.columns(3)
@@ -2317,8 +2562,8 @@ elif menu == "Add MEE Question":
 
         with col2:
             question_number = st.text_input("Question number", placeholder="1")
-            subject = st.text_input("Primary subject", placeholder="Agency & Partnership")
-            secondary_subjects = st.text_input("Secondary subjects", placeholder="Torts, Evidence")
+            subject = st.text_input("Primary subject", placeholder="Civil Procedure")
+            secondary_subjects = st.text_input("Secondary subjects", placeholder="Evidence, Torts")
 
         with col3:
             july_2026_status = st.selectbox(
@@ -2339,11 +2584,12 @@ elif menu == "Add MEE Question":
         )
 
         question_text = st.text_area("Question text", height=250)
+        st.caption("💡 Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
         call_of_question = st.text_area("Call of the question", height=100)
 
         tested_issues = st.text_area(
             "Tested issues",
-            placeholder="Partnership formation; profit-sharing presumption; employee vs independent contractor",
+            placeholder="Issue one; issue two; issue three",
             height=120
         )
 
@@ -2355,13 +2601,13 @@ elif menu == "Add MEE Question":
 
         trigger_facts = st.text_area(
             "Trigger facts",
-            placeholder="10% profits; texts with instructions; own car; selected vendors",
+            placeholder="Fact that triggers issue one; fact that triggers issue two; fact that creates a trap",
             height=120
         )
 
         traps = st.text_area(
             "Traps",
-            placeholder="Profit sharing alone is not always enough; control matters.",
+            placeholder="Common wrong turn; missing element; misleading fact.",
             height=120
         )
 
@@ -2457,14 +2703,14 @@ elif menu == "MEE Muscle Ladder":
                 target_minutes = 30
                 st.success("Goal: full timed MEE simulation.")
 
-            st.info(f"Set a timer for {target_minutes} minutes. Do not pause. Done is better than perfect.")
-            st.warning("Retrieve first. Do not reveal the answer bank until you have written something from memory.")
+            st.info(f"Set a timer for {target_minutes} minutes and complete the attempt before polishing.")
+            st.warning("Attempt retrieval before revealing the answer bank.")
 
             with st.expander("Call of the Question", expanded=True):
                 render_call_text("Call of the Question", qd["call_of_question"])
 
             with st.expander("Question Text", expanded=True):
-                render_question_text("Fact Pattern", extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
+                render_prompt(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
 
             hints_used = render_progressive_hints(qd)
 
@@ -2475,19 +2721,19 @@ elif menu == "MEE Muscle Ladder":
 
                 user_issues = st.text_area(
                     "Step A - What issues do you see?",
-                    placeholder="Example: partnership formation; vicarious liability; employee vs independent contractor",
+                    placeholder="Example: list each legal issue raised by this call.",
                     height=120
                 )
 
                 user_rules = st.text_area(
                     "Step B - Write the rules from memory",
-                    placeholder="Example: A partnership forms when... An employer is liable when...",
+                    placeholder="Example: write the governing test, elements, or standard from memory.",
                     height=160
                 )
 
                 user_facts = st.text_area(
                     "Optional - Which facts triggered those issues?",
-                    placeholder="Example: 10% profits; texts with instructions; own car",
+                    placeholder="Example: quote or summarize the facts that connect to each rule element.",
                     height=100
                 )
 
@@ -2563,7 +2809,7 @@ TRIGGER FACTS:
 
             st.divider()
 
-            st.warning("Reveal only after you have attempted retrieval. No passive reading.")
+            st.warning("Reveal only after you have attempted retrieval.")
 
             if st.button("Reveal Answer Bank"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
@@ -2596,13 +2842,13 @@ TRIGGER FACTS:
 
             missed = st.text_area(
                 "What did you miss?",
-                placeholder="Example: I saw agency but missed partnership presumption.",
+                placeholder="Example: I spotted the broad issue but missed one required element.",
                 height=100
             )
 
             notes = st.text_area(
                 "Fix note for future you",
-                placeholder="Example: Next time ask: who controls? who profits? ordinary course?",
+                placeholder="Example: Next time ask which rule element each fact proves.",
                 height=100
             )
 
@@ -2626,7 +2872,7 @@ TRIGGER FACTS:
 elif menu == "Mini Essay Drill":
     st.header("Mini Essay Drill")
     st.caption("Previous exam question -> issue -> rule -> trigger facts. No full essay.")
-    st.info("This is an 8-minute drill. You are training recognition, not perfection.")
+    st.info("This is an 8-minute drill focused on recognition, rule recall, and fact connection.")
 
     question_id = question_picker(active_default=True)
 
@@ -2650,13 +2896,10 @@ elif menu == "Mini Essay Drill":
                 render_call_text("Call of the Question", qd["call_of_question"])
 
             st.markdown("### Mini Fact Packet")
-            render_question_text(
-                "Mini Fact Packet",
-                make_mini_fact_packet(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])),
-            )
+            render_prompt(make_mini_fact_packet(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])))
 
             with st.expander("Open full question if needed", expanded=False):
-                render_question_text("Fact Pattern", extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
+                render_prompt(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
 
             try:
                 hints_used = render_progressive_hints(qd)
@@ -2679,7 +2922,7 @@ elif menu == "Mini Essay Drill":
             with st.expander("Search Attack Outline rules manually", expanded=False):
                 search_term = st.text_input(
                     "Search Attack Outline rules",
-                    placeholder="agency creation, actual authority, hearsay, personal jurisdiction"
+                    placeholder="personal jurisdiction, hearsay, statute of frauds"
                 )
 
                 if search_term:
@@ -2692,7 +2935,7 @@ elif menu == "Mini Essay Drill":
                         st.info("No Attack Outline rules matched that search.")
 
             st.divider()
-            st.warning("Reveal only after you wrote at least one issue and one rule. No passive reading.")
+            st.warning("Reveal only after you have written at least one issue and one rule.")
 
             if st.button("Reveal Issues + Rules"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
@@ -2706,7 +2949,7 @@ elif menu == "Mini Essay Drill":
             st.divider()
             st.info(
                 "Score the whole mini drill honestly. If you needed hints or only got one call right, "
-                "do not give yourself a 5."
+                "reserve a 5 for a complete, mostly independent answer."
             )
 
             col1, col2, col3 = st.columns(3)
@@ -2729,13 +2972,13 @@ elif menu == "Mini Essay Drill":
 
             missed = st.text_area(
                 "What did you miss?",
-                placeholder="Example: I saw agency but missed partnership presumption.",
+                placeholder="Example: I spotted the broad issue but missed one required element.",
                 height=100
             )
 
             notes = st.text_area(
                 "Fix note for future you",
-                placeholder="Example: Next time ask: relationship? authority? liability?",
+                placeholder="Example: Next time map issue -> rule -> trigger fact before writing.",
                 height=100
             )
 
@@ -2752,11 +2995,11 @@ elif menu == "Mini Essay Drill":
                     minutes_spent=8
                 )
 
-                st.success("Mini essay attempt saved. Tiny rep completed.")
+                st.success("Mini essay attempt saved.")
                 st.balloons()
 
             st.info(
-                "Mini Essay Rule: if you can spot the issue and write the rule cold, "
+                "Mini Essay Rule: if you can spot the issue and write the rule from memory, "
                 "the full essay becomes much easier."
             )
 
@@ -2776,25 +3019,25 @@ elif menu == "Issue Spotting Drill":
 
             render_question_overview(qd)
 
-            st.info("Timer target: 5 minutes. Read the call first. Then hunt legal triggers.")
+            st.info("Timer target: 5 minutes. Read the call first, then identify the legal triggers.")
 
             with st.expander("Call of the Question", expanded=True):
                 render_call_text("Call of the Question", qd["call_of_question"])
 
             with st.expander("Question Text", expanded=True):
-                render_question_text("Fact Pattern", extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
+                render_prompt(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
 
             hints_used = render_progressive_hints(qd)
 
             user_issues = st.text_area(
                 "Your issue list",
-                placeholder="List every issue you see. No perfect prose.",
+                placeholder="List each issue in short phrases.",
                 height=180
             )
 
             confidence = st.slider("Confidence", 1, 5, 3)
 
-            st.warning("Reveal only after you have attempted retrieval. No passive reading.")
+            st.warning("Reveal only after you have attempted retrieval.")
 
             if st.button("Reveal Tested Issues"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
@@ -2846,7 +3089,7 @@ elif menu == "Rule Retrieval Drill":
             st.markdown("### Tested Issue Bank")
             render_tested_issues_text("Tested Issues", qd["tested_issues"])
 
-            st.warning("Closed-book rule retrieval first. Do not look at the rule until you try.")
+            st.warning("Write the rule from memory before opening the answer.")
 
             hints_used = render_progressive_hints(qd)
 
@@ -2856,7 +3099,7 @@ elif menu == "Rule Retrieval Drill":
                 height=180
             )
 
-            st.warning("Reveal only after you have attempted retrieval. No passive reading.")
+            st.warning("Reveal only after you have attempted retrieval.")
 
             if st.button("Reveal Rule"):
                 render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
@@ -2902,71 +3145,121 @@ elif menu == "Timed IRAC Drill":
         else:
             qd = unpack_question(q)
 
-            render_question_overview(qd)
+            render_data_health_warning(qd)
 
-            st.info("Target: 30 minutes for full essay. For ADHD practice, start with one 15-minute IRAC paragraph.")
+            # Thin 4-column metadata strip
+            _mc1, _mc2, _mc3, _mc4 = st.columns(4)
+            _mc1.metric("Exam", f"{qd['exam_name']} Q{qd['question_number']}")
+            _mc2.metric("Subject", qd["subject"])
+            _mc3.metric("Status", qd["july_2026_status"] or "—")
+            _mc4.metric("Priority", qd["priority"] or "—")
 
-            with st.expander("Question", expanded=True):
-                render_question_text("Fact Pattern", extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
+            # Persist hints_used across renders via session state
+            _hints_key = f"timed_irac_hints_{question_id}"
+            hints_used = st.session_state.get(_hints_key, 0)
 
-            with st.expander("Call", expanded=True):
+            # ── Two-column split layout ──────────────────────────────────────
+            left_col, right_col = st.columns([1, 1])
+
+            with left_col:
+                st.markdown(
+                    '<p style="font-size:0.88rem;font-weight:700;color:#58708A;margin-bottom:0.35rem">📄 Question Prompt</p>',
+                    unsafe_allow_html=True,
+                )
+
+                _prompt_text = extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
+
+                if _prompt_text:
+                    _fmt = str(_prompt_text).replace("\r\n", "\n").replace("\r", "\n").replace(" ", " ")
+                    _fmt = re.sub(r"(?<=[a-z0-9][.!?])\s*(?=[A-Z])", "\n\n", _fmt)
+                    _paras = [p.strip() for p in re.split(r"\n+", _fmt) if p.strip()]
+                    _inner = "".join(
+                        f'<p style="margin-bottom:1.2em">{escape_display_text(p)}</p>'
+                        for p in _paras
+                    )
+                else:
+                    _inner = '<p style="color:#58708A;font-style:italic">No prompt stored — retrieve from your materials.</p>'
+
+                st.markdown(
+                    f'<div style="height:520px;overflow-y:auto;background:#f8f9fa;padding:1rem;'
+                    f'border-left:4px solid #c9a84c;line-height:1.6;font-size:1rem;border-radius:4px">'
+                    f'{_inner}</div>',
+                    unsafe_allow_html=True,
+                )
+
+                # Issue tags as colored pills
+                _issues_raw = qd.get("tested_issues", "") or ""
+                if _issues_raw:
+                    _tags = [t.strip() for t in re.split(r"[;\n]", _issues_raw) if t.strip()]
+                    if _tags:
+                        _pills = "".join(
+                            f'<span style="display:inline-block;background:#dbeafe;color:#1e40af;'
+                            f'border-radius:999px;padding:3px 10px;margin:2px 3px 2px 0;'
+                            f'font-size:0.8rem;font-weight:600">{escape_display_text(t)}</span>'
+                            for t in _tags[:15]
+                        )
+                        st.markdown(f'<div style="margin-top:0.7rem">{_pills}</div>', unsafe_allow_html=True)
+
+            with right_col:
+                # Practice mode selector at top of right column
+                _practice_mode = st.radio(
+                    "Mode:",
+                    ["Full Essay (30 min)", "Focused IRAC (15 min)", "Mini Run (7 min)"],
+                    horizontal=True,
+                )
+                if _practice_mode.startswith("Full"):
+                    _target_min = 30
+                elif _practice_mode.startswith("Focused"):
+                    _target_min = 15
+                else:
+                    _target_min = 7
+
+                # Timer row
+                _tcol1, _tcol2 = st.columns([1, 2])
+                with _tcol1:
+                    minutes_spent = st.number_input("Minutes spent", min_value=0, max_value=90, value=_target_min)
+                with _tcol2:
+                    st.caption(f"Target: {_target_min} min")
+
+                answer = st.text_area("Your timed answer", height=320)
+                self_score = st.slider("Self-score: timed IRAC", 0, 5, 0)
+                missed_issues = st.text_area("Missed issues/rules/facts", height=100)
+                notes = st.text_area("What to fix next time", height=100)
+
+                if st.button("Save Timed IRAC Attempt"):
+                    notes_with_hints = f"Hints used: {hints_used}/5\n\n{notes}"
+                    save_attempt(
+                        qd["id"],
+                        "Timed IRAC",
+                        answer,
+                        self_score,
+                        missed_issues,
+                        notes_with_hints,
+                        minutes_spent=minutes_spent,
+                    )
+                    st.success("Attempt saved.")
+
+            # ── Below the split: call, hints, reveal ────────────────────────
+            with st.expander("Call of the Question", expanded=True):
                 render_call_text("Call of the Question", qd["call_of_question"])
 
-            hints_used = render_progressive_hints(qd)
+            _new_hints = render_progressive_hints(qd)
+            st.session_state[_hints_key] = _new_hints
 
-            st.markdown("""
-            ### IRAC Skeleton
-
-            **Issue:** Whether ___  
-            **Rule:** Under ___  
-            **Application:** Here, ___ because ___  
-            **Counterargument:** However, ___  
-            **Conclusion:** Therefore, ___  
-            """)
-
-            answer = st.text_area("Your timed answer", height=350)
-
-            st.warning("Reveal only after you have attempted retrieval. No passive reading.")
+            st.warning("Reveal only after you have attempted retrieval.")
 
             if st.button("Reveal Model Points"):
                 with st.expander("Model Points - open after self-grading", expanded=False):
                     render_readable_text("Model Points", qd["model_points"], READING_FONT_SIZE)
-
                 render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
                 render_trigger_facts_text("Trigger Facts", qd["trigger_facts"])
                 render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                self_score = st.slider("Self-score: timed IRAC", 0, 5, 0)
-
-            with col2:
-                minutes_spent = st.number_input("Minutes spent", min_value=0, max_value=90, value=30)
-
-            missed_issues = st.text_area("Missed issues/rules/facts", height=100)
-            notes = st.text_area("What to fix next time", height=100)
-
-            if st.button("Save Timed IRAC Attempt"):
-                notes_with_hints = f"Hints used: {hints_used}/5\n\n{notes}"
-
-                save_attempt(
-                    qd["id"],
-                    "Timed IRAC",
-                    answer,
-                    self_score,
-                    missed_issues,
-                    notes_with_hints,
-                    minutes_spent=minutes_spent
-                )
-
-                st.success("Attempt saved.")
 
 
 elif menu == "Due Review Queue":
     st.header("Due Review Queue")
 
-    st.warning("This is where weak essays come back. ADHD win = review before forgetting.")
+    st.warning("Review weak areas before they fade.")
 
     question_id = question_picker(active_default=False, due_only=True)
 
@@ -2994,7 +3287,7 @@ elif menu == "Due Review Queue":
                 height=160
             )
 
-            st.warning("Reveal only after you have attempted retrieval. No passive reading.")
+            st.warning("Reveal only after you have attempted retrieval.")
 
             if st.button("Reveal Answer Bank"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
@@ -3038,7 +3331,7 @@ elif menu == "Attack Outline Rules":
     with col1:
         outline_query = st.text_input(
             "Search rules",
-            placeholder="Creation of Agency, Actual Authority, hearsay, personal jurisdiction"
+            placeholder="personal jurisdiction, hearsay, statute of frauds"
         )
 
     with col2:
@@ -3076,12 +3369,12 @@ elif menu == "Plug & Play Templates":
             "\"LBP Plug and Play-Essay Templates to Help You Write Faster Score Higher.pdf\""
         )
 
-    col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([3, 1])
 
     with col1:
         plug_query = st.text_input(
             "Search templates",
-            placeholder="agency authority, respondeat superior, diversity, statute of frauds"
+            placeholder="personal jurisdiction, hearsay, statute of frauds"
         )
 
     with col2:
