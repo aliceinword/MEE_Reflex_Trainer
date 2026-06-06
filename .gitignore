@@ -25,6 +25,8 @@ env/
 *.pdf
 *.csv
 *.docx
+!mee_reflex.db
+!MEE_Condensed_Sample_Answers_By_Subject.pdf
 
 # Personal question bank (Markdown) -- keep README.md, exclude bank files
 MEE_Question_Extraction*.md
