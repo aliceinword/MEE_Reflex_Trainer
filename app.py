@@ -1429,10 +1429,166 @@ hr {
     color: #78350F;
     font-size: 0.95rem;
 }
+
+/* Layout stabilization pass */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+[data-testid="stVerticalBlock"],
+[data-testid="stHorizontalBlock"],
+[data-testid="column"],
+.element-container {
+    min-width: 0 !important;
+}
+
+[data-testid="stVerticalBlock"],
+[data-testid="stHorizontalBlock"] {
+    gap: 0.75rem !important;
+}
+
+[data-testid="column"] {
+    min-width: 0 !important;
+    overflow: visible !important;
+}
+
+[data-testid="stVerticalBlock"] > [style*="flex-direction: column"] {
+    min-width: 0 !important;
+}
+
+.app-top-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.app-top-header > div:first-child {
+    min-width: min(100%, 420px);
+}
+
+.app-pill {
+    margin-top: 0.15rem;
+}
+
+.page-title-block,
+.page-title-text,
+[data-testid="stHeading"],
+[data-testid="stHeadingWithActionElements"] {
+    contain: none !important;
+    overflow: visible !important;
+}
+
+.readable-box,
+.question-box,
+.fact-box,
+.triggers-box,
+.issues-box,
+.call-box,
+.hint-box,
+.outline-rule-box,
+.plug-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+}
+
+.readable-text,
+.question-text,
+.fact-text,
+.trigger-fact-text,
+.trigger-why,
+.issue-text,
+.call-card-text,
+.call-subpart,
+.hint-text,
+.outline-rule-text,
+.plug-text {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
+
+div[data-testid="stExpander"] {
+    overflow: visible !important;
+}
+
+div[data-testid="stExpander"] details {
+    overflow: visible !important;
+}
+
+div[data-testid="stExpander"] summary {
+    min-height: 46px !important;
+    padding-top: 0.55rem !important;
+    padding-bottom: 0.55rem !important;
+    overflow: visible !important;
+}
+
+div[data-testid="stExpander"] summary p,
+div[data-testid="stExpander"] summary span {
+    line-height: 1.35 !important;
+}
+
+[data-testid="stTextArea"] textarea {
+    width: 100% !important;
+    min-height: 120px !important;
+    resize: vertical;
+}
+
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+div[data-baseweb="select"] {
+    min-height: 42px !important;
+}
+
+.stButton > button,
+.stDownloadButton > button,
+.stFormSubmitButton > button {
+    min-height: 42px !important;
+    white-space: normal !important;
+}
+
+.meta-strip,
+.question-strip {
+    width: 100%;
+    align-items: flex-start;
+}
+
+.flash-grid,
+.plug-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)) !important;
+}
+
+@media (max-width: 900px) {
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    .app-top-header {
+        padding: 0.8rem;
+        gap: 0.55rem;
+    }
+
+    .app-title {
+        font-size: 1.35rem;
+    }
+
+    .app-pill {
+        white-space: normal;
+    }
+
+    .page-title-text {
+        font-size: 1.45rem !important;
+        min-height: auto;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
-render_app_header()
+if st.session_state.get("current_page", "Daily Workout") != "MBE Drills":
+    render_app_header()
 
 
 def parse_optional_int(value, default=None):
@@ -4362,7 +4518,10 @@ if menu == "Dashboard":
 
 
 elif menu == "Bulk Import MEE Bank":
-    st.header("Bulk Import MEE Bank")
+    render_page_title(
+        "Bulk Import MEE Bank",
+        "Import or review MEE question-bank material.",
+    )
 
     st.markdown("""
     Use this page to import previous MEE questions from CSV.
@@ -4467,7 +4626,10 @@ elif menu == "Bulk Import MEE Bank":
 
 
 elif menu == "Add MEE Question":
-    st.header("Add MEE Question")
+    render_page_title(
+        "Add MEE Question",
+        "Manually add one question with its call, rule bank, and answer notes.",
+    )
 
     st.markdown("Manual entry is best for high-value questions that need custom tagging.")
 
@@ -5651,7 +5813,10 @@ elif menu == "Timed IRAC Drill":
 
 
 elif menu == "Due Review Queue":
-    st.header("Due Review Queue")
+    render_page_title(
+        "Due Review Queue",
+        "Practice questions scheduled for spaced review.",
+    )
 
     st.warning("Review weak areas before they fade.")
 
@@ -5711,8 +5876,10 @@ elif menu == "Due Review Queue":
 
 
 elif menu == "Attack Outline Rules":
-    st.header("Attack Outline Rules")
-    st.caption("Search your rule outline, and add your own rules any time.")
+    render_page_title(
+        "Attack Outline Rules",
+        "Search your rule outline, and add your own rules any time.",
+    )
 
     all_rules = get_outline_rules()
     existing_subjects = sorted({row[1] for row in all_rules if row[1]})
@@ -5874,8 +6041,10 @@ elif menu == "Attack Outline Rules":
 
 
 elif menu == "Plug & Play Templates":
-    st.header("Plug & Play Templates")
-    st.caption("Search essay templates for issue statements, rule phrasing, and analysis structure.")
+    render_page_title(
+        "Plug & Play Templates",
+        "Search essay templates for issue statements, rule phrasing, and analysis structure.",
+    )
 
     all_templates = get_plug_play_templates()
     plug_subjects = ["All"] + sorted({row[1] for row in all_templates if row[1]})
@@ -5917,7 +6086,10 @@ elif menu == "Plug & Play Templates":
 
 
 elif menu == "Review Attempts":
-    st.header("Review Attempts")
+    render_page_title(
+        "Review Attempts",
+        "Review saved answers, missed issues, notes, and sample-answer comparisons.",
+    )
 
     attempts = get_attempts()
 
@@ -5971,11 +6143,12 @@ elif menu == "Review Attempts":
 
 
 elif menu == "MBE Drills":
-    st.header("MBE Drills - Trap Trainer")
-    st.caption(
-        "Multiple-choice trap drilling. Drill or lecture mode, import your "
-        "AdaptiBar misses, and add your own cards. Your added cards save in this "
-        "browser - use Export now and then to keep a backup file."
+    render_page_title(
+        "MBE Drills - Trap Trainer",
+        (
+            "Multiple-choice trap drilling. Drill or lecture mode, import your "
+            "AdaptiBar misses, and add your own cards."
+        ),
     )
 
     _mbe_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mbe_trap_trainer.html")
