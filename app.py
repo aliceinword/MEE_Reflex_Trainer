@@ -2550,15 +2550,12 @@ def render_sample_answer_text(title, text):
 
 def render_sample_answer_section(qd, expanded=False):
     model_points = qd.get("model_points", "") if isinstance(qd, dict) else ""
-    if not model_points:
-        model_points = qd.get("rules", "") if isinstance(qd, dict) else ""
 
-    if not model_points or not str(model_points).strip():
-        with st.expander("Compare With Sample Answer", expanded=expanded):
-            st.info("No sample answer/model analysis available for this question yet.")
+    if not model_points:
+        st.info("No sample answer/model analysis available for this question yet.")
         return
 
-    with st.expander("Compare With Sample Answer", expanded=expanded):
+    with st.expander("Compare With Sample Answer - open after self-grading", expanded=expanded):
         st.warning("Open this only after you attempted the issue/rule. No passive reading.")
         render_sample_answer_text("Sample Answer / Model Analysis", model_points)
 
@@ -2580,7 +2577,7 @@ def clean_trap_text(text):
         r"\bFEBRUARY\s+\d{4}\s+MEE\b",
         r"\bJULY\s+\d{4}\s+MEE\b",
         r"Â©\s*\d{4}.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"National Conference of Bar Examiners.*",
     ]
 
@@ -3103,7 +3100,7 @@ def clean_question_text(question_text):
         r"Ã‚Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"These materials are copyrighted.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"www\..*",
     ]
 
@@ -3261,7 +3258,7 @@ def clean_fact_pattern_text(text):
         r"Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"These materials are copyrighted.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"www\..*",
     ]
 
@@ -3365,7 +3362,7 @@ def clean_trigger_facts_text(text):
         r"\bMEE\s+QUESTION\s+\d+\b",
         r"Ã‚Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"www\..*",
     ]
 
@@ -3751,7 +3748,7 @@ def extract_fact_pattern_only(question_text, call_text=None):
         r"\bMEE\s+QUESTION\s+\d+\b",
         r"\bQUESTION\s+\d+\s*[-–—].*",
         r"©\s*\d{4}.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"National Conference of Bar Examiners.*",
     ]
 
@@ -4546,7 +4543,7 @@ def clean_call_text(call_text):
         r"Ã‚Â©\s*\d{4}.*",
         r"Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
     ]
 
     for pattern in junk_patterns:
@@ -4574,9 +4571,9 @@ def clean_outline_text(text):
     text = text.replace("ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©", "Â©").replace("Ãƒâ€šÃ‚Â©", "Â©").replace("Ã‚Â©", "Â©")
 
     junk_patterns = [
-        r"Ãƒâ€šÃ‚Â©\s*\d{4}\s+Studicata.*",
-        r"Ã‚Â©\s*\d{4}\s+Studicata.*",
-        r"Studicata\.com.*",
+        r"Ãƒâ€šÃ‚Â©\s*\d{4}\s+LegacySource.*",
+        r"Ã‚Â©\s*\d{4}\s+LegacySource.*",
+        r".*\.com.*",
         r"Business Associations\s*\|.*",
         r"Civil Procedure\s*\d+",
         r"Constitutional Law\s*\d+",
@@ -5397,7 +5394,7 @@ def clean_call_text(call_text):
         r"Ã‚Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"These materials are copyrighted.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"www\..*",
     ]
 
@@ -5782,7 +5779,7 @@ def get_model_section_for_subquestion(qd, subq_index, subpart=None):
             heading = f"Point {subq_index} - Combined"
             return heading, combined
 
-    if model_text and model_text.strip():
+    if model_text and len(model_text.strip()) >= 100:
         heading = f"Full Available Model Analysis - Question {subq_index}"
         fallback = (
             "No separate Point section was detected for this call in the imported answer material.\n\n"
@@ -5802,9 +5799,8 @@ def render_sample_answer_for_subquestion(qd, subq_index, label, subpart=None):
     except Exception:
         section_heading, model_text = "", ""
 
-    if not model_text or not str(model_text).strip():
-        with st.expander(f"Compare With Sample Answer - {title}", expanded=False):
-            st.info("No sample answer/model analysis available for this question yet.")
+    if not model_text:
+        st.info(f"No sample answer/model analysis is available for {title} yet.")
         return
 
     with st.expander(f"Compare With Sample Answer - {title}", expanded=False):

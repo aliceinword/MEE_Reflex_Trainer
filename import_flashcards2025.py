@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 import html
 import re
@@ -51,8 +51,6 @@ SUBJECT_NAMES = list(SUBJECT_KEYWORDS.keys())
 
 
 BAD_HEADINGS = {
-    "STUDICATA FLASHCARDS JULY 2025",
-    "STUDICATA",
     "FLASHCARDS",
     "JULY 2025",
 }
@@ -117,7 +115,7 @@ def is_heading(line):
     if uppercase_ratio < 0.82:
         return False
 
-    if re.search(r"\b(?:PAGE|COPYRIGHT|WWW|HTTP|STUDICATA)\b", candidate, flags=re.IGNORECASE):
+    if re.search(r"\b(?:PAGE|COPYRIGHT|WWW|HTTP)\b", candidate, flags=re.IGNORECASE):
         return False
 
     return True

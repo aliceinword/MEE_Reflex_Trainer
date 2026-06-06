@@ -1,4 +1,4 @@
-import re
+﻿import re
 
 
 MOJIBAKE_REPLACEMENTS = {
@@ -225,13 +225,13 @@ def normalize_extracted_text(text: str) -> str:
 
         line = _repair_join_boundaries(line)
 
-        if line.startswith("(c) 2025 Studicata"):
+        if line.startswith("(c) 2025"):
             continue
 
-        if line.startswith("Studicata |"):
+        if " | " in line and "MEE" in line:
             continue
 
-        if line.startswith("www.studicata.com"):
+        if line.startswith("www."):
             continue
 
         if line.startswith("Copyright (c)"):

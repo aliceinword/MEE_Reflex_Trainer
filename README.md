@@ -122,7 +122,8 @@ If you have your own materials as PDFs, the helper scripts can parse them into t
 local database. Point them at *your* files:
 
 ```bash
-python import_studicata_bank.py "path/to/your-question-bank.pdf"
+python import_condensed_sample_answers.py "path/to/your-sample-answers.pdf"
+python import_questions_bank.py "path/to/your-question-bank.pdf"
 python import_attack_outline.py "path/to/your-attack-outline.pdf"
 python import_plug_play_templates.py "path/to/your-templates.pdf"
 ```
@@ -189,10 +190,10 @@ are skipped.
 | `app.py` | The Streamlit application (all pages and UI). |
 | `database.py` | SQLite schema and data-access functions. |
 | `text_cleanup.py` | Normalizes messy text extracted from PDFs. |
-| `import_studicata_bank.py` | Imports MEE questions from a PDF question bank. |
+| `import_questions_bank.py` | Imports MEE questions from a PDF question bank. |
+| `import_condensed_sample_answers.py` | Imports sample answers from a PDF. |
 | `import_attack_outline.py` | Imports rules from an attack-outline PDF. |
 | `import_plug_play_templates.py` | Imports essay templates from a PDF. |
-| `reset_studicata_import.py` | Backs up and resets imported question data. |
 | `.streamlit/config.toml` | Theme and server settings. |
 
 ---

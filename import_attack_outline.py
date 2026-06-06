@@ -1,4 +1,4 @@
-import re
+﻿import re
 import sys
 from pathlib import Path
 
@@ -57,7 +57,7 @@ def is_noise_line(line):
     if not line:
         return True
 
-    if "studicata.com" in lowered or "copyright" in lowered or "©" in line:
+    if "legacysource.com" in lowered or "copyright" in lowered or "©" in line:
         return True
 
     if lowered.startswith("table of contents"):
