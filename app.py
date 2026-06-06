@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -53,7 +53,6 @@ def render_app_header():
                 <div class="app-title">MEE Reflex Trainer</div>
                 <div class="app-subtitle">Focused MEE training: issue spotting -> rule flash -> IRAC under pressure.</div>
             </div>
-            <div class="app-pill">NY UBE July 2026</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -680,6 +679,56 @@ header *,
     background: #DDF4FF;
 }
 
+.sample-answer-box {
+    background: rgba(255, 255, 255, 0.97);
+    border: 1.5px solid #CDEBFF;
+    border-radius: 14px;
+    padding: 0.95rem 1.05rem;
+    margin: 0.55rem 0 0.8rem 0;
+    box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
+    width: 100%;
+}
+
+.sample-answer-title {
+    color: #1D4E89;
+    font-weight: 800;
+    font-size: 1.02rem;
+    margin-bottom: 0.55rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 2px solid #DBEAFE;
+}
+
+.sample-answer-text {
+    color: #102033;
+    font-size: 16.5px;
+    line-height: 1.58;
+}
+
+.sample-answer-text p {
+    margin: 0.35rem 0 0.8rem 0;
+}
+
+.sample-point {
+    background: #EFF6FF;
+    border-left: 4px solid #2563EB;
+    border-radius: 0 10px 10px 0;
+    color: #1E3A8A;
+    font-weight: 850;
+    padding: 0.45rem 0.7rem;
+    margin: 0.85rem 0 0.55rem 0;
+}
+
+.sample-label-main,
+.sample-label {
+    color: #0F766E;
+    font-weight: 850;
+    margin: 0.75rem 0 0.25rem 0;
+}
+
+.sample-label-main {
+    color: #1D4E89;
+}
+
 /* Compact question/fact pattern boxes */
 .question-box {
     background: rgba(255, 255, 255, 0.96);
@@ -960,16 +1009,6 @@ header *,
     line-height: 1.5;
 }
 
-.flash-ru-box {
-    background: #f3f1fa;
-    border-left: 3px solid #5b3fa0;
-    padding: 7px 10px;
-    margin-top: 10px;
-    font-size: 11px;
-    color: #2e2150;
-    line-height: 1.5;
-}
-
 .flash-mini-title {
     display: block;
     font-size: 10px;
@@ -1232,7 +1271,7 @@ hr {
     border-radius: 999px;
 }
 
-/* Practice page — thin metadata strip metric labels */
+/* Practice page â€” thin metadata strip metric labels */
 [data-testid="stMetricLabel"] p,
 [data-testid="stMetricLabel"] {
     font-size: 0.72rem !important;
@@ -1336,7 +1375,7 @@ hr {
     line-height: 1.35 !important;
 }
 
-/* Inactive nav button (secondary) — flat, light */
+/* Inactive nav button (secondary) â€” flat, light */
 [data-testid="stSidebar"] .stButton > button[kind="secondary"] {
     background: rgba(255, 255, 255, 0.70) !important;
     color: #102033 !important;
@@ -1654,16 +1693,16 @@ def make_readable_legal_text(text):
     text = text.replace("\u00a0", " ")
 
     # Fix PDF quote squashing: serve."Agency -> serve.\n\n"Agency
-    text = re.sub(r'\.["”](?=[A-Z])', '.\n\n"', text)
+    text = re.sub(r'\.["â€](?=[A-Z])', '.\n\n"', text)
 
     # through"written -> through "written
-    text = re.sub(r'([a-zA-Z])["”]([a-zA-Z])', r'\1 "\2', text)
+    text = re.sub(r'([a-zA-Z])["â€]([a-zA-Z])', r'\1 "\2', text)
 
     # Fix section-symbol spacing.
-    text = re.sub(r"§\s+(\d+)\.\s+(\d+)", r"§ \1.\2", text)
-    text = re.sub(r"Â§\s+(\d+)\.\s+(\d+)", r"§ \1.\2", text)
-    text = re.sub(r"\bId\.\s+§\s+(\d+)\.\s+(\d+)", r"Id. § \1.\2", text)
-    text = re.sub(r"\bId\.\s+Â§\s+(\d+)\.\s+(\d+)", r"Id. § \1.\2", text)
+    text = re.sub(r"Â§\s+(\d+)\.\s+(\d+)", r"Â§ \1.\2", text)
+    text = re.sub(r"Ã‚Â§\s+(\d+)\.\s+(\d+)", r"Â§ \1.\2", text)
+    text = re.sub(r"\bId\.\s+Â§\s+(\d+)\.\s+(\d+)", r"Id. Â§ \1.\2", text)
+    text = re.sub(r"\bId\.\s+Ã‚Â§\s+(\d+)\.\s+(\d+)", r"Id. Â§ \1.\2", text)
 
     # Normalize spaces but preserve newlines.
     text = re.sub(r"[ \t]+", " ", text)
@@ -1728,6 +1767,112 @@ def render_readable_text(title, text, font_size=None):
     )
 
 
+def clean_sample_answer_text(text):
+    if not text:
+        return ""
+
+    text = normalize_extracted_text(str(text))
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\u00a0", " ").replace("Ãƒâ€šÃ‚Â ", " ")
+    text = re.sub(r"[ \t]+", " ", text)
+
+    # The imported condensed-answer summaries are often synthetic and can read
+    # awkwardly. Keep the actual answer analysis as the comparison material.
+    text = re.sub(
+        r"(?is)^Question summary:\s*.*?(?=Condensed sample-answer path:|Point\s+(?:One|Two|Three|Four|Five|Six)|\d+\.\s+Point|\Z)",
+        "",
+        text,
+    )
+    text = re.sub(r"(?i)Condensed sample-answer path:\s*", "Sample Answer:\n", text)
+
+    # Repair common PDF/import label damage.
+    text = re.sub(r"(?i)\bFact-based\s*\n*\s*analysis\s*\n*\s*:", "Fact-based analysis:", text)
+    text = re.sub(r"(?i)\bRule\s*\(\s*s\s*\)\s*:", "Rule(s):", text)
+    text = re.sub(r"(?i)\bShort\s+answer\s*:", "Short answer:", text)
+    text = re.sub(r"(?i)\bConclusion\s*:", "Conclusion:", text)
+    text = re.sub(r"\b([a-z])\s+Short answer:", "Short answer:", text)
+    text = re.sub(r"\b([a-z])\s+Rule\(s\):", "Rule(s):", text)
+
+    # Turn point headers and labels into predictable paragraph breaks.
+    text = re.sub(
+        r"(?i)(?:^|\s)(\d+\.\s*)?(Point\s+(?:One|Two|Three|Four|Five|Six)(?:\s*\([^)]*\))?)\s+",
+        r"\n\n\2\n",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\s+(Short answer:|Rule\(s\):|Fact-based analysis:|Conclusion:)",
+        r"\n\n\1",
+        text,
+    )
+
+    lines = []
+    for raw_line in text.splitlines():
+        line = re.sub(r"[ \t]+", " ", raw_line).strip()
+        if not line:
+            lines.append("")
+            continue
+
+        if line in {"-", "â€¢"}:
+            continue
+
+        line = re.sub(r"^[-â€¢]\s*", "", line).strip()
+        line = re.sub(r"\s+([,.;:!?])", r"\1", line)
+        line = re.sub(r"([.!?])([A-Z])", r"\1 \2", line)
+        line = re.sub(r"\s+", " ", line)
+
+        if line:
+            lines.append(line)
+
+    text = "\n".join(lines)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def render_sample_answer_text(title, text):
+    formatted = clean_sample_answer_text(text)
+    if not formatted:
+        st.info("No sample answer/model analysis available for this question yet.")
+        return
+
+    safe_title = escape_display_text(title)
+    blocks = []
+    label_classes = {
+        "Sample Answer:": "sample-label-main",
+        "Short answer:": "sample-label",
+        "Rule(s):": "sample-label",
+        "Fact-based analysis:": "sample-label",
+        "Conclusion:": "sample-label",
+    }
+
+    for paragraph in [p.strip() for p in formatted.split("\n\n") if p.strip()]:
+        if re.fullmatch(r"Point\s+(One|Two|Three|Four|Five|Six)(\s*\([^)]*\))?", paragraph, flags=re.IGNORECASE):
+            blocks.append(f'<div class="sample-point">{escape_display_text(paragraph)}</div>')
+            continue
+
+        label_match = re.match(r"^(Sample Answer:|Short answer:|Rule\(s\):|Fact-based analysis:|Conclusion:)\s*(.*)$", paragraph, flags=re.IGNORECASE | re.DOTALL)
+        if label_match:
+            label = label_match.group(1)
+            body = label_match.group(2).strip()
+            canonical_label = next((known for known in label_classes if known.lower() == label.lower()), label)
+            blocks.append(f'<div class="{label_classes.get(canonical_label, "sample-label")}">{escape_display_text(canonical_label)}</div>')
+            if body:
+                body_html = "<br>".join(escape_display_text(line) for line in body.splitlines() if line.strip())
+                blocks.append(f"<p>{body_html}</p>")
+        else:
+            paragraph_html = "<br>".join(escape_display_text(line) for line in paragraph.splitlines() if line.strip())
+            blocks.append(f"<p>{paragraph_html}</p>")
+
+    st.markdown(
+        (
+            '<div class="sample-answer-box">'
+            f'<div class="sample-answer-title">{safe_title}</div>'
+            f'<div class="sample-answer-text">{"".join(blocks)}</div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+
 def render_sample_answer_section(qd, expanded=False):
     model_points = qd.get("model_points", "") if isinstance(qd, dict) else ""
 
@@ -1737,10 +1882,7 @@ def render_sample_answer_section(qd, expanded=False):
 
     with st.expander("Compare With Sample Answer - open after self-grading", expanded=expanded):
         st.warning("Open this only after you attempted the issue/rule. No passive reading.")
-        if "render_readable_text" in globals():
-            render_readable_text("Sample Answer / Model Analysis", model_points, READING_FONT_SIZE)
-        else:
-            st.write(model_points)
+        render_sample_answer_text("Sample Answer / Model Analysis", model_points)
 
 
 def clean_question_text(question_text):
@@ -1756,7 +1898,7 @@ def clean_question_text(question_text):
         r"\bJULY\s+\d{4}\s+MEE\b",
         r"\bMEE\s+QUESTION\s+\d+\b",
         r"\bQUESTION\s+\d+\s*[-\u2013\u2014].*",
-        r"Â©\s*\d{4}.*",
+        r"Ã‚Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"These materials are copyrighted.*",
         r"Studicata.*",
@@ -1768,7 +1910,7 @@ def clean_question_text(question_text):
 
     text = re.sub(r',"\s*', ', "', text)
     text = re.sub(r'\."\s*', '." ', text)
-    text = re.sub(r'([a-zA-Z])["”]([A-Z])', r'\1" \2', text)
+    text = re.sub(r'([a-zA-Z])["â€]([A-Z])', r'\1" \2', text)
 
     raw_lines = text.splitlines()
     lines = []
@@ -1906,15 +2048,15 @@ def clean_fact_pattern_text(text):
 
     text = str(text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = text.replace(" ", " ")
+    text = text.replace("Â ", " ")
 
     # Remove exam/copyright/footer junk
     junk_patterns = [
         r"\bFEBRUARY\s+\d{4}\s+MEE\b",
         r"\bJULY\s+\d{4}\s+MEE\b",
         r"\bMEE\s+QUESTION\s+\d+\b",
-        r"\bQUESTION\s+\d+\s*[-–—].*",
-        r"©\s*\d{4}.*",
+        r"\bQUESTION\s+\d+\s*[-â€“â€”].*",
+        r"Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"These materials are copyrighted.*",
         r"Studicata.*",
@@ -2010,7 +2152,7 @@ def clean_trigger_facts_text(text):
 
     text = str(text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = text.replace("\u00a0", " ").replace("Â ", " ")
+    text = text.replace("\u00a0", " ").replace("Ã‚Â ", " ")
 
     text = re.sub(r"\bTrigger Facts:\s*", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\bRelevant Facts:\s*", "", text, flags=re.IGNORECASE)
@@ -2019,7 +2161,7 @@ def clean_trigger_facts_text(text):
         r"\bFEBRUARY\s+\d{4}\s+MEE\b",
         r"\bJULY\s+\d{4}\s+MEE\b",
         r"\bMEE\s+QUESTION\s+\d+\b",
-        r"Â©\s*\d{4}.*",
+        r"Ã‚Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"Studicata.*",
         r"www\..*",
@@ -2060,11 +2202,11 @@ def extract_trigger_fact_items(trigger_facts_text):
     if not text:
         return []
 
-    parts = re.split(r"(?:\n|;|\||•|(?:\s+-\s+))", text)
+    parts = re.split(r"(?:\n|;|\||â€¢|(?:\s+-\s+))", text)
     items = []
 
     for part in parts:
-        part = part.strip(" -•\t")
+        part = part.strip(" -â€¢\t")
         part = re.sub(r"^\d+[.)]\s*", "", part)
         part = re.sub(r"^[a-z][.)]\s*", "", part, flags=re.IGNORECASE)
         part = re.sub(r"\s+", " ", part).strip()
@@ -2182,23 +2324,23 @@ def render_trigger_facts(title, qd):
     cards_html = ""
 
     for idx, fact in enumerate(facts, start=1):
-        cards_html += f"""
-            <div class="trigger-card">
-                <div class="trigger-number">{idx}</div>
-                <div class="trigger-content">
-                    <div class="trigger-fact-text">{escape_display_text(fact)}</div>
-                    <div class="trigger-why">{escape_display_text(infer_fact_relevance(fact, qd))}</div>
-                </div>
-            </div>
-        """
+        cards_html += (
+            '<div class="trigger-card">'
+            f'<div class="trigger-number">{idx}</div>'
+            '<div class="trigger-content">'
+            f'<div class="trigger-fact-text">{escape_display_text(fact)}</div>'
+            f'<div class="trigger-why">{escape_display_text(infer_fact_relevance(fact, qd))}</div>'
+            '</div>'
+            '</div>'
+        )
 
     st.markdown(
-        f"""
-        <div class="triggers-box">
-            <div class="triggers-title">{escape_display_text(str(title))}</div>
-            {cards_html}
-        </div>
-        """,
+        (
+            '<div class="triggers-box">'
+            f'<div class="triggers-title">{escape_display_text(str(title))}</div>'
+            f'{cards_html}'
+            '</div>'
+        ),
         unsafe_allow_html=True,
     )
 
@@ -2209,7 +2351,7 @@ def clean_tested_issues_text(text):
 
     text = str(text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = text.replace("\u00a0", " ").replace("Â ", " ")
+    text = text.replace("\u00a0", " ").replace("Ã‚Â ", " ")
     text = re.sub(r"[ \t]+", " ", text)
 
     text = re.sub(r"\bLegal Problems:\s*", "", text, flags=re.IGNORECASE)
@@ -2359,20 +2501,20 @@ def render_tested_issues(title, tested_issues_text):
     issue_cards_html = ""
 
     for idx, issue in enumerate(issues, start=1):
-        issue_cards_html += f"""
-            <div class="issue-card">
-                <div class="issue-number">{idx}</div>
-                <div class="issue-text">{escape_display_text(issue)}</div>
-            </div>
-        """
+        issue_cards_html += (
+            '<div class="issue-card">'
+            f'<div class="issue-number">{idx}</div>'
+            f'<div class="issue-text">{escape_display_text(issue)}</div>'
+            '</div>'
+        )
 
     st.markdown(
-        f"""
-        <div class="issues-box">
-            <div class="issues-title">{escape_display_text(str(title))}</div>
-            {issue_cards_html}
-        </div>
-        """,
+        (
+            '<div class="issues-box">'
+            f'<div class="issues-title">{escape_display_text(str(title))}</div>'
+            f'{issue_cards_html}'
+            '</div>'
+        ),
         unsafe_allow_html=True,
     )
 
@@ -2755,8 +2897,8 @@ def clean_call_text(call_text):
         r"JULY\s+\d{4}\s+MEE",
         r"MEE\s+QUESTION\s+\d+",
         r"QUESTION\s+\d+\s*[-\u2013\u2014].*",
+        r"Ã‚Â©\s*\d{4}.*",
         r"Â©\s*\d{4}.*",
-        r"©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"Studicata.*",
     ]
@@ -2782,12 +2924,12 @@ def clean_outline_text(text):
     text = str(text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("\u00a0", " ")
-    text = text.replace("Ãƒâ€šÃ‚Â§", "§").replace("Ã‚Â§", "§").replace("Â§", "§")
-    text = text.replace("Ãƒâ€šÃ‚Â©", "©").replace("Ã‚Â©", "©").replace("Â©", "©")
+    text = text.replace("ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§", "Â§").replace("Ãƒâ€šÃ‚Â§", "Â§").replace("Ã‚Â§", "Â§")
+    text = text.replace("ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©", "Â©").replace("Ãƒâ€šÃ‚Â©", "Â©").replace("Ã‚Â©", "Â©")
 
     junk_patterns = [
+        r"Ãƒâ€šÃ‚Â©\s*\d{4}\s+Studicata.*",
         r"Ã‚Â©\s*\d{4}\s+Studicata.*",
-        r"Â©\s*\d{4}\s+Studicata.*",
         r"Studicata\.com.*",
         r"Business Associations\s*\|.*",
         r"Civil Procedure\s*\d+",
@@ -2802,10 +2944,10 @@ def clean_outline_text(text):
         text = re.sub(pattern, "", text, flags=re.IGNORECASE)
 
     text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"§\s+(\d+)\.\s+(\d+)", r"§ \1.\2", text)
-    text = re.sub(r"(?<=[a-z0-9])\.(?=[A-Z])", ". ", text)
-    text = re.sub(r"Ã‚Â§\s+(\d+)\.\s+(\d+)", r"Â§ \1.\2", text)
     text = re.sub(r"Â§\s+(\d+)\.\s+(\d+)", r"Â§ \1.\2", text)
+    text = re.sub(r"(?<=[a-z0-9])\.(?=[A-Z])", ". ", text)
+    text = re.sub(r"Ãƒâ€šÃ‚Â§\s+(\d+)\.\s+(\d+)", r"Ã‚Â§ \1.\2", text)
+    text = re.sub(r"Ã‚Â§\s+(\d+)\.\s+(\d+)", r"Ã‚Â§ \1.\2", text)
 
     text = re.sub(r"\s+([a-z]\))\s+", r"\n\1 ", text)
     text = re.sub(r"\s+(\(\d+\))\s+", r"\n\1 ", text)
@@ -3048,7 +3190,6 @@ def make_rule_card_from_outline(rule, index):
         ],
         "key_rule": short_text(rule_text, 360),
         "trap": "Recite elements first; then apply facts. Do not jump to conclusion.",
-        "ru": "Сначала элементы правила, потом факты.",
         "tags": _flash_tags(subject, rule_title, "Attack Outline"),
     }
 
@@ -3080,7 +3221,6 @@ def make_rule_card_from_template(template, index):
         ],
         "key_rule": short_text(rule_text, 360),
         "trap": short_text(testing_notes, 320) or "Use the template; do not write a rule dump.",
-        "ru": "Форма ответа снижает панику: issue, rule, facts, conclusion.",
         "tags": _flash_tags(subject, module_title, "Plug & Play"),
     }
 
@@ -3090,7 +3230,7 @@ def make_rule_card_from_flashcard(card, index):
 
     tag_list = [tag for tag in str(tags or "").split() if tag]
     if not tag_list:
-        tag_list = _flash_tags(subject, rule_title, "Flashcards2025")
+        tag_list = _flash_tags(subject, rule_title, "Flashcards")
 
     return {
         "num": index,
@@ -3098,13 +3238,12 @@ def make_rule_card_from_flashcard(card, index):
         "title": rule_title or "Untitled Rule",
         "question": f"What is the rule for {rule_title or 'this doctrine'}?",
         "rule_lines": [
-            ("Source", source_file or "Flashcards2025"),
+            ("Source", "Flashcards" if (source_file or "").lower() == "flashcards2025.rtf" else (source_file or "Flashcards")),
             ("Subject", subject or "Unknown"),
             ("Rule", short_text(rule_text, 620)),
         ],
         "key_rule": short_text(rule_text, 420),
         "trap": "Recite elements first, then apply facts.",
-        "ru": "Сначала правило, потом факты.",
         "tags": tag_list[:7],
     }
 
@@ -3114,7 +3253,7 @@ def render_rule_flashcard_box(card):
     card_dict = make_rule_card_from_flashcard(card, 1)
     card_dict["rule_lines"] = [
         ("Subject", subject or "Unknown"),
-        ("Source", source_file or "Flashcards2025"),
+        ("Source", "Flashcards" if (source_file or "").lower() == "flashcards2025.rtf" else (source_file or "Flashcards")),
         ("Rule", short_text(rule_text, 1200)),
     ]
     st.markdown(flashcard_html(card_dict, include_ru=False), unsafe_allow_html=True)
@@ -3163,7 +3302,7 @@ def flashcard_html(card, include_ru=True):
     return f"""
     <div class="flash-card">
       <div class="flash-front">
-        <div class="flash-card-num">CARD {int(card.get("num", 0)):02d} · {escape_display_text(card.get("category", ""))}</div>
+        <div class="flash-card-num">CARD {int(card.get("num", 0)):02d} Â· {escape_display_text(card.get("category", ""))}</div>
         <h3>{escape_display_text(card.get("title", ""))}</h3>
         <div class="flash-question">{escape_display_text(card.get("question", ""))}</div>
       </div>
@@ -3188,7 +3327,7 @@ def flashcard_grid_html(cards, include_ru=True):
     <div class="flash-page-wrap">
       <div class="flash-header">
         <h2>MEE Rule Flashcards</h2>
-        <div class="flash-meta">{len(cards)} cards · print-ready</div>
+        <div class="flash-meta">{len(cards)} cards Â· print-ready</div>
       </div>
       <div class="flash-grid">{cards_html}</div>
     </div>
@@ -3615,7 +3754,7 @@ def clean_call_text(call_text):
         r"\bJULY\s+\d{4}\s+MEE\b",
         r"\bMEE\s+QUESTION\s+\d+\b",
         r"\bQUESTION\s+\d+\s*[-\u2013\u2014].*",
-        r"Â©\s*\d{4}.*",
+        r"Ã‚Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"These materials are copyrighted.*",
         r"Studicata.*",
@@ -3901,7 +4040,7 @@ def render_subquestion_card(qd, subq, index, hints_used=0):
             )
 
             if flashcard_matches:
-                st.markdown("##### Flashcards2025 Rules")
+                st.markdown("##### Flashcard Rules")
                 for card in flashcard_matches:
                     render_rule_flashcard_box(card)
 
@@ -4426,11 +4565,11 @@ if menu == "Dashboard":
 
     st.subheader("Rule Bank Status")
     rb_col1, rb_col2 = st.columns(2)
-    rb_col1.metric("Flashcards2025 Rules", len(rule_bank_cards))
+    rb_col1.metric("Flashcard Rules", len(rule_bank_cards))
     rb_col2.metric("Subjects Covered", len(rule_bank_subjects))
 
     if not rule_bank_cards:
-        st.warning("Import Flashcards2025.rtf by running:")
+        st.warning("Import the flashcards file by running:")
         st.code("python import_flashcards2025.py Flashcards2025.rtf")
 
     st.subheader("Today's Quick Win")
@@ -5206,7 +5345,7 @@ elif menu == "Issue Spotting Drill":
                         for card in flashcard_matches:
                             render_rule_flashcard_box(card)
                     else:
-                        st.info("No relevant Flashcards2025 rules matched this issue yet.")
+                        st.info("No relevant flashcard rules matched this issue yet.")
                     render_sample_answer_section(qd, expanded=False)
 
             with issue_main_col:
@@ -5285,7 +5424,7 @@ elif menu == "Rule Flashcards":
     })
 
     if not subjects:
-        st.warning("No flashcards found. Import Flashcards2025, Attack Outline rules, or Plug & Play templates first.")
+        st.warning("No flashcards found. Import flashcards, Attack Outline rules, or Plug & Play templates first.")
         st.code("python import_flashcards2025.py Flashcards2025.rtf")
         st.code('python import_attack_outline.py "bar attack.pdf"')
         st.code('python import_plug_play_templates.py "LBP Plug and Play-Essay Templates to Help You Write Faster Score Higher.pdf"')
@@ -5299,7 +5438,7 @@ elif menu == "Rule Flashcards":
     with controls_col2:
         source_filter = st.radio(
             "Source",
-            ["Flashcards2025", "Attack Outline", "Plug & Play", "All"],
+            ["Flashcards", "Attack Outline", "Plug & Play", "All"],
             horizontal=True,
             key="flashcards_source",
         )
@@ -5323,7 +5462,7 @@ elif menu == "Rule Flashcards":
     template_results = []
     subject_arg = None if selected_subject == "All" else selected_subject
 
-    if source_filter in ["Flashcards2025", "All"]:
+    if source_filter in ["Flashcards", "All"]:
         if search_term:
             imported_results = search_rule_flashcards(search_term, subject=subject_arg, limit=card_count)
         else:
@@ -5359,7 +5498,7 @@ elif menu == "Rule Flashcards":
     cards = cards[:card_count]
 
     if not cards:
-        st.warning("No flashcards found. Import Flashcards2025, Attack Outline rules, or Plug & Play templates first, or broaden your search.")
+        st.warning("No flashcards found. Import flashcards, Attack Outline rules, or Plug & Play templates first, or broaden your search.")
     else:
         export_html = build_flashcards_html_document(cards, include_ru=include_ru)
 
@@ -5406,7 +5545,7 @@ elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"
     })
 
     if not subjects:
-        st.warning("No rules imported yet. Import Flashcards2025, Attack Outline rules, or Plug & Play templates first.")
+        st.warning("No rules imported yet. Import flashcards, Attack Outline rules, or Plug & Play templates first.")
         st.code("python import_flashcards2025.py Flashcards2025.rtf")
         st.code('python import_attack_outline.py "bar attack.pdf"')
         st.code('python import_plug_play_templates.py "LBP Plug and Play-Essay Templates to Help You Write Faster Score Higher.pdf"')
@@ -5420,7 +5559,7 @@ elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"
     with top_col2:
         source_choice = st.radio(
             "Rule source",
-            ["Flashcards2025", "Attack Outline Rules", "Plug & Play Templates", "All"],
+            ["Flashcards", "Attack Outline Rules", "Plug & Play Templates", "All"],
             horizontal=True,
         )
 
@@ -5432,7 +5571,7 @@ elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"
     if search_term:
         subject_flashcards = (
             search_rule_flashcards(search_term, subject=selected_subject, limit=50)
-            if source_choice in ["Flashcards2025", "All"]
+            if source_choice in ["Flashcards", "All"]
             else []
         )
         subject_outline_rules = (
@@ -5448,7 +5587,7 @@ elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"
     else:
         subject_flashcards = (
             get_rule_flashcards(subject=selected_subject)[:50]
-            if source_choice in ["Flashcards2025", "All"]
+            if source_choice in ["Flashcards", "All"]
             else []
         )
         subject_outline_rules = (
@@ -5466,8 +5605,8 @@ elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"
 
     for row in subject_flashcards:
         card_id, subject, rule_title, rule_text, source_file, tags = row
-        label = f"{rule_title} - Flashcards2025"
-        rule_options.append((label, "Flashcards2025", row))
+        label = f"{rule_title} - Flashcards"
+        rule_options.append((label, "Flashcards", row))
 
     for row in subject_outline_rules:
         rule_id, subject, rule_title, appearance_rate, rule_text, pdf_page, printed_page, source_file = row
@@ -5489,7 +5628,7 @@ elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"
     selected_index = labels.index(selected_rule_label)
     selected_label, selected_source_type, selected_item = rule_options[selected_index]
 
-    if selected_source_type == "Flashcards2025":
+    if selected_source_type == "Flashcards":
         selected_rule_title = selected_item[2]
         prompt = f"What is the rule for {selected_rule_title}?"
     elif selected_source_type == "Attack Outline":
@@ -5530,7 +5669,7 @@ elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"
         if st.session_state.get(reveal_key, False):
             st.markdown("### Exact Rule")
 
-            if selected_source_type == "Flashcards2025":
+            if selected_source_type == "Flashcards":
                 render_rule_flashcard_box(selected_item)
                 related_rules = search_outline_rules(selected_rule_title, subject=selected_subject, limit=2)
                 related_templates = search_plug_play_templates(selected_rule_title, subject=selected_subject, limit=2)
@@ -5622,7 +5761,7 @@ elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"
                 browser_rows.append({
                     "rule title": row[2],
                     "appearance": "",
-                    "source": row[4] or "Flashcards2025",
+                    "source": "Flashcards" if (row[4] or "").lower() == "flashcards2025.rtf" else (row[4] or "Flashcards"),
                 })
             for row in get_outline_rules(subject=selected_subject)[:50]:
                 browser_rows.append({
@@ -5696,14 +5835,14 @@ elif menu == "Timed IRAC Drill":
             _mc1, _mc2, _mc3, _mc4 = st.columns(4)
             _mc1.metric("Exam", f"{qd['exam_name']} Q{qd['question_number']}")
             _mc2.metric("Subject", qd["subject"])
-            _mc3.metric("Status", qd["july_2026_status"] or "—")
-            _mc4.metric("Priority", qd["priority"] or "—")
+            _mc3.metric("Status", qd["july_2026_status"] or "â€”")
+            _mc4.metric("Priority", qd["priority"] or "â€”")
 
             # Persist hints_used across renders via session state
             _hints_key = f"timed_irac_hints_{question_id}"
             hints_used = st.session_state.get(_hints_key, 0)
 
-            # ── Two-column split layout ──────────────────────────────────────
+            # â”€â”€ Two-column split layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             left_col, right_col = st.columns([1, 1])
 
             with left_col:
@@ -5721,7 +5860,7 @@ elif menu == "Timed IRAC Drill":
                         for p in _paras
                     )
                 else:
-                    _inner = '<p style="color:#58708A;font-style:italic">No prompt stored — retrieve from your materials.</p>'
+                    _inner = '<p style="color:#58708A;font-style:italic">No prompt stored â€” retrieve from your materials.</p>'
 
                 st.markdown(
                     f'<div style="height:520px;overflow-y:auto;background:#f8f9fa;padding:1rem;'
@@ -5790,7 +5929,7 @@ elif menu == "Timed IRAC Drill":
                     )
                     st.success("Attempt saved.")
 
-            # ── Below the split: call, hints, reveal ────────────────────────
+            # â”€â”€ Below the split: call, hints, reveal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             with st.expander("Call of the Question", expanded=True):
                 render_call_text("Call of the Question", qd["call_of_question"])
 

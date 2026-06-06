@@ -263,7 +263,7 @@ function renderStart(){
       if(state.selected.size===0)state.selected.add(s);renderStart();};});
   document.getElementById('allBtn').onclick=()=>{state.selected=new Set(subjects());renderStart();};
   document.getElementById('redBtn').onclick=()=>{state.selected=new Set(["CIV PRO","PROPERTY"]);renderStart();};
-  document.getElementById('seg').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.mode=b.dataset.m;renderStart();});
+  document.getElementById('seg').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.mode=b.dataset.m;startRun();});
   document.getElementById('go').onclick=startRun;
   document.getElementById('addBtn').onclick=()=>renderAdd();
   document.getElementById('advBtn').onclick=renderAdaptiImport;
