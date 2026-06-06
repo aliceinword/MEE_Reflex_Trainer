@@ -24,6 +24,7 @@ env/
 *.sqlite3
 *.pdf
 *.csv
+*.docx
 
 # OS
 .DS_Store

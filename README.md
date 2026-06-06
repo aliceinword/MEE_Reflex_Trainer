@@ -99,6 +99,25 @@ You do not need a PDF for rules. On the **Attack Outline Rules** page, open
 
 Everything you add stays in your local database.
 
+### Importing a Word (.docx) rule book
+
+If you keep your rules in a Word document, `import_master_rules.py` can load them
+in bulk. It expects this structure (Word paragraph styles):
+
+| Style | Meaning |
+|-------|---------|
+| `Heading 1` | Subject (e.g. "I. Business Associations") |
+| `Heading 2` | Sub-topic (e.g. "A. Agency") |
+| `Rule Bullet` | One rule each (e.g. "Actual authority: ...") |
+| `Tip` | Issue-spotter note |
+
+```bash
+python import_master_rules.py "path/to/your-rule-book.docx"
+```
+
+Re-running is safe — duplicate rules (same subject + title + source) are skipped,
+so you can edit your document and re-import anytime.
+
 ---
 
 ## Project structure

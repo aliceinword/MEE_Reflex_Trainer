@@ -1,3 +1,4 @@
 streamlit==1.48.1
 pandas==2.3.2
 PyMuPDF==1.27.2.3
+python-docx==1.2.0
