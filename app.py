@@ -457,7 +457,7 @@ header *,
 
 .readable-title {
     color: #1D4E89;
-    font-weight: 850;
+    font-weight: 700;
     font-size: 1rem;
     margin-bottom: 0.4rem;
     padding-bottom: 0.25rem;
@@ -500,7 +500,7 @@ header *,
 
 .question-title {
     color: #1D4E89;
-    font-weight: 850;
+    font-weight: 700;
     font-size: 1rem;
     margin-bottom: 0.4rem;
     padding-bottom: 0.25rem;
@@ -546,7 +546,7 @@ header *,
 
 .hint-title {
     color: #1D4E89;
-    font-weight: 850;
+    font-weight: 700;
     font-size: 1rem;
     margin-bottom: 0.35rem;
     padding-bottom: 0.25rem;
@@ -575,7 +575,7 @@ header *,
 
 .call-title {
     color: #2563EB;
-    font-weight: 850;
+    font-weight: 700;
     font-size: 1rem;
     margin-bottom: 0.4rem;
     padding-bottom: 0.25rem;
@@ -592,7 +592,7 @@ header *,
 
 .call-card-label {
     color: #1D4ED8;
-    font-weight: 850;
+    font-weight: 700;
     font-size: 0.95rem;
     margin-bottom: 0.25rem;
 }
@@ -632,7 +632,7 @@ header *,
 
 .outline-rule-title {
     color: #1D4E89;
-    font-weight: 850;
+    font-weight: 700;
     font-size: 1rem;
     margin-bottom: 0.35rem;
     padding-bottom: 0.25rem;
@@ -685,7 +685,7 @@ header *,
 
 .plug-title {
     color: #1D4E89;
-    font-weight: 850;
+    font-weight: 700;
     font-size: 1.02rem;
     margin-bottom: 0.35rem;
     padding-bottom: 0.3rem;
@@ -694,7 +694,7 @@ header *,
 
 .plug-section-title {
     color: #0F766E;
-    font-weight: 800;
+    font-weight: 700;
     margin-top: 0.15rem;
     margin-bottom: 0.25rem;
 }
@@ -732,6 +732,84 @@ hr {
     font-size: 0.72rem !important;
     line-height: 1.2 !important;
 }
+
+/* Question context strip */
+.question-strip {
+    background: #EAF4FF;
+    border-radius: 10px;
+    padding: 0.5rem 1rem;
+    margin: 0.5rem 0 1rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 0.93rem;
+}
+
+/* Step label block */
+.step-block {
+    background: #EFF6FF;
+    border-left: 3px solid #3B82F6;
+    border-radius: 0 8px 8px 0;
+    padding: 0.65rem 1rem;
+    margin-bottom: 0.65rem;
+}
+
+.step-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #1E40AF;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 0.2rem;
+}
+
+.step-title {
+    font-size: 0.97rem;
+    font-weight: 600;
+    color: #1D3557;
+}
+
+/* Status badges */
+.badge {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+
+.badge-active  { background: #D1FAE5; color: #065F46; }
+.badge-due     { background: #FEF3C7; color: #92400E; }
+.badge-retired { background: #FCE7F3; color: #9D174D; }
+.badge-mpt     { background: #EDE9FE; color: #5B21B6; }
+.badge-low     { background: #F1F5F9; color: #475569; }
+
+/* Study tip (blue) */
+.study-tip {
+    background: #EFF6FF;
+    border-left: 4px solid #3B82F6;
+    padding: 0.6rem 1rem;
+    border-radius: 0 8px 8px 0;
+    font-size: 0.95rem;
+    color: #1E3A5F;
+    margin: 0.4rem 0 0.7rem;
+}
+
+/* Reveal gate (amber) */
+.reveal-gate {
+    background: #FFFBEB;
+    border-left: 4px solid #F59E0B;
+    padding: 0.6rem 1rem;
+    border-radius: 0 8px 8px 0;
+    font-size: 0.95rem;
+    color: #78350F;
+    margin: 0.4rem 0 0.7rem;
+}
+
+/* Muted caption text */
+.muted { color: #4A6585; font-size: 0.85rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -2164,6 +2242,56 @@ def render_question_overview(qd):
     render_data_health_warning(qd)
 
 
+_BADGE_MAP = {
+    "Active standalone MEE":                ("ACTIVE",       "badge-active"),
+    "Retired standalone - background only": ("RETIRED",      "badge-retired"),
+    "MPT background only":                  ("MPT BG",       "badge-mpt"),
+    "Historical / low priority":            ("LOW PRIORITY", "badge-low"),
+}
+
+
+def render_question_strip(qd):
+    status = qd.get("july_2026_status", "") or ""
+    badge_label, badge_class = _BADGE_MAP.get(status, ("UNKNOWN", "badge-low"))
+    priority = qd.get("priority") or "-"
+    st.markdown(
+        f'<div class="question-strip">'
+        f'<strong>{escape_display_text(qd["exam_name"])} Q{escape_display_text(str(qd["question_number"]))}</strong>'
+        f'<span class="muted">{escape_display_text(qd["subject"])}</span>'
+        f'<span class="badge {badge_class}">{badge_label}</span>'
+        f'<span class="muted">Priority {escape_display_text(str(priority))}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    render_data_health_warning(qd)
+
+
+def render_step_block(step_n, total, label, description=""):
+    st.markdown(
+        f'<div class="step-block">'
+        f'<div class="step-label">Step {step_n} of {total}</div>'
+        f'<div class="step-title">{escape_display_text(label)}</div>'
+        + (f'<div class="muted" style="margin-top:0.2rem">{escape_display_text(description)}</div>' if description else "")
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+    st.progress((step_n - 1) / max(total - 1, 1))
+
+
+def study_tip(text):
+    st.markdown(
+        f'<div class="study-tip">{escape_display_text(text)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def reveal_gate_box(text):
+    st.markdown(
+        f'<div class="reveal-gate">{escape_display_text(text)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def question_picker(active_default=True, due_only=False):
     subjects = ["All"] + get_subjects()
     statuses = ["All"] + get_statuses()
@@ -2233,26 +2361,72 @@ def question_picker(active_default=True, due_only=False):
     return questions[selected_index][0]
 
 
-menu = st.sidebar.radio(
-    "Choose Mode",
-    [
-        "Dashboard",
-        "Bulk Import MEE Bank",
-        "Add MEE Question",
-        "MEE Muscle Ladder",
-        "Mini Essay Drill",
-        "Issue Spotting Drill",
-        "Rule Retrieval Drill",
-        "Timed IRAC Drill",
-        "Due Review Queue",
-        "Review Attempts",
-        "Attack Outline Rules",
-        "Plug & Play Templates"
-    ]
+st.sidebar.markdown("**-- TRAIN --**")
+_nav_train = st.sidebar.radio(
+    "",
+    ["Daily Workout", "Mini Essay Drill", "Muscle Ladder", "Timed IRAC Drill"],
+    key="nav_train",
+    label_visibility="collapsed",
 )
 
+st.sidebar.markdown("**-- DRILLS --**")
+_nav_drills = st.sidebar.radio(
+    "",
+    ["Issue Spotting Drill", "Rule Retrieval Drill", "Due Review Queue"],
+    key="nav_drills",
+    label_visibility="collapsed",
+)
+
+st.sidebar.markdown("**-- LIBRARY --**")
+_nav_library = st.sidebar.radio(
+    "",
+    ["Attack Outline Rules", "Plug & Play Templates", "Review Attempts"],
+    key="nav_library",
+    label_visibility="collapsed",
+)
+
+st.sidebar.markdown("**-- MANAGE --**")
+_nav_manage = st.sidebar.radio(
+    "",
+    ["Question Bank"],
+    key="nav_manage",
+    label_visibility="collapsed",
+)
+
+# Resolve active page: whichever group radio changed last wins.
+_nav_groups = {
+    "nav_train":   _nav_train,
+    "nav_drills":  _nav_drills,
+    "nav_library": _nav_library,
+    "nav_manage":  _nav_manage,
+}
+_active_group = st.session_state.get("_active_nav_group", "nav_train")
+for _gk, _gv in _nav_groups.items():
+    if st.session_state.get(f"_prev_nav_{_gk}") != _gv:
+        _active_group = _gk
+        break
+for _gk in _nav_groups:
+    st.session_state[f"_prev_nav_{_gk}"] = _nav_groups[_gk]
+st.session_state["_active_nav_group"] = _active_group
+_raw_menu = _nav_groups[_active_group]
+
+# Map new names to existing if/elif keys
+_menu_aliases = {
+    "Daily Workout": "Dashboard",
+    "Muscle Ladder": "MEE Muscle Ladder",
+    "Question Bank": "Bulk Import MEE Bank",
+}
+menu = _menu_aliases.get(_raw_menu, _raw_menu)
+
 st.sidebar.markdown("### Reading Comfort")
-ADHD_READING_MODE = st.sidebar.checkbox("Dyslexia / ADHD reading mode", value=False)
+if "adhd_mode" not in st.session_state:
+    st.session_state["adhd_mode"] = False
+ADHD_READING_MODE = st.sidebar.checkbox(
+    "Reading mode (larger text)",
+    value=st.session_state["adhd_mode"],
+    key="adhd_checkbox",
+)
+st.session_state["adhd_mode"] = ADHD_READING_MODE
 
 if ADHD_READING_MODE:
     READING_FONT_SIZE = 20
@@ -2286,7 +2460,7 @@ st.markdown(f"""
 
 .readable-title {{
     color: #1D4E89 !important;
-    font-weight: 850 !important;
+    font-weight: 700 !important;
     font-size: 1rem !important;
     margin-bottom: 0.4rem !important;
     padding-bottom: 0.25rem !important;
@@ -2329,7 +2503,7 @@ textarea {{
 """, unsafe_allow_html=True)
 
 if ADHD_READING_MODE:
-    st.info("ADHD Reading Mode is on: bigger text, wider spacing, and less visual crowding.")
+    st.info("Reading mode is on: larger text, wider spacing, narrower column.")
 
 
 if menu == "Dashboard":
@@ -2488,7 +2662,7 @@ elif menu == "Bulk Import MEE Bank":
         file_name="mee_import_template.csv",
         mime="text/csv"
     )
-    st.caption("💡 Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
+    st.caption("Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
 
     uploaded_file = st.file_uploader("Upload completed CSV", type=["csv"])
 
@@ -2584,7 +2758,7 @@ elif menu == "Add MEE Question":
         )
 
         question_text = st.text_area("Question text", height=250)
-        st.caption("💡 Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
+        st.caption("Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
         call_of_question = st.text_area("Call of the question", height=100)
 
         tested_issues = st.text_area(
@@ -2669,12 +2843,7 @@ elif menu == "MEE Muscle Ladder":
         else:
             qd = unpack_question(q)
 
-            st.subheader(f"{qd['exam_name']} Q{qd['question_number']} - {qd['subject']}")
-            st.caption(
-                f"July 2026 status: {qd['july_2026_status']} | "
-                f"Priority: {qd['priority']} | Source: {qd['source']}"
-            )
-            render_data_health_warning(qd)
+            render_question_strip(qd)
 
             level = st.selectbox(
                 "Choose training level",
@@ -2703,8 +2872,8 @@ elif menu == "MEE Muscle Ladder":
                 target_minutes = 30
                 st.success("Goal: full timed MEE simulation.")
 
-            st.info(f"Set a timer for {target_minutes} minutes and complete the attempt before polishing.")
-            st.warning("Attempt retrieval before revealing the answer bank.")
+            study_tip(f"Set a timer for {target_minutes} minutes and complete the attempt before polishing.")
+            reveal_gate_box("Write your answer first. The reveal button will appear below.")
 
             with st.expander("Call of the Question", expanded=True):
                 render_call_text("Call of the Question", qd["call_of_question"])
@@ -2809,7 +2978,7 @@ TRIGGER FACTS:
 
             st.divider()
 
-            st.warning("Reveal only after you have attempted retrieval.")
+            reveal_gate_box("Reveal only after writing your answer.")
 
             if st.button("Reveal Answer Bank"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
@@ -2819,8 +2988,6 @@ TRIGGER FACTS:
 
                 with st.expander("Model Points - open after self-grading", expanded=False):
                     render_readable_text("Model Points", qd["model_points"], READING_FONT_SIZE)
-
-            st.divider()
 
             col1, col2, col3 = st.columns(3)
 
@@ -2866,7 +3033,6 @@ TRIGGER FACTS:
                 )
 
                 st.success("Saved. This question is now scheduled for review based on your score.")
-                st.balloons()
 
 
 elif menu == "Mini Essay Drill":
@@ -2884,12 +3050,7 @@ elif menu == "Mini Essay Drill":
         else:
             qd = unpack_question(q)
 
-            st.subheader(f"{qd['exam_name']} Q{qd['question_number']} - {qd['subject']}")
-            st.caption(
-                f"July 2026 status: {qd['july_2026_status']} | "
-                f"Priority: {qd['priority']} | Source: {qd['source']}"
-            )
-            render_data_health_warning(qd)
+            render_question_strip(qd)
             subquestions = extract_subquestions(qd["call_of_question"])
 
             with st.expander("1. Call of the Question - read this first", expanded=True):
@@ -2934,8 +3095,7 @@ elif menu == "Mini Essay Drill":
                     else:
                         st.info("No Attack Outline rules matched that search.")
 
-            st.divider()
-            st.warning("Reveal only after you have written at least one issue and one rule.")
+            reveal_gate_box("Reveal only after writing your answer.")
 
             if st.button("Reveal Issues + Rules"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
@@ -2996,7 +3156,6 @@ elif menu == "Mini Essay Drill":
                 )
 
                 st.success("Mini essay attempt saved.")
-                st.balloons()
 
             st.info(
                 "Mini Essay Rule: if you can spot the issue and write the rule from memory, "
@@ -3017,9 +3176,9 @@ elif menu == "Issue Spotting Drill":
         else:
             qd = unpack_question(q)
 
-            render_question_overview(qd)
+            render_question_strip(qd)
 
-            st.info("Timer target: 5 minutes. Read the call first, then identify the legal triggers.")
+            study_tip("Timer target: 5 minutes. Read the call first, then identify the legal triggers.")
 
             with st.expander("Call of the Question", expanded=True):
                 render_call_text("Call of the Question", qd["call_of_question"])
@@ -3037,7 +3196,7 @@ elif menu == "Issue Spotting Drill":
 
             confidence = st.slider("Confidence", 1, 5, 3)
 
-            st.warning("Reveal only after you have attempted retrieval.")
+            reveal_gate_box("Reveal only after writing your answer.")
 
             if st.button("Reveal Tested Issues"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
@@ -3084,12 +3243,12 @@ elif menu == "Rule Retrieval Drill":
         else:
             qd = unpack_question(q)
 
-            render_question_overview(qd)
+            render_question_strip(qd)
 
             st.markdown("### Tested Issue Bank")
             render_tested_issues_text("Tested Issues", qd["tested_issues"])
 
-            st.warning("Write the rule from memory before opening the answer.")
+            reveal_gate_box("Write the rule from memory before opening the answer.")
 
             hints_used = render_progressive_hints(qd)
 
@@ -3099,7 +3258,7 @@ elif menu == "Rule Retrieval Drill":
                 height=180
             )
 
-            st.warning("Reveal only after you have attempted retrieval.")
+            reveal_gate_box("Reveal only after writing your answer.")
 
             if st.button("Reveal Rule"):
                 render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
@@ -3246,7 +3405,7 @@ elif menu == "Timed IRAC Drill":
             _new_hints = render_progressive_hints(qd)
             st.session_state[_hints_key] = _new_hints
 
-            st.warning("Reveal only after you have attempted retrieval.")
+            reveal_gate_box("Reveal only after writing your answer.")
 
             if st.button("Reveal Model Points"):
                 with st.expander("Model Points - open after self-grading", expanded=False):
