@@ -6893,16 +6893,10 @@ elif menu == "MEE Muscle Ladder":
         "Train gradually: issue -> rule -> trigger facts -> IRAC -> full essay.",
     )
 
-    with st.expander("How this works", expanded=False):
-        st.markdown("""
-        You are not trying to write a perfect essay immediately.
-
-        You are training the reflex:
-
-        **Call -> Issue -> Rule -> Facts -> Conclusion**
-
-        Fact without rule = story. Rule without fact = flashcard. We need both.
-        """)
+    st.info(
+        "Use this page only for the ladder progression. For hints, attack-outline rules, "
+        "templates, and deeper review tools, use the dedicated tabs."
+    )
 
     question_id = question_picker(active_default=True, compact=True)
 
@@ -6914,84 +6908,71 @@ elif menu == "MEE Muscle Ladder":
         else:
             qd = unpack_question(q)
 
-            render_question_strip(qd)
+            st.caption(
+                f"{qd['exam_name']} Q{qd['question_number']} | {qd['subject']} | "
+                f"Priority {qd['priority'] or '-'}"
+            )
 
-            ladder_main, ladder_side = st.columns([2.15, 1], gap="large")
+            level = st.selectbox(
+                "Choose training level",
+                [
+                    "Level 1 - Issue + Rule Mini Run - 7 min",
+                    "Level 2 - Trigger Fact Hunt - 10 min",
+                    "Level 3 - Mini IRAC - 15 min",
+                    "Level 4 - Skeleton Essay - 20 min",
+                    "Level 5 - Full MEE - 30 min"
+                ]
+            )
 
-            with ladder_side:
-                st.markdown("### Training Controls")
-                render_stopwatch(f"ladder_{qd['id']}")
+            if level.startswith("Level 1"):
+                target_minutes = 7
+                goal_text = "Spot issues and write rules from memory."
+            elif level.startswith("Level 2"):
+                target_minutes = 10
+                goal_text = "Connect each issue/rule to trigger facts."
+            elif level.startswith("Level 3"):
+                target_minutes = 15
+                goal_text = "Write one strong IRAC paragraph."
+            elif level.startswith("Level 4"):
+                target_minutes = 20
+                goal_text = "Outline the entire essay."
+            else:
+                target_minutes = 30
+                goal_text = "Full timed MEE simulation."
 
-                level = st.selectbox(
-                    "Choose training level",
-                    [
-                        "Level 1 - Issue + Rule Mini Run - 7 min",
-                        "Level 2 - Trigger Fact Hunt - 10 min",
-                        "Level 3 - Mini IRAC - 15 min",
-                        "Level 4 - Skeleton Essay - 20 min",
-                        "Level 5 - Full MEE - 30 min"
-                    ]
-                )
+            st.markdown(
+                f'<div class="mini-drill-note">{target_minutes}-minute target: {goal_text}</div>',
+                unsafe_allow_html=True,
+            )
 
-                if level.startswith("Level 1"):
-                    target_minutes = 7
-                    goal_text = "Spot issues and write rules from memory."
-                elif level.startswith("Level 2"):
-                    target_minutes = 10
-                    goal_text = "Connect each issue/rule to trigger facts."
-                elif level.startswith("Level 3"):
-                    target_minutes = 15
-                    goal_text = "Write one strong IRAC paragraph."
-                elif level.startswith("Level 4"):
-                    target_minutes = 20
-                    goal_text = "Outline the entire essay."
-                else:
-                    target_minutes = 30
-                    goal_text = "Full timed MEE simulation."
+            prompt_col, work_col = st.columns([1, 1.15], gap="large")
 
-                st.info(f"{target_minutes} min target. {goal_text}")
-                show_ladder_highlights = st.checkbox("Show trigger fact highlights", value=False)
+            with prompt_col:
+                with st.expander("Call of the Question", expanded=True):
+                    render_call_text("Call of the Question", qd["call_of_question"])
 
-                hints_used = render_progressive_hints(qd)
-                render_trigger_candidate_diagnostics(qd)
+                with st.expander("Fact Pattern", expanded=True):
+                    fact_only = (
+                        extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
+                        if "extract_fact_pattern_only" in globals()
+                        else qd["question_text"]
+                    )
+                    render_fact_pattern_text("Fact Pattern", fact_only)
 
-                reveal_gate_box("Reveal only after writing your answer.")
-
-            with ladder_main:
-                top_left, top_right = st.columns([1, 1], gap="medium")
-
-                with top_left:
-                    with st.expander("Call of the Question", expanded=True):
-                        render_call_text("Call of the Question", qd["call_of_question"])
-
-                with top_right:
-                    with st.expander("Fact Pattern", expanded=True):
-                        fact_only = (
-                            extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
-                            if "extract_fact_pattern_only" in globals()
-                            else qd["question_text"]
-                        )
-                        if show_ladder_highlights:
-                            render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd, text=fact_only)
-                        else:
-                            render_fact_pattern_text("Fact Pattern", fact_only)
-
+            with work_col:
                 st.markdown(f"### {level.split(' - ')[0]} Work")
 
                 if level.startswith("Level 1"):
-                    col_a, col_b = st.columns([1, 1], gap="medium")
-                    with col_a:
-                        user_issues = st.text_area(
-                            "Step A - What issues do you see?",
-                            placeholder="List each legal issue raised by this call.",
-                            height=150
-                        )
-                    with col_b:
-                        user_rules = st.text_area(
-                            "Step B - Write the rules from memory",
-                            placeholder="Write the governing test, elements, or standard.",
-                            height=150
-                        )
+                    user_issues = st.text_area(
+                        "Step A - What issues do you see?",
+                        placeholder="List each legal issue raised by this call.",
+                        height=120
+                    )
+                    user_rules = st.text_area(
+                        "Step B - Write the rules from memory",
+                        placeholder="Write the governing test, elements, or standard.",
+                        height=140
+                    )
                     user_facts = st.text_area(
                         "Optional - Which facts triggered those issues?",
                         placeholder="Quote or summarize the facts that connect to each rule element.",
@@ -7016,7 +6997,7 @@ TRIGGER FACTS:
                             "Issue 1: ___\nRule: ___\nTrigger facts: ___\n\n"
                             "Issue 2: ___\nRule: ___\nTrigger facts: ___"
                         ),
-                        height=220
+                        height=280
                     )
 
                 elif level.startswith("Level 3"):
@@ -7026,7 +7007,7 @@ TRIGGER FACTS:
                             "Issue: Whether ___\nRule: Under ___\nApplication: Here, ___ because ___\n"
                             "Counterargument: However, ___\nConclusion: Therefore, ___"
                         ),
-                        height=240
+                        height=280
                     )
 
                 elif level.startswith("Level 4"):
@@ -7036,84 +7017,15 @@ TRIGGER FACTS:
                             "Call 1:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:\n\n"
                             "Call 2:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:"
                         ),
-                        height=260
+                        height=300
                     )
 
                 else:
-                    combined_answer = st.text_area("Write the full timed essay", height=320)
+                    combined_answer = st.text_area("Write the full timed essay", height=360)
 
             st.divider()
 
-            reveal_col, score_col = st.columns([1.45, 1], gap="large")
-
-            with reveal_col:
-                reveal_gate_box("Reveal only after writing your answer.")
-
-                if st.button("Reveal Answer Bank", use_container_width=True):
-                    st.session_state[f"ladder_reveal_{qd['id']}"] = True
-
-                if st.session_state.get(f"ladder_reveal_{qd['id']}", False):
-                    render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                    render_raw_tested_issues_expander(qd)
-                    with st.expander("Debug: rule sources", expanded=False):
-                        st.write("Subject:", qd.get("subject"))
-                        st.write("Tested issues length:", len(qd.get("tested_issues", "") or ""))
-                        st.write("Rules length:", len(qd.get("rules", "") or ""))
-                        st.write("Trigger facts length:", len(qd.get("trigger_facts", "") or ""))
-
-                        try:
-                            st.write(
-                                "Flashcard matches:",
-                                search_rule_flashcards(
-                                    build_rule_search_query(qd),
-                                    subject=qd.get("subject"),
-                                    limit=3,
-                                ),
-                            )
-                        except Exception as e:
-                            st.write("Flashcard search error:", str(e))
-
-                        try:
-                            st.write(
-                                "Attack outline matches:",
-                                search_outline_rules(
-                                    build_rule_search_query(qd),
-                                    subject=qd.get("subject"),
-                                    limit=3,
-                                ),
-                            )
-                        except Exception as e:
-                            st.write("Attack outline search error:", str(e))
-
-                        try:
-                            st.write(
-                                "Plug Play matches:",
-                                search_plug_play_templates(
-                                    build_rule_search_query(qd),
-                                    subject=qd.get("subject"),
-                                    limit=3,
-                                ),
-                            )
-                        except Exception as e:
-                            st.write("Plug Play search error:", str(e))
-
-                    try:
-                        if not get_rule_flashcards():
-                            st.warning("Rule Flashcards are not imported yet. Run: python import_flashcards2025.py Flashcards2025.rtf")
-                    except Exception:
-                        pass
-
-                    render_rule_skeletons_for_calls(qd)
-                    with st.expander("Raw Model Rule / Analysis - open only after self-grading", expanded=False):
-                        render_readable_text("Model Rule / Analysis", qd["rules"], READING_FONT_SIZE)
-                    render_trigger_facts("Trigger Facts", qd)
-                    render_raw_trigger_facts_expander(qd)
-                    render_trap_warnings("Trap Warnings", qd["traps"])
-                    with st.expander("Raw trap text", expanded=False):
-                        st.text(qd.get("traps", "") or "")
-                    render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
-                    render_trigger_candidate_diagnostics(qd)
-                    render_sample_answer_section(qd, expanded=False)
+            score_col, check_col = st.columns([1, 1], gap="large")
 
             with score_col:
                 st.markdown("### Score and Save")
@@ -7122,11 +7034,7 @@ TRIGGER FACTS:
                 fact_score = st.slider("Fact connection score", 0, 5, 0)
 
                 average_score = round((issue_score + rule_score + fact_score) / 3)
-                adjusted_score = max(0, average_score - (1 if hints_used >= 3 else 0))
-
-                score_col1, score_col2 = st.columns(2)
-                score_col1.metric("Raw", f"{average_score}/5")
-                score_col2.metric("Adjusted", f"{adjusted_score}/5")
+                st.metric("Training score", f"{average_score}/5")
 
                 missed = st.text_area(
                     "What did you miss?",
@@ -7140,20 +7048,31 @@ TRIGGER FACTS:
                     height=90
                 )
 
-                notes_with_hints = f"Hints used: {hints_used}/5\n\n{notes}"
-
                 if st.button("Save Muscle Ladder Attempt", use_container_width=True):
                     save_attempt(
                         qd["id"],
                         level,
                         combined_answer,
-                        adjusted_score,
+                        average_score,
                         missed,
-                        notes_with_hints,
+                        notes,
                         minutes_spent=target_minutes
                     )
 
                     st.success("Saved. This question is now scheduled for review based on your score.")
+
+            with check_col:
+                st.markdown("### Quick Answer Check")
+                reveal_gate_box("Reveal only after writing your answer.")
+
+                if st.button("Reveal Compact Answer Check", use_container_width=True):
+                    st.session_state[f"ladder_reveal_{qd['id']}"] = True
+
+                if st.session_state.get(f"ladder_reveal_{qd['id']}", False):
+                    render_tested_issues_text("Tested Issues", qd["tested_issues"])
+                    render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
+                    render_trigger_facts("Trigger Facts", qd)
+                    render_trap_warnings("Trap Warnings", qd["traps"])
 
 
 elif menu == "Mini Essay Drill":
