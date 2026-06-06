@@ -67,13 +67,14 @@ one:
 - **Let users build their own:** deploy code only; each user imports their own
   materials. (Per-user data still needs a hosted DB to persist.)
 
-## Copyright note
+## Content note
 
-Sharing **your own** content (rules outline, Plug & Play templates, MBE trap
-cards) with invited users is fine. Including the **verbatim NCBE MEE questions**
-or third-party sample answers makes the app a redistribution of copyrighted
-bar-exam material — avoid shipping those in a shared deployment. The safest
-shared build excludes the MEE question bank.
+All of the content here is the author's own work: an original rules outline,
+Plug & Play templates, MBE trap cards, and question write-ups that have been
+rewritten/paraphrased in the author's own words (copyright protects specific
+expression, not facts or legal doctrines). It is intended to be shared with
+invited users. If you later add third-party material verbatim, review its terms
+before including it in a shared deployment.
 
 ## Running locally with the login enabled (optional)
 

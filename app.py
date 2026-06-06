@@ -6655,68 +6655,83 @@ elif menu == "Mini Essay Drill":
                     render_fact_pattern_text("Full Fact Pattern", fact_only)
 
                 st.markdown("### Breakout Calls")
-                st.caption("Answer one call at a time. Compact call formatting is intentional.")
+                st.caption("Answer the active call, reveal/check it, score it, mark it done, then move on.")
 
-                all_subanswers = []
+                if not subquestions:
+                    subquestions = [
+                        {
+                            "label": "Question 1",
+                            "text": qd.get("call_of_question", ""),
+                            "subparts": [],
+                        }
+                    ]
 
-                for index, subq in enumerate(subquestions, start=1):
-                    with st.container():
-                        st.markdown("---")
-                        answer_piece = render_subquestion_card(qd, subq, index, hints_used)
-                        all_subanswers.append(answer_piece)
+                init_mini_drill_state(qd, len(subquestions))
+                render_mini_drill_progress(qd, subquestions)
 
-                combined_answer = "\n\n====================\n\n".join(all_subanswers)
+                reset_col, spacer_col = st.columns([1, 3])
+                with reset_col:
+                    if st.button("Reset Mini Drill Progress for This Question", use_container_width=True):
+                        reset_mini_drill_progress(qd)
+                        st.rerun()
 
-                st.divider()
-                st.info(
-                    "Score the whole mini drill honestly. If you needed hints or only got one call right, "
-                    "reserve a 5 for a complete, mostly independent answer."
-                )
+                active_key = mini_drill_state_key(qd, "active_index")
+                done_key = mini_drill_state_key(qd, "done_questions")
+                active_idx = st.session_state[active_key]
+                done_questions = st.session_state[done_key]
 
-                col1, col2, col3 = st.columns(3)
+                for idx, subq in enumerate(subquestions):
+                    label = subq.get("label", f"Question {idx + 1}")
+                    is_active = idx == active_idx
+                    is_done = idx in done_questions
+                    status = "DONE" if is_done else "ACTIVE" if is_active else "NEXT"
 
-                with col1:
-                    issue_score = st.slider("Issue spotting score", 0, 5, 0)
+                    with st.expander(f"{label} - {status}", expanded=is_active):
+                        if not is_active and not is_done:
+                            st.info("Complete the earlier question first, then come back here.")
+                            continue
 
-                with col2:
-                    rule_score = st.slider("Rule recall score", 0, 5, 0)
+                        st.markdown('<div class="mini-question-panel">', unsafe_allow_html=True)
+                        render_single_mini_question_workflow(qd, subq, idx + 1, hints_used)
+                        st.markdown("</div>", unsafe_allow_html=True)
 
-                with col3:
-                    fact_score = st.slider("Fact trigger score", 0, 5, 0)
+                done_questions = st.session_state.get(done_key, set())
 
-                raw_score = round((issue_score + rule_score + fact_score) / 3)
-                adjusted_score = max(0, raw_score - 1) if hints_used >= 3 else raw_score
+                if len(done_questions) == len(subquestions):
+                    st.divider()
+                    st.success("All subquestions completed. Ready to save the full Mini Essay attempt.")
 
-                score_col1, score_col2 = st.columns(2)
-                score_col1.metric("Raw score", f"{raw_score}/5")
-                score_col2.metric("Adjusted training score", f"{adjusted_score}/5")
+                    all_answers = []
+                    all_scores = []
+                    all_missed = []
+                    all_notes = []
 
-                missed = st.text_area(
-                    "What did you miss?",
-                    placeholder="Example: I spotted the broad issue but missed one required element.",
-                    height=100
-                )
+                    for i, subq in enumerate(subquestions, start=1):
+                        all_answers.append(st.session_state.get(f"mini_answer_piece_{qd['id']}_{i}", ""))
+                        all_scores.append(st.session_state.get(f"mini_score_piece_{qd['id']}_{i}", 0))
+                        all_missed.append(st.session_state.get(f"mini_missed_piece_{qd['id']}_{i}", ""))
+                        all_notes.append(st.session_state.get(f"mini_fix_piece_{qd['id']}_{i}", ""))
 
-                notes = st.text_area(
-                    "Fix note for future you",
-                    placeholder="Example: Next time map issue -> rule -> trigger fact before writing.",
-                    height=100
-                )
+                    final_score = round(sum(all_scores) / len(all_scores)) if all_scores else 0
+                    combined_answer = "\n\n====================\n\n".join([a for a in all_answers if a])
+                    combined_missed = "\n".join([m for m in all_missed if m])
+                    combined_notes = "\n".join([n for n in all_notes if n])
+                    notes_with_hints = f"Hints used: {hints_used}/5\n\n{combined_notes}"
 
-                if st.button("Save Mini Essay Attempt"):
-                    notes_with_hints = f"Hints used: {hints_used}/5\n\n{notes}"
+                    st.metric("Final Mini Drill Score", f"{final_score}/5")
 
-                    save_attempt(
-                        qd["id"],
-                        "Mini Essay Drill - Broken Out by Calls",
-                        combined_answer,
-                        adjusted_score,
-                        missed,
-                        notes_with_hints,
-                        minutes_spent=8
-                    )
+                    if st.button("Save Full Mini Essay Attempt"):
+                        save_attempt(
+                            qd["id"],
+                            "Mini Essay Drill - Stepwise",
+                            combined_answer,
+                            final_score,
+                            combined_missed,
+                            notes_with_hints,
+                            minutes_spent=8 * len(subquestions),
+                        )
 
-                    st.success("Mini essay attempt saved.")
+                        st.success("Full Mini Essay attempt saved.")
 
                 st.info(
                     "Mini Essay Rule: if you can spot the issue and write the rule from memory, "
