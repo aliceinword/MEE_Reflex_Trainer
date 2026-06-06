@@ -838,6 +838,59 @@ header *,
     margin: 0.35rem 0 0.8rem 0;
 }
 
+.structured-answer-box {
+    background: #FFFFFF;
+    border: 1.5px solid #CDEBFF;
+    border-radius: 14px;
+    padding: 0.95rem 1.05rem;
+    margin: 0.55rem 0 0.8rem 0;
+    box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
+    width: 100%;
+}
+
+.structured-answer-title {
+    color: #1D4E89;
+    font-weight: 850;
+    font-size: 1.05rem;
+    margin-bottom: 0.35rem;
+}
+
+.structured-answer-note {
+    color: #52657A;
+    font-size: 0.92rem;
+    line-height: 1.35;
+    margin-bottom: 0.8rem;
+}
+
+.structured-section {
+    border-top: 1px solid #DBEAFE;
+    padding-top: 0.65rem;
+    margin-top: 0.65rem;
+}
+
+.structured-section-title {
+    color: #234A7C;
+    font-weight: 800;
+    font-size: 0.95rem;
+    margin-bottom: 0.35rem;
+}
+
+.structured-section-body {
+    color: #102033;
+    font-size: 16px;
+    line-height: 1.48;
+}
+
+.structured-list {
+    margin: 0.15rem 0 0 1.15rem;
+    padding: 0;
+}
+
+.structured-list li {
+    margin: 0.25rem 0;
+    padding-left: 0.1rem;
+}
+
 .sample-point {
     background: #EFF6FF;
     border-left: 4px solid #2563EB;
@@ -2603,31 +2656,76 @@ def model_answer_quality(qd):
     return "usable"
 
 
-def build_structured_model_analysis(qd, call_text=None, title="Structured Model Analysis"):
-    parts = [
-        title,
-        "",
-        "The imported model answer for this question is incomplete or not cleanly split. Use this structured answer bank instead.",
-    ]
+def split_structured_lines(text):
+    text = make_readable_legal_text(text)
+    items = []
 
-    if call_text:
-        parts.extend(["", "Call", str(call_text).strip()])
-    elif qd.get("call_of_question"):
-        parts.extend(["", "Call", str(qd.get("call_of_question", "")).strip()])
+    for raw_line in str(text or "").splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        line = re.sub(r"^[-•]\s*", "", line).strip()
+        if line and line not in items:
+            items.append(line)
 
-    sections = [
+    return items
+
+
+def build_structured_model_sections(qd, call_text=None):
+    sections = []
+
+    call_source = str(call_text or qd.get("call_of_question", "") or "").strip()
+    if call_source:
+        sections.append(("Call", split_structured_lines(call_source)))
+
+    for heading, text in [
         ("Issues to Cover", qd.get("tested_issues", "")),
         ("Rules", qd.get("rules", "")),
         ("Trigger Facts", qd.get("trigger_facts", "")),
         ("Trap Warnings", qd.get("traps", "")),
-    ]
+    ]:
+        items = split_structured_lines(text)
+        if items:
+            sections.append((heading, items))
 
-    for heading, text in sections:
-        text = str(text or "").strip()
-        if text:
-            parts.extend(["", heading, text])
+    return sections
 
-    return "\n".join(parts).strip()
+
+def render_structured_model_analysis(qd, call_text=None, title="Structured Model Analysis"):
+    sections = build_structured_model_sections(qd, call_text=call_text)
+    if not sections:
+        st.info("No structured answer material is available for this question yet.")
+        return
+
+    section_html = []
+    for heading, items in sections:
+        if len(items) == 1:
+            body_html = f'<div class="structured-section-body">{escape_display_text(items[0])}</div>'
+        else:
+            body_html = (
+                '<ul class="structured-list">'
+                + "".join(f"<li>{escape_display_text(item)}</li>" for item in items)
+                + "</ul>"
+            )
+
+        section_html.append(
+            '<div class="structured-section">'
+            f'<div class="structured-section-title">{escape_display_text(heading)}</div>'
+            f'{body_html}'
+            '</div>'
+        )
+
+    st.markdown(
+        (
+            '<div class="structured-answer-box">'
+            f'<div class="structured-answer-title">{escape_display_text(title)}</div>'
+            '<div class="structured-answer-note">'
+            'The imported model answer for this question is incomplete or not cleanly split, '
+            'so this view uses the clean answer-bank fields.'
+            '</div>'
+            f'{"".join(section_html)}'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 def render_sample_answer_section(qd, expanded=False):
@@ -2645,11 +2743,7 @@ def render_sample_answer_section(qd, expanded=False):
         if quality == "usable":
             render_sample_answer_text("Sample Answer / Model Analysis", model_points)
         else:
-            render_readable_text(
-                "Structured Model Analysis",
-                build_structured_model_analysis(qd),
-                READING_FONT_SIZE,
-            )
+            render_structured_model_analysis(qd, title="Structured Model Analysis")
 
 
 def clean_trap_text(text):
@@ -5882,11 +5976,7 @@ def get_model_section_for_subquestion(qd, subq_index, subpart=None):
 
         return (
             f"Structured Model Analysis - Question {subq_index}",
-            build_structured_model_analysis(
-                qd,
-                call_text=call_text,
-                title=f"Structured Model Analysis - Question {subq_index}",
-            ),
+            call_text,
         )
 
     return None, ""
@@ -5907,7 +5997,11 @@ def render_sample_answer_for_subquestion(qd, subq_index, label, subpart=None):
     with st.expander(f"Compare With Sample Answer - {title}", expanded=False):
         st.warning("Open only after you attempted this call.")
         if str(section_heading or "").startswith("Structured Model Analysis"):
-            render_readable_text(section_heading or f"Sample Answer - {title}", model_text)
+            render_structured_model_analysis(
+                qd,
+                call_text=model_text,
+                title=section_heading or f"Sample Answer - {title}",
+            )
         else:
             render_sample_answer_text(section_heading or f"Sample Answer - {title}", model_text)
 
