@@ -2361,11 +2361,21 @@ def question_picker(active_default=True, due_only=False):
     return questions[selected_index][0]
 
 
+if "_active_nav_group" not in st.session_state:
+    st.session_state["_active_nav_group"] = "nav_train"
+
+
+def _set_nav_group(group_key):
+    st.session_state["_active_nav_group"] = group_key
+
+
 st.sidebar.markdown("**-- TRAIN --**")
 _nav_train = st.sidebar.radio(
     "",
     ["Daily Workout", "Mini Essay Drill", "Muscle Ladder", "Timed IRAC Drill"],
     key="nav_train",
+    on_change=_set_nav_group,
+    args=("nav_train",),
     label_visibility="collapsed",
 )
 
@@ -2374,6 +2384,8 @@ _nav_drills = st.sidebar.radio(
     "",
     ["Issue Spotting Drill", "Rule Retrieval Drill", "Due Review Queue"],
     key="nav_drills",
+    on_change=_set_nav_group,
+    args=("nav_drills",),
     label_visibility="collapsed",
 )
 
@@ -2382,6 +2394,8 @@ _nav_library = st.sidebar.radio(
     "",
     ["Attack Outline Rules", "Plug & Play Templates", "Review Attempts"],
     key="nav_library",
+    on_change=_set_nav_group,
+    args=("nav_library",),
     label_visibility="collapsed",
 )
 
@@ -2390,27 +2404,19 @@ _nav_manage = st.sidebar.radio(
     "",
     ["Question Bank"],
     key="nav_manage",
+    on_change=_set_nav_group,
+    args=("nav_manage",),
     label_visibility="collapsed",
 )
 
-# Resolve active page: whichever group radio changed last wins.
 _nav_groups = {
     "nav_train":   _nav_train,
     "nav_drills":  _nav_drills,
     "nav_library": _nav_library,
     "nav_manage":  _nav_manage,
 }
-_active_group = st.session_state.get("_active_nav_group", "nav_train")
-for _gk, _gv in _nav_groups.items():
-    if st.session_state.get(f"_prev_nav_{_gk}") != _gv:
-        _active_group = _gk
-        break
-for _gk in _nav_groups:
-    st.session_state[f"_prev_nav_{_gk}"] = _nav_groups[_gk]
-st.session_state["_active_nav_group"] = _active_group
-_raw_menu = _nav_groups[_active_group]
+_raw_menu = _nav_groups[st.session_state["_active_nav_group"]]
 
-# Map new names to existing if/elif keys
 _menu_aliases = {
     "Daily Workout": "Dashboard",
     "Muscle Ladder": "MEE Muscle Ladder",
