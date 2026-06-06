@@ -2828,6 +2828,130 @@ def find_rule_support_for_call(qd, call_text):
     }
 
 
+def build_rule_search_query(qd, call_text=""):
+    parts = [
+        call_text or "",
+        qd.get("tested_issues", "") or "",
+        qd.get("call_of_question", "") or "",
+        qd.get("subject", "") or "",
+    ]
+
+    text = " ".join(parts)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:800]
+
+
+def get_rule_skeleton_support(qd, call_text=""):
+    query = build_rule_search_query(qd, call_text)
+    subject = qd.get("subject", "")
+
+    try:
+        results = search_rule_flashcards(query, subject=subject, limit=5)
+        if results:
+            r = results[0]
+            return {
+                "source": "Flashcards2025",
+                "title": r[2],
+                "rule_text": r[3],
+                "tags": r[5] if len(r) > 5 else "",
+            }
+    except Exception:
+        pass
+
+    try:
+        results = search_outline_rules(query, subject=subject, limit=5)
+        if results:
+            r = results[0]
+            return {
+                "source": "Attack Outline",
+                "title": r[2],
+                "rule_text": r[4],
+                "tags": "",
+            }
+    except Exception:
+        pass
+
+    try:
+        results = search_plug_play_templates(query, subject=subject, limit=5)
+        if results:
+            r = results[0]
+            return {
+                "source": "Plug & Play",
+                "title": r[2],
+                "rule_text": r[5],
+                "tags": "",
+            }
+    except Exception:
+        pass
+
+    raw_rules = qd.get("rules", "") or ""
+    if len(raw_rules.strip()) > 20:
+        return {
+            "source": "Model-derived fallback",
+            "title": "Model Rule / Analysis",
+            "rule_text": raw_rules,
+            "tags": "",
+        }
+
+    return {
+        "source": "None",
+        "title": "No rule skeleton found",
+        "rule_text": "",
+        "tags": "",
+    }
+
+
+def render_rule_skeleton(title, rule_support):
+    source = rule_support.get("source", "Unknown")
+    rule_title = rule_support.get("title", title)
+    rule_text = rule_support.get("rule_text", "")
+
+    if not rule_text:
+        st.info("No rule skeleton found yet. Import Flashcards2025 or search the Rule Flashcards page.")
+        try:
+            if not get_rule_flashcards():
+                st.warning("Rule Flashcards are not imported yet. Run: python import_flashcards2025.py Flashcards2025.rtf")
+        except Exception:
+            pass
+        st.code("python import_flashcards2025.py Flashcards2025.rtf")
+        return
+
+    if source == "Model-derived fallback":
+        st.warning(
+            "This rule skeleton is from model analysis. It may include application. "
+            "Prefer Flashcards2025 / Attack Outline rules for clean rule statements."
+        )
+
+    st.markdown(f"### {escape_display_text(rule_title)}")
+    st.caption(f"Source: {source}")
+
+    if "render_outline_rule_text" in globals():
+        render_outline_rule_text("Rule Skeleton", rule_text)
+    elif "render_readable_text" in globals():
+        render_readable_text("Rule Skeleton", rule_text)
+    else:
+        st.write(rule_text)
+
+
+def render_rule_skeletons_for_calls(qd):
+    st.markdown("### Rule Skeleton")
+    subquestions = extract_subquestions(qd.get("call_of_question", ""))
+
+    if not subquestions:
+        rule_support = get_rule_skeleton_support(qd)
+        render_rule_skeleton("Rule Skeleton", rule_support)
+        return
+
+    for subq in subquestions:
+        call_text = subq.get("text", "")
+        if subq.get("subparts"):
+            call_text += " " + " ".join([sp.get("text", "") for sp in subq["subparts"]])
+
+        rule_support = get_rule_skeleton_support(qd, call_text)
+        with st.expander(f"{subq.get('label', 'Question')} Rule Skeleton", expanded=True):
+            render_rule_skeleton(f"{subq.get('label', 'Question')} Rule Skeleton", rule_support)
+
+
 def get_trigger_facts_for_call(qd, call_text, max_facts=5):
     call_l = (call_text or "").lower()
 
@@ -3585,35 +3709,99 @@ def render_raw_tested_issues_expander(qd):
 
 
 def extract_fact_pattern_only(question_text, call_text=None):
+    import re
+
     if not question_text:
         return "No fact pattern available."
 
     text = str(question_text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\u00a0", " ")
 
-    # Remove exam junk first
-    text = re.sub(r"\bFEBRUARY\s+\d{4}\s+MEE\b", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"\bJULY\s+\d{4}\s+MEE\b", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"\u00a9\s*\d{4}.*", "", text, flags=re.IGNORECASE)
+    # Remove exam/footer junk.
+    junk_patterns = [
+        r"\bFEBRUARY\s+\d{4}\s+MEE\b",
+        r"\bJULY\s+\d{4}\s+MEE\b",
+        r"\bMEE\s+QUESTION\s+\d+\b",
+        r"\bQUESTION\s+\d+\s*[-–—].*",
+        r"©\s*\d{4}.*",
+        r"Studicata.*",
+        r"National Conference of Bar Examiners.*",
+    ]
 
-    # If the call text appears inside the question, cut everything from it onward.
+    for pat in junk_patterns:
+        text = re.sub(pat, "", text, flags=re.IGNORECASE)
+
+    # If exact call text appears, cut before it.
     if call_text:
-        clean_call = clean_call_text(call_text)
-        if clean_call and clean_call in text:
-            text = text.split(clean_call)[0]
+        raw_call = str(call_text).strip()
+        if raw_call and raw_call in text:
+            text = text.split(raw_call)[0]
 
-    # Otherwise find the first numbered call, but only cut if it appears
-    # after at least 40% of the text (so we don't truncate the fact pattern).
-    matches = list(re.finditer(r"(?m)^\s*1\.\s+", text))
-    if matches:
-        cutoff = None
-        for match in matches:
-            if match.start() > len(text) * 0.40:
-                cutoff = match.start()
-                break
-        if cutoff:
-            text = text[:cutoff]
+        # Try cleaned call as well.
+        try:
+            cleaned_call = clean_call_text(call_text)
+            if cleaned_call and cleaned_call in text:
+                text = text.split(cleaned_call)[0]
+        except Exception:
+            pass
 
-    return clean_fact_pattern_text(text)
+    # Normalize lines for call detection but preserve original text length roughly.
+    # Find first top-level numbered call near the back half of the question.
+    # Examples:
+    # 1. If the woman sues...
+    # 1. What type...
+    # 1. Can Brenda...
+    # 1. Was Kim...
+    numbered_call_patterns = [
+        r"(?m)^\s*1\.\s+(If|What|Can|Could|Is|Are|Was|Were|Will|Would|Should|May|Does|Did|Do)\b",
+        r"(?m)^\s*1\.\s+\([a-z]\)\s+",
+    ]
+
+    cut_positions = []
+
+    for pat in numbered_call_patterns:
+        for m in re.finditer(pat, text, flags=re.IGNORECASE):
+            if m.start() > len(text) * 0.35:
+                cut_positions.append(m.start())
+
+    # Also detect inline call starts after a sentence where PDF extraction lost line break:
+    # "... considering suing the potter. If the woman sues..."
+    inline_call_patterns = [
+        r"\.\s+(If\s+the\s+[^.]{0,120}?\s+sues\b)",
+        r"\.\s+(Assuming\s+that\b)",
+        r"\.\s+(What\s+type\b)",
+        r"\.\s+(Can\s+[A-Z][A-Za-z]+\b)",
+        r"\.\s+(Could\s+a\s+court\b)",
+        r"\.\s+(Is\s+the\b)",
+        r"\.\s+(Was\s+[A-Z][A-Za-z]+\b)",
+    ]
+
+    for pat in inline_call_patterns:
+        for m in re.finditer(pat, text, flags=re.IGNORECASE):
+            # Only cut if the detected call is in the latter part of the question.
+            if m.start() > len(text) * 0.45:
+                # cut after the period before the call, preserving the factual sentence.
+                cut_positions.append(m.start() + 1)
+
+    # Detect "Explain. 2." patterns and cut at the first call if possible.
+    # If " 2." appears, find the previous " 1." or inline call before it.
+    two_match = re.search(r"\s+2\.\s+", text)
+    if two_match:
+        prior_ones = list(re.finditer(r"\s+1\.\s+", text))
+        for one in prior_ones:
+            if one.start() > len(text) * 0.35 and one.start() < two_match.start():
+                cut_positions.append(one.start())
+
+    if cut_positions:
+        cutoff = min(cut_positions)
+        text = text[:cutoff]
+
+    # Final cleanup with fact cleaner if available.
+    if "clean_fact_pattern_text" in globals():
+        return clean_fact_pattern_text(text)
+
+    return text.strip()
 
 
 SUBJECT_TRIGGER_KEYWORDS = {
@@ -3871,10 +4059,13 @@ def highlight_universal_triggers(question_text, qd):
 
 
 def render_universal_highlighted_fact_pattern(title, qd, text=None):
+    question_text = qd.get("question_text", "")
+    call_text = qd.get("call_of_question", "")
+
     if text is None:
-        question_text = qd.get("question_text", "")
-        call_text = qd.get("call_of_question", "")
         text = extract_fact_pattern_only(question_text, call_text)
+    else:
+        text = extract_fact_pattern_only(text, call_text)
 
     paragraphs = split_fact_pattern_paragraphs(text)
     highlighted_paragraphs = "".join(
@@ -4119,15 +4310,18 @@ def build_highlight_span(match_text, css_class, label, reason, show_explanations
         return f'<span class="{css_class}">{match_text}</span>'
 
 
-def highlight_facts_by_question(qd, show_explanations=True):
+def highlight_facts_by_question(qd, show_explanations=True, fact_text=None):
     question_text = qd.get("question_text", "") or ""
     call_text = qd.get("call_of_question", "") or ""
 
-    fact_only = (
-        extract_fact_pattern_only(question_text, call_text)
-        if "extract_fact_pattern_only" in globals()
-        else question_text
-    )
+    if fact_text is None:
+        fact_only = (
+            extract_fact_pattern_only(question_text, call_text)
+            if "extract_fact_pattern_only" in globals()
+            else question_text
+        )
+    else:
+        fact_only = extract_fact_pattern_only(fact_text, call_text)
 
     base_text = (
         clean_fact_pattern_text(fact_only)
@@ -4190,7 +4384,14 @@ def highlight_facts_by_question(qd, show_explanations=True):
 
 
 def render_question_specific_highlighted_facts(title, qd, show_explanations=True):
-    highlighted_html, mapping = highlight_facts_by_question(qd, show_explanations=show_explanations)
+    question_text = qd.get("question_text", "")
+    call_text = qd.get("call_of_question", "")
+    fact_only = extract_fact_pattern_only(question_text, call_text)
+    highlighted_html, mapping = highlight_facts_by_question(
+        qd,
+        show_explanations=show_explanations,
+        fact_text=fact_only,
+    )
 
     legend_html = '<div class="question-highlight-legend"><div class="legend-row">'
 
@@ -4885,17 +5086,20 @@ def make_trigger_fact_hint(qd):
 
 
 def make_progressive_hints(qd):
-    outline_matches = find_best_outline_rules_for_question(
-        qd.get("subject", ""),
-        qd.get("tested_issues", ""),
-        qd.get("rules", ""),
-        qd.get("traps", ""),
-        limit=1,
-    )
+    rule_hint = ""
 
-    if outline_matches:
-        rule_hint = "Try writing the rule from memory, then compare with the Attack Outline rule above."
-    else:
+    try:
+        support = get_rule_skeleton_support(qd)
+        if support.get("rule_text"):
+            rule_hint = (
+                f"{support.get('title', 'Rule Skeleton')}\n"
+                f"Source: {support.get('source', 'Unknown')}\n\n"
+                f"{first_nonempty_lines(support.get('rule_text', ''), 4)}"
+            )
+    except Exception:
+        rule_hint = ""
+
+    if not rule_hint:
         rule_hint = make_rule_skeleton(qd.get("rules", ""))
 
     return {
@@ -5413,18 +5617,99 @@ def reset_mini_drill_progress(qd):
             del st.session_state[key]
 
 
-def render_sample_answer_for_subquestion(qd, display_index, label=None):
-    title = label or f"Question {display_index}"
-    model_text = ""
+def split_model_answer_points(model_text):
+    if not model_text:
+        return []
 
-    if "get_model_section_for_subquestion" in globals():
-        try:
-            model_text = get_model_section_for_subquestion(qd, display_index) or ""
-        except Exception:
-            model_text = ""
+    text = str(model_text).replace("\r\n", "\n").replace("\r", "\n")
+    number_words = {
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+    }
+    pattern = re.compile(
+        r"(?i)(Point\s+(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)|Point\s+(\d+))(?:\s*\([^)]*\))?"
+    )
+    matches = list(pattern.finditer(text))
+    sections = []
+
+    for idx, match in enumerate(matches):
+        word_num = match.group(2)
+        digit_num = match.group(3)
+
+        if word_num:
+            num = number_words.get(word_num.lower())
+        else:
+            try:
+                num = int(digit_num)
+            except (TypeError, ValueError):
+                num = None
+
+        if not num:
+            continue
+
+        start = match.start()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+        heading = match.group(0).strip()
+        section_text = text[start:end].strip()
+
+        sections.append({
+            "num": num,
+            "heading": heading,
+            "text": section_text,
+        })
+
+    return sections
+
+
+def get_model_section_for_subquestion(qd, subq_index):
+    model_text = qd.get("model_points", "") or ""
 
     if not model_text:
-        model_text = qd.get("model_points", "")
+        model_text = qd.get("rules", "") or ""
+
+    points = split_model_answer_points(model_text)
+
+    for p in points:
+        if p["num"] == subq_index:
+            return p["heading"], p["text"]
+
+    subquestions = extract_subquestions(qd.get("call_of_question", ""))
+    if subq_index - 1 < len(subquestions):
+        call = subquestions[subq_index - 1].get("text", "").lower()
+
+        if "lowering the price" in call or "lower the price" in call or "modification" in call:
+            for p in points:
+                text_l = p["text"].lower()
+                if "consideration" in text_l and "lower" in text_l:
+                    return p["heading"], p["text"]
+
+    if subq_index == 1 and model_text:
+        return "Full Model Analysis", model_text
+
+    return None, ""
+
+
+def render_sample_answer_for_subquestion(qd, display_index, label=None):
+    title = label or f"Question {display_index}"
+    section_heading = ""
+    model_text = ""
+
+    try:
+        section_heading, model_text = get_model_section_for_subquestion(qd, display_index)
+    except Exception:
+        section_heading, model_text = "", ""
+
+    if not model_text:
+        model_text = qd.get("model_points", "") or qd.get("rules", "")
+        section_heading = "Full Model Analysis"
 
     if not model_text:
         st.info(f"No sample answer/model analysis available for {title} yet.")
@@ -5432,7 +5717,7 @@ def render_sample_answer_for_subquestion(qd, display_index, label=None):
 
     with st.expander(f"Compare With Sample Answer - {title}", expanded=False):
         st.warning("Open this only after you attempted the issue/rule. No passive reading.")
-        render_sample_answer_text("Sample Answer / Model Analysis", model_text)
+        render_sample_answer_text(section_heading or "Sample Answer / Model Analysis", model_text)
 
 
 def render_single_mini_question_workflow(qd, subq, display_index, hints_used=0):
@@ -5643,97 +5928,47 @@ def render_subquestion_card(qd, subq, index, hints_used=0):
             elif not flashcard_matches:
                 st.info("No exact outline rule found for this call yet.")
 
-    issue_spotted = st.text_area(
-        f"{label} - Your issue",
-        placeholder="Example: Whether the facts satisfy the legal test asked by this call.",
-        height=90,
-        key=f"{key_prefix}_issue",
-    )
-
-    rule_from_memory = st.text_area(
-        f"{label} - Your rule",
-        placeholder="Write the rule from memory before opening answers or hints.",
-        height=120,
-        key=f"{key_prefix}_rule",
-    )
-
-    trigger_facts = st.text_area(
-        f"{label} - Trigger facts",
-        placeholder="Which facts made this issue appear?",
-        height=90,
-        key=f"{key_prefix}_facts",
-    )
-
-    micro_conclusion = st.text_area(
-        f"{label} - Micro-conclusion",
-        placeholder="Therefore, likely yes/no because...",
-        height=80,
-        key=f"{key_prefix}_conclusion",
-    )
-
-    use_template = st.checkbox(
-        f"Use Plug & Play answer structure for {label}",
-        value=True,
-        key=f"use_plug_template_{qd['id']}_{index}",
-    )
-
     issue_sentence = ""
     rule_sentence = ""
     application = ""
     counterargument = ""
     conclusion = ""
 
-    if use_template:
-        st.markdown("##### Plug & Play Structured Mini-Answer")
-        issue_sentence = st.text_area(
-            f"{label} - Issue sentence",
-            placeholder="The issue is whether...",
-            height=70,
-            key=f"{key_prefix}_plug_issue",
-        )
-        rule_sentence = st.text_area(
-            f"{label} - Rule sentence",
-            placeholder="Under the rule...",
-            height=90,
-            key=f"{key_prefix}_plug_rule",
-        )
-        application = st.text_area(
-            f"{label} - Application paragraph",
-            placeholder="Here, ... because ...",
-            height=130,
-            key=f"{key_prefix}_plug_application",
-        )
-        counterargument = st.text_area(
-            f"{label} - Counterargument / trap",
-            placeholder="However, ...",
-            height=90,
-            key=f"{key_prefix}_plug_counter",
-        )
-        conclusion = st.text_area(
-            f"{label} - Conclusion",
-            placeholder="Therefore...",
-            height=70,
-            key=f"{key_prefix}_plug_conclusion",
-        )
+    st.markdown("##### Plug & Play Structured Mini-Answer")
+    issue_sentence = st.text_area(
+        f"{label} - Issue sentence",
+        placeholder="The issue is whether...",
+        height=70,
+        key=f"{key_prefix}_plug_issue",
+    )
+    rule_sentence = st.text_area(
+        f"{label} - Rule sentence",
+        placeholder="Under the rule...",
+        height=90,
+        key=f"{key_prefix}_plug_rule",
+    )
+    application = st.text_area(
+        f"{label} - Application paragraph",
+        placeholder="Here, ... because ...",
+        height=130,
+        key=f"{key_prefix}_plug_application",
+    )
+    counterargument = st.text_area(
+        f"{label} - Counterargument / trap",
+        placeholder="However, ...",
+        height=90,
+        key=f"{key_prefix}_plug_counter",
+    )
+    conclusion = st.text_area(
+        f"{label} - Conclusion",
+        placeholder="Therefore...",
+        height=70,
+        key=f"{key_prefix}_plug_conclusion",
+    )
 
     return f"""
 CALL {label}:
 {full_call}
-
-ISSUE:
-{issue_spotted}
-
-RULE:
-{rule_from_memory}
-
-TRIGGER FACTS:
-{trigger_facts}
-
-MICRO-CONCLUSION:
-{micro_conclusion}
-
-PLUG & PLAY STRUCTURE USED:
-{use_template}
 
 ISSUE SENTENCE:
 {issue_sentence}
@@ -6742,7 +6977,55 @@ TRIGGER FACTS:
             if st.button("Reveal Answer Bank"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
                 render_raw_tested_issues_expander(qd)
-                render_rules_tested_by_call(qd)
+                with st.expander("Debug: rule sources", expanded=False):
+                    st.write("Subject:", qd.get("subject"))
+                    st.write("Tested issues length:", len(qd.get("tested_issues", "") or ""))
+                    st.write("Rules length:", len(qd.get("rules", "") or ""))
+                    st.write("Trigger facts length:", len(qd.get("trigger_facts", "") or ""))
+
+                    try:
+                        st.write(
+                            "Flashcard matches:",
+                            search_rule_flashcards(
+                                build_rule_search_query(qd),
+                                subject=qd.get("subject"),
+                                limit=3,
+                            ),
+                        )
+                    except Exception as e:
+                        st.write("Flashcard search error:", str(e))
+
+                    try:
+                        st.write(
+                            "Attack outline matches:",
+                            search_outline_rules(
+                                build_rule_search_query(qd),
+                                subject=qd.get("subject"),
+                                limit=3,
+                            ),
+                        )
+                    except Exception as e:
+                        st.write("Attack outline search error:", str(e))
+
+                    try:
+                        st.write(
+                            "Plug Play matches:",
+                            search_plug_play_templates(
+                                build_rule_search_query(qd),
+                                subject=qd.get("subject"),
+                                limit=3,
+                            ),
+                        )
+                    except Exception as e:
+                        st.write("Plug Play search error:", str(e))
+
+                try:
+                    if not get_rule_flashcards():
+                        st.warning("Rule Flashcards are not imported yet. Run: python import_flashcards2025.py Flashcards2025.rtf")
+                except Exception:
+                    pass
+
+                render_rule_skeletons_for_calls(qd)
                 with st.expander("Raw Model Rule / Analysis - open only after self-grading", expanded=False):
                     render_readable_text("Model Rule / Analysis", qd["rules"], READING_FONT_SIZE)
                 render_trigger_facts("Trigger Facts", qd)
@@ -6824,6 +7107,16 @@ elif menu == "Mini Essay Drill":
 
             render_meta_strip(qd)
 
+            with st.expander("Debug: detected sample answer sections", expanded=False):
+                points = split_model_answer_points(qd.get("model_points", ""))
+                if not points and qd.get("rules", ""):
+                    points = split_model_answer_points(qd.get("rules", ""))
+                if points:
+                    for p in points:
+                        st.write(f"Question {p['num']}: {p['heading']} - {len(p['text'])} chars")
+                else:
+                    st.info("No Point One / Point Two / Point Three sections detected.")
+
             main_col, side_col = st.columns([2.25, 1], gap="large")
 
             with side_col:
@@ -6903,7 +7196,12 @@ elif menu == "Mini Essay Drill":
                     render_trap_warnings("Trap Warnings", qd["traps"])
                     with st.expander("Raw trap text", expanded=False):
                         st.text(qd.get("traps", "") or "")
-                    render_sample_answer_section(qd, expanded=False)
+                    full_model = qd.get("model_points", "") or qd.get("rules", "")
+                    if full_model:
+                        with st.expander("Full Model Answer / Analysis", expanded=False):
+                            render_readable_text("Full Model Answer / Analysis", full_model)
+                    else:
+                        st.info("No full model answer/model analysis available for this question yet.")
 
             with main_col:
                 with st.expander("1. Call of the Question - read this first", expanded=True):
@@ -6964,9 +7262,7 @@ elif menu == "Mini Essay Drill":
                             st.info("Complete the earlier question first, then come back here.")
                             continue
 
-                        st.markdown('<div class="mini-question-panel">', unsafe_allow_html=True)
                         render_single_mini_question_workflow(qd, subq, idx + 1, hints_used)
-                        st.markdown("</div>", unsafe_allow_html=True)
 
                 done_questions = st.session_state.get(done_key, set())
 
@@ -7101,6 +7397,12 @@ elif menu == "Issue Spotting Drill":
                         )
                     else:
                         render_fact_pattern_text("Fact Pattern", fact_only)
+
+                with st.expander("Debug: extracted fact pattern / call split", expanded=False):
+                    st.markdown("### Fact pattern only")
+                    st.text(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])[:3000])
+                    st.markdown("### Call of the question")
+                    st.text(qd["call_of_question"])
 
                 user_issues = st.text_area(
                     "Your issue list",

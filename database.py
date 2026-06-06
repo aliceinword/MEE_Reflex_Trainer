@@ -361,12 +361,6 @@ def search_rule_flashcards(query, subject=None, limit=30):
     conn = get_connection()
     c = conn.cursor()
 
-    search_terms = [
-        term.strip()
-        for term in str(query or "").replace(";", " ").replace(",", " ").split()
-        if len(term.strip()) >= 2
-    ]
-
     sql = """
         SELECT
             id,
@@ -381,46 +375,79 @@ def search_rule_flashcards(query, subject=None, limit=30):
     params = []
 
     if subject and subject != "All":
-        sql += " AND subject = ?"
-        params.append(subject)
+        # Keep same-subject rules preferred but include compatible nearby subjects
+        # through scoring below by not filtering too aggressively.
+        pass
 
-    if search_terms:
-        sql += " AND ("
-        clauses = []
-
-        for term in search_terms:
-            clauses.append("(rule_title LIKE ? OR rule_text LIKE ? OR tags LIKE ?)")
-            like = f"%{term}%"
-            params.extend([like, like, like])
-
-        sql += " OR ".join(clauses)
-        sql += ")"
-
-    query_clean = str(query or "").strip()
-    full_like = f"%{query_clean}%"
-    starts_like = f"{query_clean} %"
-
-    sql += """
-        ORDER BY
-            CASE
-                WHEN LOWER(rule_title) = LOWER(?) THEN 0
-                WHEN LOWER(rule_title) LIKE LOWER(?) THEN 1
-                WHEN rule_title LIKE ? THEN 2
-                WHEN tags LIKE ? THEN 3
-                WHEN rule_text LIKE ? THEN 4
-                ELSE 5
-            END,
-            CASE WHEN ? IS NOT NULL AND subject = ? THEN 0 ELSE 1 END,
-            subject,
-            rule_title
-        LIMIT ?
-    """
-    params.extend([query_clean, starts_like, full_like, full_like, full_like, subject, subject, limit])
-
+    sql += " ORDER BY subject, rule_title"
     c.execute(sql, params)
     rows = c.fetchall()
     conn.close()
-    return rows
+
+    stopwords = {
+        "about", "again", "against", "answer", "because", "could", "court",
+        "does", "explain", "facts", "from", "have", "issue", "issues",
+        "legal", "likely", "must", "question", "rule", "rules", "shall",
+        "should", "that", "their", "there", "this", "under", "were",
+        "what", "when", "where", "whether", "which", "with", "would",
+    }
+
+    words = []
+    for raw_word in str(query or "").lower().replace("&", " ").split():
+        word = "".join(ch for ch in raw_word if ch.isalnum())
+        if len(word) >= 4 and word not in stopwords:
+            words.append(word)
+
+    seen = set()
+    terms = []
+    for word in words:
+        if word not in seen:
+            seen.add(word)
+            terms.append(word)
+
+    query_l = str(query or "").lower()
+    subject_l = str(subject or "").strip().lower()
+    scored = []
+
+    for row in rows:
+        row_subject = str(row[1] or "")
+        title = str(row[2] or "")
+        rule_text = str(row[3] or "")
+        tags = str(row[5] or "")
+
+        row_subject_l = row_subject.lower()
+        title_l = title.lower()
+        rule_l = rule_text.lower()
+        tags_l = tags.lower()
+
+        score = 0
+
+        if subject_l and subject_l != "all" and row_subject_l == subject_l:
+            score += 5
+        elif subject_l and subject_l != "all" and (
+            subject_l in row_subject_l or row_subject_l in subject_l
+        ):
+            score += 3
+
+        if title_l and title_l in query_l:
+            score += 8
+
+        for word in terms:
+            if word in title_l:
+                score += 3
+            if word in tags_l:
+                score += 2
+            if word in rule_l:
+                score += 1
+
+        if not terms and subject_l and row_subject_l == subject_l:
+            score += 1
+
+        if score > 0:
+            scored.append((score, row))
+
+    scored.sort(key=lambda item: (-item[0], item[1][1], item[1][2]))
+    return [row for _, row in scored[:limit]]
 
 
 def _keyword_set(text):
