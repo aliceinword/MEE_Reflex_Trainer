@@ -7203,17 +7203,6 @@ elif menu == "Mini Essay Drill":
 
             render_meta_strip(qd)
 
-            with st.expander("Debug: detected model answer sections", expanded=False):
-                points = split_model_answer_points(qd.get("model_points", ""))
-                if not points and qd.get("rules", ""):
-                    points = split_model_answer_points(qd.get("rules", ""))
-                if points:
-                    for p in points:
-                        suffix = p.get("subpart") or ""
-                        st.write(f"Point {p['num']}{suffix}: {p['heading']} - {len(p['text'])} chars")
-                else:
-                    st.info("No Point One / Point Two / Point Three sections detected.")
-
             main_col, side_col = st.columns([2.25, 1], gap="large")
 
             with side_col:
@@ -7494,12 +7483,6 @@ elif menu == "Issue Spotting Drill":
                         )
                     else:
                         render_fact_pattern_text("Fact Pattern", fact_only)
-
-                with st.expander("Debug: extracted fact pattern / call split", expanded=False):
-                    st.markdown("### Fact pattern only")
-                    st.text(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])[:3000])
-                    st.markdown("### Call of the question")
-                    st.text(qd["call_of_question"])
 
                 user_issues = st.text_area(
                     "Your issue list",
