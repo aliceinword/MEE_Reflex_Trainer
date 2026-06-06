@@ -810,6 +810,50 @@ hr {
 
 /* Muted caption text */
 .muted { color: #4A6585; font-size: 0.85rem; }
+
+/* Sidebar nav buttons */
+[data-testid="stSidebar"] .stButton > button {
+    text-align: left !important;
+    justify-content: flex-start !important;
+    padding: 0.5rem 0.9rem !important;
+    margin-bottom: 2px !important;
+    font-weight: 600 !important;
+}
+
+/* Inactive nav button (secondary) — flat, light */
+[data-testid="stSidebar"] .stButton > button[kind="secondary"] {
+    background: rgba(255, 255, 255, 0.70) !important;
+    color: #102033 !important;
+    -webkit-text-fill-color: #102033 !important;
+    box-shadow: none !important;
+    border: 1px solid #D1E3F8 !important;
+}
+
+[data-testid="stSidebar"] .stButton > button[kind="secondary"] * {
+    color: #102033 !important;
+    -webkit-text-fill-color: #102033 !important;
+}
+
+[data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {
+    background: #DDF4FF !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Active nav button (primary) keeps the gradient highlight */
+[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25) !important;
+}
+
+/* Sidebar group label */
+.nav-group-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #4A6585;
+    margin: 0.8rem 0 0.3rem;
+    text-transform: uppercase;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2361,68 +2405,36 @@ def question_picker(active_default=True, due_only=False):
     return questions[selected_index][0]
 
 
-if "_active_nav_group" not in st.session_state:
-    st.session_state["_active_nav_group"] = "nav_train"
-
-
-def _set_nav_group(group_key):
-    st.session_state["_active_nav_group"] = group_key
-
-
-st.sidebar.markdown("**-- TRAIN --**")
-_nav_train = st.sidebar.radio(
-    "",
-    ["Daily Workout", "Mini Essay Drill", "Muscle Ladder", "Timed IRAC Drill"],
-    key="nav_train",
-    on_change=_set_nav_group,
-    args=("nav_train",),
-    label_visibility="collapsed",
-)
-
-st.sidebar.markdown("**-- DRILLS --**")
-_nav_drills = st.sidebar.radio(
-    "",
-    ["Issue Spotting Drill", "Rule Retrieval Drill", "Due Review Queue"],
-    key="nav_drills",
-    on_change=_set_nav_group,
-    args=("nav_drills",),
-    label_visibility="collapsed",
-)
-
-st.sidebar.markdown("**-- LIBRARY --**")
-_nav_library = st.sidebar.radio(
-    "",
-    ["Attack Outline Rules", "Plug & Play Templates", "Review Attempts"],
-    key="nav_library",
-    on_change=_set_nav_group,
-    args=("nav_library",),
-    label_visibility="collapsed",
-)
-
-st.sidebar.markdown("**-- MANAGE --**")
-_nav_manage = st.sidebar.radio(
-    "",
-    ["Question Bank"],
-    key="nav_manage",
-    on_change=_set_nav_group,
-    args=("nav_manage",),
-    label_visibility="collapsed",
-)
-
-_nav_groups = {
-    "nav_train":   _nav_train,
-    "nav_drills":  _nav_drills,
-    "nav_library": _nav_library,
-    "nav_manage":  _nav_manage,
-}
-_raw_menu = _nav_groups[st.session_state["_active_nav_group"]]
+NAV_GROUPS = [
+    ("TRAIN",   ["Daily Workout", "Mini Essay Drill", "Muscle Ladder", "Timed IRAC Drill"]),
+    ("DRILLS",  ["Issue Spotting Drill", "Rule Retrieval Drill", "Due Review Queue"]),
+    ("LIBRARY", ["Attack Outline Rules", "Plug & Play Templates", "Review Attempts"]),
+    ("MANAGE",  ["Question Bank"]),
+]
 
 _menu_aliases = {
     "Daily Workout": "Dashboard",
     "Muscle Ladder": "MEE Muscle Ladder",
     "Question Bank": "Bulk Import MEE Bank",
 }
-menu = _menu_aliases.get(_raw_menu, _raw_menu)
+
+if "current_page" not in st.session_state:
+    st.session_state["current_page"] = "Daily Workout"
+
+for _group_name, _pages in NAV_GROUPS:
+    st.sidebar.markdown(f'<div class="nav-group-label">{_group_name}</div>', unsafe_allow_html=True)
+    for _page in _pages:
+        _is_active = st.session_state["current_page"] == _page
+        if st.sidebar.button(
+            _page,
+            key=f"nav_btn_{_page}",
+            use_container_width=True,
+            type="primary" if _is_active else "secondary",
+        ):
+            st.session_state["current_page"] = _page
+            st.rerun()
+
+menu = _menu_aliases.get(st.session_state["current_page"], st.session_state["current_page"])
 
 st.sidebar.markdown("### Reading Comfort")
 if "adhd_mode" not in st.session_state:
