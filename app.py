@@ -45,6 +45,25 @@ st.set_page_config(
 init_db()
 
 
+QUESTION_HIGHLIGHT_CLASSES = [
+    "q-highlight-1",
+    "q-highlight-2",
+    "q-highlight-3",
+    "q-highlight-4",
+    "q-highlight-5",
+    "q-highlight-6",
+]
+
+QUESTION_HIGHLIGHT_LABELS = [
+    "Q1",
+    "Q2",
+    "Q3",
+    "Q4",
+    "Q5",
+    "Q6",
+]
+
+
 def render_app_header():
     st.markdown(
         """
@@ -1459,6 +1478,79 @@ hr {
     box-shadow: 0 8px 22px rgba(250, 204, 21, 0.16) !important;
 }
 
+.q-highlight-1 {
+    background: linear-gradient(180deg, rgba(191, 219, 254, 0.25), rgba(96, 165, 250, 0.55));
+    border-bottom: 2px solid #3B82F6;
+    padding: 0.05rem 0.18rem;
+    border-radius: 5px;
+    font-weight: 750;
+}
+
+.q-highlight-2 {
+    background: linear-gradient(180deg, rgba(233, 213, 255, 0.25), rgba(168, 85, 247, 0.50));
+    border-bottom: 2px solid #9333EA;
+    padding: 0.05rem 0.18rem;
+    border-radius: 5px;
+    font-weight: 750;
+}
+
+.q-highlight-3 {
+    background: linear-gradient(180deg, rgba(187, 247, 208, 0.25), rgba(34, 197, 94, 0.45));
+    border-bottom: 2px solid #16A34A;
+    padding: 0.05rem 0.18rem;
+    border-radius: 5px;
+    font-weight: 750;
+}
+
+.q-highlight-4 {
+    background: linear-gradient(180deg, rgba(254, 215, 170, 0.25), rgba(251, 146, 60, 0.55));
+    border-bottom: 2px solid #EA580C;
+    padding: 0.05rem 0.18rem;
+    border-radius: 5px;
+    font-weight: 750;
+}
+
+.q-highlight-5 {
+    background: linear-gradient(180deg, rgba(251, 207, 232, 0.25), rgba(236, 72, 153, 0.42));
+    border-bottom: 2px solid #DB2777;
+    padding: 0.05rem 0.18rem;
+    border-radius: 5px;
+    font-weight: 750;
+}
+
+.q-highlight-6 {
+    background: linear-gradient(180deg, rgba(153, 246, 228, 0.25), rgba(20, 184, 166, 0.45));
+    border-bottom: 2px solid #0D9488;
+    padding: 0.05rem 0.18rem;
+    border-radius: 5px;
+    font-weight: 750;
+}
+
+.question-highlight-legend {
+    background: #FFFFFF;
+    border: 1px solid #D6E4FF;
+    border-radius: 14px;
+    padding: 0.8rem 1rem;
+    margin: 0.75rem 0;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.06);
+}
+
+.legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    align-items: center;
+}
+
+.legend-chip {
+    border-radius: 999px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #1E293B;
+    border: 1px solid rgba(0,0,0,0.08);
+}
+
 .fact-highlight-legend {
     background: #FFFBEB;
     border: 1px solid #FDE68A;
@@ -2845,6 +2937,245 @@ def render_universal_highlighted_fact_pattern(title, qd, text=None):
     )
 
 
+def keywords_for_subquestion(subq):
+    text = subq.get("text", "") or ""
+
+    for sp in subq.get("subparts", []):
+        text += " " + sp.get("text", "")
+
+    text = text.lower()
+
+    stopwords = {
+        "explain", "whether", "would", "could", "should", "under", "assuming",
+        "question", "court", "claim", "claims", "issue", "issues", "based",
+        "establish", "liability", "liable", "rights", "rule", "rules", "legal",
+        "against", "with", "from", "that", "this", "there", "their", "when",
+        "what", "does", "did", "can", "may", "was", "were", "have", "has",
+    }
+
+    words = re.findall(r"\b[a-z][a-z\-]{3,}\b", text)
+    keywords = [w for w in words if w not in stopwords]
+    synonyms = []
+
+    if "forum" in text or "first amendment" in text or "speech" in text:
+        synonyms += ["ordinance", "speech", "sign", "median", "public", "sidewalk", "communicate", "solicit", "content"]
+
+    if "content-based" in text or "content neutral" in text or "content-neutral" in text:
+        synonyms += ["ordinance", "communicate", "vehicles", "traffic", "safety", "preamble", "solicit"]
+
+    if "negligence" in text or "breach" in text or "duty" in text:
+        synonyms += ["violated", "statute", "law", "school bus", "collision", "damaged", "injury", "foreseeable"]
+
+    if "false imprisonment" in text or "detaining" in text or "detained" in text:
+        synonyms += ["blocked", "restroom", "locked", "leave", "pounded", "shouting", "fear", "confined"]
+
+    if "summary judgment" in text:
+        synonyms += ["admitted", "foreseeable", "causation", "likely", "patient", "survived", "material fact"]
+
+    if "agency" in text or "agent" in text:
+        synonyms += ["agent", "principal", "acting on behalf", "control", "consent", "manifest", "authority"]
+
+    if "actual authority" in text:
+        synonyms += ["told", "instructions", "express", "implied", "reasonable belief"]
+
+    if "apparent authority" in text:
+        synonyms += ["third party", "held out", "store owner", "believed", "appearance"]
+
+    if "partnership" in text or "partners" in text:
+        synonyms += ["profits", "co-owners", "business", "losses", "management", "ordinary course"]
+
+    if "contract" in text:
+        synonyms += ["offer", "accept", "agreement", "signed", "price", "goods", "writing", "breach"]
+
+    if "jurisdiction" in text:
+        synonyms += ["citizen", "domicile", "federal court", "state court", "served", "minimum contacts"]
+
+    if "hearsay" in text:
+        synonyms += ["statement", "truth", "declarant", "testified", "offered", "objected"]
+
+    clean = []
+    seen = set()
+
+    for kw in keywords + synonyms:
+        kw = kw.lower().strip()
+        if kw and kw not in seen:
+            seen.add(kw)
+            clean.append(kw)
+
+    return clean[:30]
+
+
+def get_fact_sentences_for_subquestions(qd, max_per_question=8):
+    question_text = qd.get("question_text", "") or ""
+    call_text = qd.get("call_of_question", "") or ""
+
+    fact_only = (
+        extract_fact_pattern_only(question_text, call_text)
+        if "extract_fact_pattern_only" in globals()
+        else question_text
+    )
+
+    sentences = (
+        split_fact_sentences(fact_only)
+        if "split_fact_sentences" in globals()
+        else re.split(r"(?<=[.!?])\s+(?=[A-Z\"'])", str(fact_only))
+    )
+
+    subquestions = (
+        extract_subquestions(call_text)
+        if "extract_subquestions" in globals()
+        else [{"label": "Question 1", "text": call_text, "subparts": []}]
+    )
+
+    mapping = []
+
+    for idx, subq in enumerate(subquestions):
+        keywords = keywords_for_subquestion(subq)
+        scored = []
+
+        for sent in sentences:
+            sent_clean = re.sub(r"\s+", " ", str(sent)).strip()
+            lower = sent_clean.lower()
+            score = sum(1 for kw in keywords if kw in lower)
+
+            if any(x in lower for x in [
+                "said", "told", "agreed", "signed", "filed", "served", "sued",
+                "violated", "ordinance", "statute", "law", "injured", "damaged",
+                "blocked", "locked", "refused", "admitted", "charged",
+            ]):
+                score += 1
+
+            if score > 0:
+                scored.append((score, sent_clean))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        selected = []
+        seen = set()
+
+        for _, sent in scored:
+            key = sent.lower()
+            if key not in seen:
+                seen.add(key)
+                selected.append(sent)
+            if len(selected) >= max_per_question:
+                break
+
+        mapping.append({
+            "label": subq.get("label", f"Question {idx + 1}"),
+            "call": subq,
+            "class": QUESTION_HIGHLIGHT_CLASSES[idx % len(QUESTION_HIGHLIGHT_CLASSES)],
+            "facts": selected,
+            "keywords": keywords,
+        })
+
+    return mapping
+
+
+def highlight_facts_by_question(qd):
+    question_text = qd.get("question_text", "") or ""
+    call_text = qd.get("call_of_question", "") or ""
+
+    fact_only = (
+        extract_fact_pattern_only(question_text, call_text)
+        if "extract_fact_pattern_only" in globals()
+        else question_text
+    )
+
+    base_text = (
+        clean_fact_pattern_text(fact_only)
+        if "clean_fact_pattern_text" in globals()
+        else str(fact_only)
+    )
+
+    escaped_text = escape(base_text)
+    mapping = get_fact_sentences_for_subquestions(qd)
+
+    phrase_items = []
+    for item in mapping:
+        for fact in item["facts"]:
+            phrase_items.append((fact, item["class"]))
+
+    if not phrase_items:
+        raise ValueError("No question-specific trigger facts detected.")
+
+    phrase_items.sort(key=lambda x: len(x[0]), reverse=True)
+    already_highlighted_patterns = set()
+
+    for phrase, css_class in phrase_items:
+        phrase_clean = (
+            clean_fact_pattern_text(phrase)
+            if "clean_fact_pattern_text" in globals()
+            else str(phrase)
+        )
+        phrase_clean = re.sub(r"\s+", " ", phrase_clean).strip()
+
+        if len(phrase_clean) < 12:
+            continue
+
+        pattern_key = phrase_clean.lower()
+        if pattern_key in already_highlighted_patterns:
+            continue
+        already_highlighted_patterns.add(pattern_key)
+
+        escaped_phrase = escape(phrase_clean)
+        pattern = re.escape(escaped_phrase).replace(r"\ ", r"\s+")
+
+        try:
+            escaped_text = re.sub(
+                pattern,
+                lambda m: f'<span class="{css_class}">{m.group(0)}</span>',
+                escaped_text,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+        except re.error:
+            continue
+
+    return escaped_text, mapping
+
+
+def render_question_specific_highlighted_facts(title, qd):
+    highlighted_html, mapping = highlight_facts_by_question(qd)
+
+    legend_html = '<div class="question-highlight-legend"><div class="legend-row">'
+
+    for idx, item in enumerate(mapping):
+        label = escape(item.get("label") or QUESTION_HIGHLIGHT_LABELS[idx % len(QUESTION_HIGHLIGHT_LABELS)])
+        css_class = item["class"]
+        legend_html += f'<span class="legend-chip {css_class}">{label}</span>'
+
+    legend_html += '</div></div>'
+
+    st.info("Colors show which facts likely support each call of the question.")
+    st.markdown(legend_html, unsafe_allow_html=True)
+    st.markdown(
+        (
+            '<div class="fact-box highlighted-fact-box">'
+            f'<div class="fact-title">{escape(str(title))}</div>'
+            f'<div class="fact-text"><p>{highlighted_html}</p></div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("Detected facts by question", expanded=False):
+        for item in mapping:
+            st.markdown(f"**{item['label']}**")
+            if item["facts"]:
+                for fact in item["facts"]:
+                    st.write("- " + fact)
+            else:
+                st.info("No specific facts detected for this call.")
+
+
+def render_question_highlights_with_fallback(title, qd, text=None):
+    try:
+        render_question_specific_highlighted_facts(title, qd)
+    except Exception:
+        st.warning("Question-specific highlighting failed; showing universal highlights instead.")
+        render_universal_highlighted_fact_pattern(title, qd, text=text)
+
+
 def render_trigger_candidate_diagnostics(qd):
     with st.expander("Detected trigger facts for highlighting", expanded=False):
         candidates = get_universal_trigger_candidates(qd)
@@ -3135,7 +3466,6 @@ body { background:#f5f4f0; font-family: Arial, sans-serif; margin: 20px; color:#
 .flash-rule-val { color:#1a1a1a; }
 .flash-trap-box { background:#fff8f5; border-left:3px solid #e85d26; padding:7px 10px; margin-top:10px; font-size:11px; color:#663300; line-height:1.5; }
 .flash-key-rule { background:#f0f9f0; border-left:3px solid #2a7a2a; padding:7px 10px; margin-top:10px; font-size:11px; color:#1a3d1a; line-height:1.5; }
-.flash-ru-box { background:#f3f1fa; border-left:3px solid #5b3fa0; padding:7px 10px; margin-top:10px; font-size:11px; color:#2e2150; line-height:1.5; }
 .flash-mini-title { display:block; font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:3px; font-weight:800; }
 .flash-tags { margin-top:10px; display:flex; flex-wrap:wrap; gap:4px; }
 .flash-tag { font-family:monospace; font-size:10px; background:#f0efe9; color:#666; padding:2px 7px; border-radius:3px; }
@@ -3256,7 +3586,7 @@ def render_rule_flashcard_box(card):
         ("Source", "Flashcards" if (source_file or "").lower() == "flashcards2025.rtf" else (source_file or "Flashcards")),
         ("Rule", short_text(rule_text, 1200)),
     ]
-    st.markdown(flashcard_html(card_dict, include_ru=False), unsafe_allow_html=True)
+    st.markdown(flashcard_html(card_dict), unsafe_allow_html=True)
 
 
 def find_relevant_rule_flashcards(query, subject=None, limit=3):
@@ -3271,7 +3601,7 @@ def find_relevant_rule_flashcards(query, subject=None, limit=3):
     return results[:limit]
 
 
-def flashcard_html(card, include_ru=True):
+def flashcard_html(card):
     rule_lines_html = ""
 
     for key, value in card.get("rule_lines", []):
@@ -3290,15 +3620,6 @@ def flashcard_html(card, include_ru=True):
         if tag
     )
 
-    ru_html = ""
-    if include_ru and card.get("ru"):
-        ru_html = (
-            '<div class="flash-ru-box">'
-            '<span class="flash-mini-title">Russian Shortcut</span>'
-            f'{escape_display_text(card.get("ru", ""))}'
-            '</div>'
-        )
-
     return f"""
     <div class="flash-card">
       <div class="flash-front">
@@ -3310,7 +3631,6 @@ def flashcard_html(card, include_ru=True):
         {rule_lines_html}
         <div class="flash-key-rule"><span class="flash-mini-title">Key Rule</span>{escape_display_text(card.get("key_rule", ""))}</div>
         <div class="flash-trap-box"><span class="flash-mini-title">Trap</span>{escape_display_text(card.get("trap", ""))}</div>
-        {ru_html}
         <div class="flash-tags">{tags_html}</div>
       </div>
     </div>
@@ -3321,8 +3641,8 @@ def render_flashcard(card):
     st.markdown(flashcard_html(card), unsafe_allow_html=True)
 
 
-def flashcard_grid_html(cards, include_ru=True):
-    cards_html = "".join(flashcard_html(card, include_ru=include_ru) for card in cards)
+def flashcard_grid_html(cards):
+    cards_html = "".join(flashcard_html(card) for card in cards)
     return f"""
     <div class="flash-page-wrap">
       <div class="flash-header">
@@ -3334,11 +3654,11 @@ def flashcard_grid_html(cards, include_ru=True):
     """
 
 
-def render_flashcard_grid(cards, include_ru=True):
-    st.markdown(flashcard_grid_html(cards, include_ru=include_ru), unsafe_allow_html=True)
+def render_flashcard_grid(cards):
+    st.markdown(flashcard_grid_html(cards), unsafe_allow_html=True)
 
 
-def build_flashcards_html_document(cards, include_ru=True):
+def build_flashcards_html_document(cards):
     return f"""<!doctype html>
 <html>
 <head>
@@ -3347,7 +3667,7 @@ def build_flashcards_html_document(cards, include_ru=True):
   <style>{FLASHCARD_EXPORT_CSS}</style>
 </head>
 <body>
-{flashcard_grid_html(cards, include_ru=include_ru)}
+{flashcard_grid_html(cards)}
 </body>
 </html>
 """
@@ -5333,7 +5653,10 @@ elif menu == "Issue Spotting Drill":
                     render_trigger_facts("Trigger Facts", qd)
                     render_raw_trigger_facts_expander(qd)
                     render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
-                    render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
+                    render_question_highlights_with_fallback(
+                        "Fact Pattern with Trigger Facts Highlighted by Question",
+                        qd,
+                    )
                     render_trigger_candidate_diagnostics(qd)
                     flashcard_matches = find_relevant_rule_flashcards(
                         qd.get("tested_issues", ""),
@@ -5359,7 +5682,11 @@ elif menu == "Issue Spotting Drill":
                         else qd["question_text"]
                     )
                     if show_highlights_early:
-                        render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd, text=fact_only)
+                        render_question_highlights_with_fallback(
+                            "Fact Pattern with Trigger Facts Highlighted by Question",
+                            qd,
+                            text=fact_only,
+                        )
                     else:
                         render_fact_pattern_text("Fact Pattern", fact_only)
 
@@ -5452,8 +5779,6 @@ elif menu == "Rule Flashcards":
         key="flashcards_search",
     )
 
-    include_ru = st.checkbox("Include Russian shortcut", value=True, key="flashcards_ru")
-
     if st.button("Print this page"):
         st.info("Use your browser print shortcut: Ctrl+P / Cmd+P. Print CSS is enabled.")
 
@@ -5500,7 +5825,7 @@ elif menu == "Rule Flashcards":
     if not cards:
         st.warning("No flashcards found. Import flashcards, Attack Outline rules, or Plug & Play templates first, or broaden your search.")
     else:
-        export_html = build_flashcards_html_document(cards, include_ru=include_ru)
+        export_html = build_flashcards_html_document(cards)
 
         if st.button("Export Flashcards HTML"):
             st.session_state["show_flashcards_download"] = True
@@ -5513,7 +5838,7 @@ elif menu == "Rule Flashcards":
                 mime="text/html",
             )
 
-        render_flashcard_grid(cards, include_ru=include_ru)
+        render_flashcard_grid(cards)
 
 
 elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"]:

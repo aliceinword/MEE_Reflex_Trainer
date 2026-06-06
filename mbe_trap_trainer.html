@@ -288,6 +288,7 @@ function renderDrill(){
   const d=state.queue[state.i];const opts=shuffle(d.options);state.locked=false;
   const pct=Math.round((state.i)/state.queue.length*100);
   app.innerHTML=`
+    <div style="margin-bottom:10px"><button class="btn btn-ghost btn-sm" id="toMenu">← Back to menu</button></div>
     <div class="prog-wrap"><div class="prog-meta">
       <span>${esc(fullName(d.subj))} · Q ${state.i+1} / ${state.queue.length}</span>
       <span class="streak">${state.streak>0?'🔥 streak '+state.streak:'streak 0'} · score ${state.correct}</span>
@@ -299,6 +300,7 @@ function renderDrill(){
     <div class="opts" id="opts">
       ${opts.map((o,k)=>`<button class="opt" data-k="${k}"><span class="key">${k+1}</span><span>${esc(o.t)}</span></button>`).join('')}
     </div><div id="fb"></div>`;
+  document.getElementById('toMenu').onclick=renderStart;
   const btns=[...document.querySelectorAll('#opts .opt')];
   btns.forEach((b,k)=>b.onclick=()=>pick(opts,k,btns));
   window._opts=opts;window._btns=btns;
@@ -333,6 +335,7 @@ function renderLecture(){
   const d=state.queue[state.i];const correct=d.options.find(o=>o.ok);
   const trap=d.options.find(o=>o.trap)||d.options.find(o=>!o.ok)||{t:'',why:''};
   app.innerHTML=`
+    <div style="margin-bottom:10px"><button class="btn btn-ghost btn-sm" id="toMenu">← Back to menu</button></div>
     <div class="prog-wrap"><div class="prog-meta"><span>${esc(fullName(d.subj))} · ${state.i+1} / ${state.queue.length}</span>
       <span class="mono">📖 lecture</span></div><div class="bar"><i style="width:${Math.round((state.i+1)/state.queue.length*100)}%"></i></div></div>
     <div class="qcard panel"><div class="qmeta">${d._b?'Q#'+d.id:'★ MY CARD'} · ${esc(d.subj)}${d.sub?' / '+esc(d.sub):''}</div>
@@ -344,6 +347,7 @@ function renderLecture(){
     ${d.ru?`<div class="fb-box fb-ru"><strong>Shortcut</strong>${esc(d.ru)}</div>`:''}
     <div class="lec-nav"><button class="btn btn-ghost" id="prev" ${state.i===0?'disabled style=opacity:.4':''}>← Prev</button>
       <button class="btn btn-primary" id="next">${state.i+1<state.queue.length?'Next →':'Done — drill it ⚔'}</button></div>`;
+  document.getElementById('toMenu').onclick=renderStart;
   document.getElementById('prev').onclick=()=>{if(state.i>0){state.i--;renderLecture();}};
   document.getElementById('next').onclick=()=>{if(state.i+1<state.queue.length){state.i++;renderLecture();}else{state.mode='drill';startRun();}};
 }
