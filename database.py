@@ -80,6 +80,18 @@ def init_db():
     """)
 
     c.execute("""
+        CREATE TABLE IF NOT EXISTS app_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT,
+            name TEXT,
+            password_hash TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    c.execute("""
         CREATE TABLE IF NOT EXISTS rule_attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             subject TEXT,
@@ -1301,3 +1313,123 @@ def get_dashboard_stats():
         "untouched_by_subject": untouched_by_subject,
         "recommended_queue": recommended_queue
     }
+
+
+# ---------------------------------------------------------------------------
+# Application users (login / admin-managed access)
+# ---------------------------------------------------------------------------
+
+def upsert_admin(username, email, name, password_hash):
+    """Create or refresh the admin account (used to seed from secrets)."""
+    if not username or not password_hash:
+        return
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT id FROM app_users WHERE username = ?", (username,))
+    row = c.fetchone()
+    if row:
+        c.execute(
+            "UPDATE app_users SET email = ?, name = ?, password_hash = ?, is_admin = 1 WHERE id = ?",
+            (email, name, password_hash, row[0]),
+        )
+    else:
+        c.execute(
+            "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, 1)",
+            (username, email, name, password_hash),
+        )
+    conn.commit()
+    conn.close()
+
+
+def get_app_user(login):
+    """Look up a user by username OR email (case-insensitive)."""
+    if not login:
+        return None
+    login = str(login).strip().lower()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT username, email, name, password_hash, is_admin
+        FROM app_users
+        WHERE LOWER(username) = ? OR LOWER(IFNULL(email, '')) = ?
+        LIMIT 1
+        """,
+        (login, login),
+    )
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        "username": row[0],
+        "email": row[1],
+        "name": row[2],
+        "password_hash": row[3],
+        "is_admin": bool(row[4]),
+    }
+
+
+def list_app_users():
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT username, email, name, is_admin, created_at FROM app_users ORDER BY is_admin DESC, username"
+    )
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def count_app_users():
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM app_users")
+    n = c.fetchone()[0]
+    conn.close()
+    return n
+
+
+def add_app_user(username, email, name, password_hash, is_admin=False):
+    """Add a user. Returns (ok, message)."""
+    username = (username or "").strip().lower()
+    email = (email or "").strip().lower()
+    if not username or not password_hash:
+        return False, "Username and password are required."
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT 1 FROM app_users WHERE LOWER(username) = ?", (username,))
+    if c.fetchone():
+        conn.close()
+        return False, f"Username '{username}' already exists."
+    if email:
+        c.execute("SELECT 1 FROM app_users WHERE LOWER(IFNULL(email,'')) = ?", (email,))
+        if c.fetchone():
+            conn.close()
+            return False, f"Email '{email}' is already in use."
+    c.execute(
+        "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, ?)",
+        (username, email, name, password_hash, 1 if is_admin else 0),
+    )
+    conn.commit()
+    conn.close()
+    return True, f"Added user '{username}'."
+
+
+def delete_app_user(username):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM app_users WHERE LOWER(username) = ?", ((username or "").strip().lower(),))
+    conn.commit()
+    conn.close()
+
+
+def set_user_password(username, password_hash):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE app_users SET password_hash = ? WHERE LOWER(username) = ?",
+        (password_hash, (username or "").strip().lower()),
+    )
+    conn.commit()
+    conn.close()

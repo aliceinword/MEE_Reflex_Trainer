@@ -30,9 +30,28 @@ from database import (
     find_best_outline_rules_for_question,
     get_plug_play_templates,
     search_plug_play_templates,
-    find_best_plug_play_for_call
+    find_best_plug_play_for_call,
+    upsert_admin,
+    get_app_user,
+    list_app_users,
+    add_app_user,
+    delete_app_user,
+    set_user_password,
 )
 from text_cleanup import normalize_extracted_text
+
+
+def _hash_password(plain):
+    import bcrypt
+    return bcrypt.hashpw(str(plain).encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _check_password(plain, hashed):
+    try:
+        import bcrypt
+        return bcrypt.checkpw(str(plain).encode("utf-8"), str(hashed).encode("utf-8"))
+    except Exception:
+        return False
 
 
 st.set_page_config(
@@ -43,32 +62,47 @@ st.set_page_config(
 )
 
 
-def _auth_users():
-    """Return the configured {username: {name, password}} map, or {} if auth is off.
+init_db()
 
-    Credentials live in st.secrets so they are never committed to the repo.
-    When no users are configured (e.g. local use), the app runs open.
+
+def _seed_admin_from_secrets():
+    """Ensure the admin account from st.secrets exists (survives DB resets).
+
+    Add this to your secrets to enable the login + admin:
+        [auth.admin]
+        username = "olesialek"
+        email = "olesialek@gmail.com"
+        name = "Olesia"
+        password = "<bcrypt hash from make_user.py>"
     """
     try:
-        users = st.secrets["auth"]["users"]
+        adm = st.secrets["auth"]["admin"]
     except Exception:
-        return {}
+        return
     try:
-        return {u: dict(v) for u, v in dict(users).items()}
+        upsert_admin(
+            str(adm["username"]).strip().lower(),
+            str(adm.get("email", "")).strip().lower(),
+            adm.get("name", "Admin"),
+            str(adm["password"]),
+        )
     except Exception:
-        return {}
+        pass
 
 
 def require_login():
-    users = _auth_users()
-    if not users:
-        return  # auth not configured -> open access (local/dev)
+    _seed_admin_from_secrets()
+
+    # If no accounts exist at all (e.g. local use with no admin configured),
+    # run open so the app still works without a login.
+    if not list_app_users():
+        return
 
     if st.session_state.get("_authed_user"):
         return
 
     st.markdown(
-        "<div style='max-width:380px;margin:8vh auto 0'>"
+        "<div style='max-width:400px;margin:8vh auto 0'>"
         "<h2 style='text-align:center;color:#1D4E89'>MEE Reflex Trainer</h2>"
         "<p style='text-align:center;color:#5A7A9A;font-size:0.9rem'>Please sign in to continue.</p>"
         "</div>",
@@ -78,32 +112,24 @@ def require_login():
     col_l, col_m, col_r = st.columns([1, 2, 1])
     with col_m:
         with st.form("login_form"):
-            username = st.text_input("Username").strip().lower()
+            login_id = st.text_input("Email or username")
             password = st.text_input("Password", type="password")
             submitted = st.form_submit_button("Sign in", use_container_width=True)
 
         if submitted:
-            record = users.get(username)
-            ok = False
-            if record and record.get("password"):
-                try:
-                    import bcrypt
-                    ok = bcrypt.checkpw(password.encode("utf-8"), str(record["password"]).encode("utf-8"))
-                except Exception:
-                    ok = False
-            if ok:
-                st.session_state["_authed_user"] = username
-                st.session_state["_authed_name"] = record.get("name", username)
+            record = get_app_user(login_id)
+            if record and _check_password(password, record["password_hash"]):
+                st.session_state["_authed_user"] = record["username"]
+                st.session_state["_authed_name"] = record.get("name") or record["username"]
+                st.session_state["_is_admin"] = record["is_admin"]
                 st.rerun()
             else:
-                st.error("Incorrect username or password.")
+                st.error("Incorrect email/username or password.")
 
     st.stop()
 
 
 require_login()
-
-init_db()
 
 
 QUESTION_HIGHLIGHT_CLASSES = [
@@ -5835,6 +5861,9 @@ NAV_GROUPS = [
     ("MBE",           ["MBE Drills"]),
 ]
 
+if st.session_state.get("_is_admin"):
+    NAV_GROUPS = NAV_GROUPS + [("ADMIN", ["Manage Users"])]
+
 _menu_aliases = {
     "Daily Workout": "Dashboard",
     "Muscle Ladder": "MEE Muscle Ladder",
@@ -7768,3 +7797,69 @@ elif menu == "MBE Drills":
             "mbe_trap_trainer.html was not found next to app.py. "
             "Make sure the file is in the project folder."
         )
+
+
+elif menu == "Manage Users":
+    if not st.session_state.get("_is_admin"):
+        st.error("Admins only.")
+    else:
+        render_page_title("Manage Users", "Create or remove people who can sign in.")
+
+        st.markdown("#### Add a user")
+        with st.form("add_user_form", clear_on_submit=True):
+            ac1, ac2 = st.columns(2)
+            with ac1:
+                nu_username = st.text_input("Username", placeholder="e.g. alice")
+                nu_email = st.text_input("Email", placeholder="alice@example.com")
+            with ac2:
+                nu_name = st.text_input("Display name", placeholder="Alice Smith")
+                nu_password = st.text_input("Temporary password", type="password")
+            nu_is_admin = st.checkbox("Make this user an admin", value=False)
+            add_submitted = st.form_submit_button("Add user")
+
+            if add_submitted:
+                if not nu_username.strip() or not nu_password:
+                    st.error("Username and password are required.")
+                else:
+                    ok, msg = add_app_user(
+                        nu_username, nu_email, nu_name.strip() or nu_username,
+                        _hash_password(nu_password), is_admin=nu_is_admin,
+                    )
+                    if ok:
+                        st.success(msg + " Share the username/email + this password with them.")
+                    else:
+                        st.error(msg)
+
+        st.divider()
+        st.markdown("#### Existing users")
+        _users = list_app_users()
+        if not _users:
+            st.info("No users yet.")
+        for _u in _users:
+            u_username, u_email, u_name, u_is_admin, u_created = _u
+            uc1, uc2, uc3 = st.columns([3, 2, 1])
+            with uc1:
+                badge = " (admin)" if u_is_admin else ""
+                st.markdown(f"**{escape(u_username)}**{badge}  \n{escape(u_email or '')}")
+            with uc2:
+                st.caption(f"{escape(u_name or '')}\nadded {escape(str(u_created or ''))[:10]}")
+            with uc3:
+                _is_self = u_username == st.session_state.get("_authed_user")
+                if u_is_admin or _is_self:
+                    st.caption("—")
+                elif st.button("Remove", key=f"del_user_{u_username}"):
+                    delete_app_user(u_username)
+                    st.rerun()
+
+        st.divider()
+        st.markdown("#### Change my password")
+        with st.form("change_pw_form", clear_on_submit=True):
+            new_pw = st.text_input("New password", type="password")
+            new_pw2 = st.text_input("Confirm new password", type="password")
+            pw_submitted = st.form_submit_button("Update my password")
+            if pw_submitted:
+                if not new_pw or new_pw != new_pw2:
+                    st.error("Passwords are empty or do not match.")
+                else:
+                    set_user_password(st.session_state["_authed_user"], _hash_password(new_pw))
+                    st.success("Password updated. Use it next time you sign in.")

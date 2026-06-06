@@ -5,58 +5,47 @@ sign-up. People can only get in with credentials you create for them.
 
 ## How the login works
 
-- Credentials live in **`st.secrets`** (never in the code or the repo).
-- If no users are configured, the app runs open (convenient for local use).
-- As soon as you add one or more users, every visitor must sign in.
+- Your **admin** account is seeded from **`st.secrets`** (never in the code/repo).
+- Once an admin exists, every visitor must sign in (by email or username).
+- The admin signs in and creates/removes everyone else from the in-app
+  **"Manage Users"** page — no file editing per user.
 - Passwords are stored only as **bcrypt hashes** — never in plain text.
+- If the `[auth]` section is absent, the app runs open (handy for local use).
 
-## 1. Create your login(s)
-
-For each person who should have access (including yourself):
+## 1. Create your admin block
 
 ```bash
 python make_user.py <username> "<Display Name>" "<password>"
 ```
 
-It prints a small block like:
+Take the printed hash and put it in an `[auth.admin]` block:
 
 ```toml
-[auth.users.alice]
-name = "Alice Smith"
+[auth.admin]
+username = "olesialek"
+email = "olesialek@gmail.com"
+name = "Olesia"
 password = "$2b$12$....bcrypt-hash...."
 ```
-
-Collect one block per user.
 
 ## 2. Deploy to Streamlit Community Cloud (free)
 
 1. Push this repo to GitHub (private is fine).
 2. Go to https://share.streamlit.io → **Create app** → pick your repo, branch,
    and `app.py`.
-3. **Advanced settings → Secrets** — paste your auth blocks under one `[auth]`
-   section, for example:
-
-   ```toml
-   [auth.users.owner]
-   name = "Owner"
-   password = "$2b$12$....hash...."
-
-   [auth.users.alice]
-   name = "Alice Smith"
-   password = "$2b$12$....hash...."
-   ```
-
-4. Deploy. The app will now show a sign-in page; only those users get in.
-
-To **add a user** later: edit the app's Secrets and add another `[auth.users.x]`
-block. To **revoke** someone: delete their block and save. (Both take effect on
-the next load.)
+3. **Advanced settings → Secrets** — paste your `[auth.admin]` block.
+4. Deploy. The app shows a sign-in page; sign in with your admin email/username.
+5. Open **Manage Users** (admin-only, in the sidebar) to add everyone else —
+   set each person a username, email, and a temporary password, then share it.
+   Remove a user there to revoke access. Change your own password there too.
 
 ## 3. The database (important)
 
 Streamlit Community Cloud has an **ephemeral disk** — the local `mee_reflex.db`
-is *not* in the repo and would start empty (and reset on every redeploy). Pick
-one:
+is *not* in the repo and would start empty (and reset on every redeploy). This
+also affects accounts: your **admin** always returns (it's re-seeded from
+secrets), but users you add in-app live in the database, so for durable
+multi-user access use a hosted database. Pick one:
 
 - **Ship a seed database:** commit a `mee_reflex.db` into your **private** deploy
   repo so the app launches with your content already loaded. (Keep this repo
