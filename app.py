@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import random
 import re
+import time
 from html import escape
 from io import StringIO
 
@@ -2336,6 +2338,94 @@ def reveal_gate_box(text):
     )
 
 
+def render_stopwatch(key):
+    """Live ticking stopwatch with Start/Pause/Reset. Returns elapsed seconds."""
+    run_key = f"sw_running_{key}"
+    start_key = f"sw_start_{key}"
+    accum_key = f"sw_accum_{key}"
+
+    st.session_state.setdefault(run_key, False)
+    st.session_state.setdefault(start_key, 0.0)
+    st.session_state.setdefault(accum_key, 0.0)
+
+    running = st.session_state[run_key]
+    elapsed = st.session_state[accum_key]
+    if running:
+        elapsed += time.time() - st.session_state[start_key]
+
+    disp_col, start_col, reset_col = st.columns([3, 1, 1])
+
+    with disp_col:
+        running_js = "true" if running else "false"
+        base_seconds = float(st.session_state[accum_key])
+        started_ms = int(st.session_state[start_key] * 1000)
+        accent = "#0D9488" if running else "#4A6585"
+        components.html(
+            f"""
+            <div style="font-family:'Segoe UI',system-ui,sans-serif;
+                        background:#FFFFFF;border:1.5px solid #D1E3F8;
+                        border-left:4px solid {accent};border-radius:10px;
+                        padding:0.55rem 1rem;display:flex;align-items:center;gap:0.7rem">
+              <span style="font-size:0.72rem;font-weight:700;letter-spacing:0.06em;
+                           text-transform:uppercase;color:#4A6585">Stopwatch</span>
+              <span id="sw_display" style="font-size:1.7rem;font-weight:700;
+                           font-variant-numeric:tabular-nums;color:#1D3557;
+                           letter-spacing:0.02em">00:00</span>
+            </div>
+            <script>
+              var running = {running_js};
+              var base = {base_seconds};
+              var startedMs = {started_ms};
+              function fmt(total) {{
+                if (total < 0) total = 0;
+                var h = Math.floor(total / 3600);
+                var m = Math.floor((total % 3600) / 60);
+                var s = Math.floor(total % 60);
+                var mm = String(m).padStart(2, '0');
+                var ss = String(s).padStart(2, '0');
+                return h > 0 ? (h + ':' + mm + ':' + ss) : (mm + ':' + ss);
+              }}
+              function tick() {{
+                var total = base;
+                if (running) {{ total += (Date.now() - startedMs) / 1000; }}
+                var el = document.getElementById('sw_display');
+                if (el) {{ el.textContent = fmt(total); }}
+              }}
+              tick();
+              if (running) {{ setInterval(tick, 250); }}
+            </script>
+            """,
+            height=64,
+        )
+
+    with start_col:
+        if st.button("Pause" if running else "Start", key=f"sw_toggle_{key}", use_container_width=True):
+            if running:
+                st.session_state[accum_key] += time.time() - st.session_state[start_key]
+                st.session_state[run_key] = False
+            else:
+                st.session_state[start_key] = time.time()
+                st.session_state[run_key] = True
+            st.rerun()
+
+    with reset_col:
+        if st.button("Reset", key=f"sw_reset_{key}", use_container_width=True):
+            st.session_state[run_key] = False
+            st.session_state[start_key] = 0.0
+            st.session_state[accum_key] = 0.0
+            st.rerun()
+
+    return elapsed
+
+
+def stopwatch_minutes(key):
+    """Elapsed whole minutes for the given stopwatch, for prefilling minutes_spent."""
+    accum = st.session_state.get(f"sw_accum_{key}", 0.0)
+    if st.session_state.get(f"sw_running_{key}", False):
+        accum += time.time() - st.session_state.get(f"sw_start_{key}", time.time())
+    return int(round(accum / 60))
+
+
 def question_picker(active_default=True, due_only=False):
     subjects = ["All"] + get_subjects()
     statuses = ["All"] + get_statuses()
@@ -2862,6 +2952,7 @@ elif menu == "MEE Muscle Ladder":
             qd = unpack_question(q)
 
             render_question_strip(qd)
+            render_stopwatch(f"ladder_{qd['id']}")
 
             level = st.selectbox(
                 "Choose training level",
@@ -3069,6 +3160,7 @@ elif menu == "Mini Essay Drill":
             qd = unpack_question(q)
 
             render_question_strip(qd)
+            render_stopwatch(f"mini_{qd['id']}")
             subquestions = extract_subquestions(qd["call_of_question"])
 
             with st.expander("1. Call of the Question - read this first", expanded=True):
@@ -3195,6 +3287,7 @@ elif menu == "Issue Spotting Drill":
             qd = unpack_question(q)
 
             render_question_strip(qd)
+            render_stopwatch(f"issue_{qd['id']}")
 
             study_tip("Timer target: 5 minutes. Read the call first, then identify the legal triggers.")
 
@@ -3227,7 +3320,8 @@ elif menu == "Issue Spotting Drill":
                 self_score = st.slider("Self-score: issue spotting", 0, 5, 0)
 
             with col2:
-                minutes_spent = st.number_input("Minutes spent", min_value=0, max_value=60, value=5)
+                _sw_min = min(60, max(0, stopwatch_minutes(f"issue_{qd['id']}")))
+                minutes_spent = st.number_input("Minutes spent", min_value=0, max_value=60, value=_sw_min or 5)
 
             missed_issues = st.text_area("Missed issues", height=100)
             notes = st.text_area("Notes for future you", height=100)
@@ -3262,6 +3356,7 @@ elif menu == "Rule Retrieval Drill":
             qd = unpack_question(q)
 
             render_question_strip(qd)
+            render_stopwatch(f"rule_{qd['id']}")
 
             st.markdown("### Tested Issue Bank")
             render_tested_issues_text("Tested Issues", qd["tested_issues"])
@@ -3288,7 +3383,8 @@ elif menu == "Rule Retrieval Drill":
                 self_score = st.slider("Self-score: rule retrieval", 0, 5, 0)
 
             with col2:
-                minutes_spent = st.number_input("Minutes spent", min_value=0, max_value=60, value=7)
+                _sw_min = min(60, max(0, stopwatch_minutes(f"rule_{qd['id']}")))
+                minutes_spent = st.number_input("Minutes spent", min_value=0, max_value=60, value=_sw_min or 7)
 
             missed_issues = st.text_area("Which rule/element did you miss?", height=100)
             notes = st.text_area("Fix note", height=100)
@@ -3340,7 +3436,7 @@ elif menu == "Timed IRAC Drill":
 
             with left_col:
                 st.markdown(
-                    '<p style="font-size:0.88rem;font-weight:700;color:#58708A;margin-bottom:0.35rem">📄 Question Prompt</p>',
+                    '<p style="font-size:0.88rem;font-weight:700;color:#4A6585;margin-bottom:0.35rem">Question Prompt</p>',
                     unsafe_allow_html=True,
                 )
 
@@ -3378,6 +3474,9 @@ elif menu == "Timed IRAC Drill":
                         st.markdown(f'<div style="margin-top:0.7rem">{_pills}</div>', unsafe_allow_html=True)
 
             with right_col:
+                # Live stopwatch
+                render_stopwatch(f"irac_{qd['id']}")
+
                 # Practice mode selector at top of right column
                 _practice_mode = st.radio(
                     "Mode:",
@@ -3394,7 +3493,10 @@ elif menu == "Timed IRAC Drill":
                 # Timer row
                 _tcol1, _tcol2 = st.columns([1, 2])
                 with _tcol1:
-                    minutes_spent = st.number_input("Minutes spent", min_value=0, max_value=90, value=_target_min)
+                    _sw_min = min(90, max(0, stopwatch_minutes(f"irac_{qd['id']}")))
+                    minutes_spent = st.number_input(
+                        "Minutes spent", min_value=0, max_value=90, value=_sw_min or _target_min
+                    )
                 with _tcol2:
                     st.caption(f"Target: {_target_min} min")
 
