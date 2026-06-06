@@ -6619,7 +6619,7 @@ elif menu == "MBE Drills":
     try:
         with open(_mbe_path, "r", encoding="utf-8") as _f:
             _mbe_html = _f.read()
-        components.html(_mbe_html, height=1500, scrolling=True)
+        components.html(_mbe_html, height=2000, scrolling=True)
     except FileNotFoundError:
         st.error(
             "mbe_trap_trainer.html was not found next to app.py. "
