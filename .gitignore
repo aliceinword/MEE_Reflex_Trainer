@@ -26,6 +26,9 @@ env/
 *.csv
 *.docx
 
+# Personal question bank (Markdown) -- keep README.md, exclude bank files
+MEE_Question_Extraction*.md
+
 # OS
 .DS_Store
 Thumbs.db

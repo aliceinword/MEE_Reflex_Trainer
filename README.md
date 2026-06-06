@@ -68,13 +68,33 @@ The app opens in your browser at `http://localhost:8501`.
 
 ## Importing your own questions
 
-You have two options:
+You have three options:
 
 ### Option A — CSV bulk import (in-app)
 Open the **Question Bank** page, download the CSV template, fill it in with your
 own questions, and upload it.
 
-### Option B — PDF import scripts (command line)
+### Option B — Markdown question bank (command line)
+If you keep your questions in a Markdown file, `import_questions_bank.py` loads
+them in bulk. Expected structure:
+
+```markdown
+# Subject Name
+## February 1997 - Question 4
+**Original Question:**
+<fact pattern paragraphs, then the numbered calls>
+---
+```
+
+```bash
+python import_questions_bank.py "path/to/your-questions.md"
+```
+
+Answers (issues, rules, traps, model points) are left blank so you can fill them
+in later. Re-running is safe — questions already present (same exam + number +
+subject) are skipped.
+
+### Option C — PDF import scripts (command line)
 If you have your own materials as PDFs, the helper scripts can parse them into the
 local database. Point them at *your* files:
 
