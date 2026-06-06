@@ -2008,8 +2008,12 @@ def render_trigger_facts_text(title, text):
 
 
 def render_raw_trigger_facts_expander(qd):
-    with st.expander("Raw trigger facts text", expanded=False):
-        st.text(qd.get("trigger_facts", "") or "")
+    original_text = qd.get("trigger_facts", "") or ""
+    if not original_text:
+        return
+
+    with st.expander("Original trigger facts text", expanded=False):
+        render_readable_text("Original Trigger Facts", clean_trigger_facts_text(original_text), READING_FONT_SIZE)
 
 
 def render_trigger_facts(title, qd):
@@ -2222,8 +2226,12 @@ def render_tested_issues_text(title, text):
 
 
 def render_raw_tested_issues_expander(qd):
-    with st.expander("Raw tested issues text", expanded=False):
-        st.text(qd.get("tested_issues", "") or "")
+    original_text = qd.get("tested_issues", "") or ""
+    if not original_text:
+        return
+
+    with st.expander("Original tested issues text", expanded=False):
+        render_tested_issues("Original Tested Issues", original_text)
 
 
 def extract_fact_pattern_only(question_text, call_text=None):
@@ -4108,10 +4116,11 @@ def question_picker(active_default=True, due_only=False):
 
 
 NAV_GROUPS = [
-    ("TRAIN",   ["Daily Workout", "Mini Essay Drill", "Muscle Ladder", "Timed IRAC Drill"]),
-    ("DRILLS",  ["Issue Spotting Drill", "Rule Flashcards", "MBE Drills", "Due Review Queue"]),
-    ("LIBRARY", ["Attack Outline Rules", "Plug & Play Templates", "Review Attempts"]),
-    ("MANAGE",  ["Question Bank"]),
+    ("MEE - TRAIN",   ["Daily Workout", "Mini Essay Drill", "Muscle Ladder", "Timed IRAC Drill"]),
+    ("MEE - DRILLS",  ["Issue Spotting Drill", "Rule Flashcards", "Due Review Queue"]),
+    ("MEE - LIBRARY", ["Attack Outline Rules", "Plug & Play Templates", "Review Attempts"]),
+    ("MEE - MANAGE",  ["Question Bank"]),
+    ("MBE",           ["MBE Drills"]),
 ]
 
 _menu_aliases = {
