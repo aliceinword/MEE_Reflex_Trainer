@@ -27,6 +27,7 @@ $codeFiles = @(
     "import_questions_bank.py",
     "import_questions_docx.py",
     "import_plug_play_docx.py",
+    "import_condensed_answers.py",
     "import_condensed_sample_answers.py",
     "import_flashcards2025.py",
     "populate_traps.py",
