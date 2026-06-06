@@ -748,6 +748,51 @@ header *,
     color: #1D4E89;
 }
 
+.trap-box {
+    background: rgba(255, 251, 235, 0.98);
+    border: 1.5px solid #FDBA74;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    margin: 0.55rem 0 0.8rem 0;
+    box-shadow: 0 5px 16px rgba(234, 88, 12, 0.08);
+    width: 100%;
+}
+
+.trap-title {
+    color: #9A3412;
+    font-weight: 850;
+    font-size: 1.02rem;
+    margin-bottom: 0.55rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 2px solid #FED7AA;
+}
+
+.trap-card {
+    background: #FFF7ED;
+    border-left: 4px solid #EA580C;
+    border-radius: 0 12px 12px 0;
+    color: #431407;
+    padding: 0.65rem 0.8rem;
+    margin: 0.45rem 0;
+    line-height: 1.48;
+    font-size: 16px;
+}
+
+.trap-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 999px;
+    background: #FFEDD5;
+    color: #9A3412;
+    border: 1px solid #FDBA74;
+    font-weight: 850;
+    margin-right: 0.45rem;
+    font-size: 0.82rem;
+}
+
 /* Compact question/fact pattern boxes */
 .question-box {
     background: rgba(255, 255, 255, 0.96);
@@ -1551,6 +1596,75 @@ hr {
     border: 1px solid rgba(0,0,0,0.08);
 }
 
+.tooltip-highlight {
+    position: relative;
+    cursor: help;
+    padding: 0.05rem 0.18rem;
+    border-radius: 5px;
+    font-weight: 750;
+    outline: none;
+}
+
+.tooltip-highlight .tooltip-bubble {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    z-index: 9999;
+    left: 0;
+    bottom: 135%;
+    width: min(360px, 80vw);
+    background: #FFFFFF;
+    color: #102033;
+    text-align: left;
+    border-radius: 12px;
+    padding: 0.75rem 0.85rem;
+    font-size: 13px;
+    line-height: 1.45;
+    font-weight: 500;
+    border: 1.5px solid #93C5FD;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.18);
+    pointer-events: none;
+}
+
+.tooltip-highlight .tooltip-bubble::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 18px;
+    border-width: 7px;
+    border-style: solid;
+    border-color: #FFFFFF transparent transparent transparent;
+}
+
+.tooltip-highlight:hover .tooltip-bubble,
+.tooltip-highlight:focus .tooltip-bubble,
+.tooltip-highlight:focus-within .tooltip-bubble {
+    visibility: visible;
+    opacity: 1;
+}
+
+.tooltip-title {
+    display: block;
+    color: #1D4E89;
+    font-weight: 850;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+
+.tooltip-reason {
+    display: block;
+    color: #102033;
+}
+
+.tooltip-hint {
+    display: block;
+    margin-top: 0.4rem;
+    color: #4A6585;
+    font-size: 12px;
+}
+
 .fact-highlight-legend {
     background: #FFFBEB;
     border: 1px solid #FDE68A;
@@ -1975,6 +2089,76 @@ def render_sample_answer_section(qd, expanded=False):
     with st.expander("Compare With Sample Answer - open after self-grading", expanded=expanded):
         st.warning("Open this only after you attempted the issue/rule. No passive reading.")
         render_sample_answer_text("Sample Answer / Model Analysis", model_points)
+
+
+def clean_trap_items(traps_text):
+    if not traps_text:
+        return []
+
+    text = normalize_extracted_text(str(traps_text))
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]+", " ", text)
+
+    items = []
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        line = re.sub(r"^[-*•]\s*", "", line)
+        line = re.sub(r"^\d+[.)]\s*", "", line)
+        line = re.sub(r"^Trap:\s*", "", line, flags=re.IGNORECASE)
+        line = re.sub(r"\s+", " ", line).strip()
+        if line:
+            items.append(line)
+
+    if not items:
+        for part in re.split(r"(?<=[.!?])\s+(?=[A-Z])", text):
+            part = re.sub(r"^Trap:\s*", "", part.strip(), flags=re.IGNORECASE)
+            if part:
+                items.append(part)
+
+    clean = []
+    seen = set()
+    for item in items:
+        item = item.strip(" -;")
+        if len(item) < 5:
+            continue
+        if len(item) > 240:
+            item = item[:240].rsplit(" ", 1)[0] + "..."
+        key = item.lower()
+        if key not in seen:
+            seen.add(key)
+            clean.append(item)
+
+    return clean[:6]
+
+
+def render_trap_warnings(title, traps_text):
+    traps = clean_trap_items(traps_text)
+
+    if not traps:
+        st.info("No trap warnings available yet.")
+        return
+
+    cards_html = ""
+    for idx, trap in enumerate(traps, start=1):
+        cards_html += (
+            '<div class="trap-card">'
+            f'<span class="trap-number">{idx}</span>'
+            f'{escape_display_text(trap)}'
+            '</div>'
+        )
+
+    st.markdown(
+        (
+            '<div class="trap-box">'
+            f'<div class="trap-title">{escape_display_text(title)}</div>'
+            f'{cards_html}'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 def clean_question_text(question_text):
@@ -3071,7 +3255,95 @@ def get_fact_sentences_for_subquestions(qd, max_per_question=8):
     return mapping
 
 
-def highlight_facts_by_question(qd):
+def explain_fact_for_subquestion(fact, subq, qd):
+    text = subq.get("text", "") or ""
+
+    for sp in subq.get("subparts", []):
+        text += " " + sp.get("text", "")
+
+    fact_l = str(fact).lower()
+    call_l = text.lower()
+    subject_l = (qd.get("subject", "") or "").lower()
+
+    if "forum" in call_l:
+        return "This fact helps classify the forum because location, public access, and historical use matter for First Amendment forum analysis."
+    if "content" in call_l and ("content-based" in call_l or "content neutral" in call_l or "content-neutral" in call_l):
+        return "This fact helps decide whether the ordinance regulates speech because of its message or instead regulates conduct, time, place, or manner."
+    if "first amendment" in subject_l or "speech" in call_l:
+        return "This fact is relevant to the speech restriction, government interest, forum, or level of scrutiny."
+
+    if "negligence" in call_l or "breach" in call_l:
+        if any(w in fact_l for w in ["statute", "law", "violated", "school bus", "stop sign"]):
+            return "This fact may trigger negligence per se because a statutory violation can establish breach if the statute was designed to prevent this type of harm and protect this class of persons."
+        return "This fact is relevant to duty, breach, causation, or damages."
+    if "false imprisonment" in call_l or "detain" in call_l or "detaining" in call_l:
+        return "This fact may support false imprisonment because it bears on intentional confinement, lack of consent, and awareness of confinement."
+    if "summary judgment" in call_l:
+        return "This fact matters because summary judgment is proper only if there is no genuine dispute of material fact and the movant is entitled to judgment as a matter of law."
+    if "wrongful death" in call_l or "proximate cause" in call_l or "causation" in call_l:
+        return "This fact is relevant to causation and foreseeability, including whether the defendant's conduct was an actual and proximate cause of the death."
+
+    if "agency" in call_l or "agent" in call_l:
+        return "This fact bears on agency creation: consent, acting on behalf of the principal, and the principal's right to control."
+    if "actual authority" in call_l:
+        return "This fact bears on actual authority because actual authority depends on the principal's manifestations to the agent and the agent's reasonable belief."
+    if "apparent authority" in call_l:
+        return "This fact bears on apparent authority because apparent authority depends on the principal's manifestations to the third party and the third party's reasonable belief."
+    if "partnership" in call_l:
+        return "This fact bears on partnership formation or liability, including co-ownership, profit sharing, control, ordinary course, or partner authority."
+
+    if "contract" in call_l or "offer" in call_l or "accept" in call_l:
+        return "This fact bears on contract formation, interpretation, performance, breach, or defenses."
+    if "statute of frauds" in call_l:
+        return "This fact matters because Statute of Frauds analysis turns on the type of contract, writing, signature, and exceptions."
+
+    if "jurisdiction" in call_l:
+        return "This fact bears on jurisdiction, such as citizenship, domicile, contacts with the forum, or amount in controversy."
+    if "venue" in call_l:
+        return "This fact bears on venue because venue depends on residence, location of events, or property."
+    if "preclusion" in call_l:
+        return "This fact bears on preclusion because prior judgment, same parties, same claim or issue, and finality matter."
+
+    if "hearsay" in call_l:
+        return "This fact matters because hearsay depends on whether an out-of-court statement is offered for its truth or for another purpose."
+    if "character" in call_l or "impeach" in call_l:
+        return "This fact bears on admissibility, impeachment, character evidence, or a specific evidence exception."
+
+    if "deed" in call_l or "record" in call_l or "title" in call_l:
+        return "This fact bears on property ownership, recording, notice, priority, or title."
+    if "easement" in call_l or "covenant" in call_l:
+        return "This fact bears on whether a property interest runs with the land or binds successors."
+
+    if "search" in call_l or "seizure" in call_l:
+        return "This fact bears on Fourth Amendment analysis: government action, reasonable expectation of privacy, warrant, probable cause, or exception."
+    if "miranda" in call_l or "custody" in call_l or "interrogation" in call_l:
+        return "This fact bears on Miranda because warnings are required only for custodial interrogation."
+
+    return "This fact likely triggers a rule element for this call. Ask: what legal element does this fact prove or weaken?"
+
+
+def build_highlight_span(match_text, css_class, label, reason, show_explanations=True):
+    if not show_explanations:
+        return f'<span class="{css_class}">{match_text}</span>'
+
+    try:
+        safe_label = escape(str(label))
+        safe_reason = escape(str(reason))
+        return (
+            f'<span class="tooltip-highlight {css_class}" tabindex="0">'
+            f'{match_text}'
+            '<span class="tooltip-bubble">'
+            f'<span class="tooltip-title">{safe_label}</span>'
+            f'<span class="tooltip-reason">{safe_reason}</span>'
+            '<span class="tooltip-hint">Ask: which rule element does this fact prove?</span>'
+            '</span>'
+            '</span>'
+        )
+    except Exception:
+        return f'<span class="{css_class}">{match_text}</span>'
+
+
+def highlight_facts_by_question(qd, show_explanations=True):
     question_text = qd.get("question_text", "") or ""
     call_text = qd.get("call_of_question", "") or ""
 
@@ -3093,7 +3365,7 @@ def highlight_facts_by_question(qd):
     phrase_items = []
     for item in mapping:
         for fact in item["facts"]:
-            phrase_items.append((fact, item["class"]))
+            phrase_items.append((fact, item["class"], item["label"], item["call"]))
 
     if not phrase_items:
         raise ValueError("No question-specific trigger facts detected.")
@@ -3101,7 +3373,7 @@ def highlight_facts_by_question(qd):
     phrase_items.sort(key=lambda x: len(x[0]), reverse=True)
     already_highlighted_patterns = set()
 
-    for phrase, css_class in phrase_items:
+    for phrase, css_class, label, subq in phrase_items:
         phrase_clean = (
             clean_fact_pattern_text(phrase)
             if "clean_fact_pattern_text" in globals()
@@ -3121,9 +3393,16 @@ def highlight_facts_by_question(qd):
         pattern = re.escape(escaped_phrase).replace(r"\ ", r"\s+")
 
         try:
+            reason = explain_fact_for_subquestion(phrase, subq, qd)
             escaped_text = re.sub(
                 pattern,
-                lambda m: f'<span class="{css_class}">{m.group(0)}</span>',
+                lambda m: build_highlight_span(
+                    m.group(0),
+                    css_class,
+                    label,
+                    reason,
+                    show_explanations=show_explanations,
+                ),
                 escaped_text,
                 count=1,
                 flags=re.IGNORECASE,
@@ -3134,8 +3413,8 @@ def highlight_facts_by_question(qd):
     return escaped_text, mapping
 
 
-def render_question_specific_highlighted_facts(title, qd):
-    highlighted_html, mapping = highlight_facts_by_question(qd)
+def render_question_specific_highlighted_facts(title, qd, show_explanations=True):
+    highlighted_html, mapping = highlight_facts_by_question(qd, show_explanations=show_explanations)
 
     legend_html = '<div class="question-highlight-legend"><div class="legend-row">'
 
@@ -3147,6 +3426,8 @@ def render_question_specific_highlighted_facts(title, qd):
     legend_html += '</div></div>'
 
     st.info("Colors show which facts likely support each call of the question.")
+    if show_explanations:
+        st.info("Hover over or click a highlighted fact to see why it matters.")
     st.markdown(legend_html, unsafe_allow_html=True)
     st.markdown(
         (
@@ -3168,9 +3449,9 @@ def render_question_specific_highlighted_facts(title, qd):
                 st.info("No specific facts detected for this call.")
 
 
-def render_question_highlights_with_fallback(title, qd, text=None):
+def render_question_highlights_with_fallback(title, qd, text=None, show_explanations=True):
     try:
-        render_question_specific_highlighted_facts(title, qd)
+        render_question_specific_highlighted_facts(title, qd, show_explanations=show_explanations)
     except Exception:
         st.warning("Question-specific highlighting failed; showing universal highlights instead.")
         render_universal_highlighted_fact_pattern(title, qd, text=text)
@@ -3917,6 +4198,8 @@ def render_progressive_hints(qd):
                 render_call_text("Call of the Question", qd.get("call_of_question", ""))
             elif hint_title.startswith("Hint 4"):
                 render_hint_text(hint_title, clean_trigger_facts_text(hint_text))
+            elif hint_title.startswith("Hint 5"):
+                render_trap_warnings("Trap Warning", hint_text)
             else:
                 render_hint_text(hint_title, hint_text)
             st.warning("Try to write again before opening the next hint.")
@@ -5366,7 +5649,7 @@ TRIGGER FACTS:
                 render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
                 render_trigger_facts("Trigger Facts", qd)
                 render_raw_trigger_facts_expander(qd)
-                render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                render_trap_warnings("Trap Warnings", qd["traps"])
                 render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
                 render_trigger_candidate_diagnostics(qd)
                 render_sample_answer_section(qd, expanded=False)
@@ -5515,7 +5798,7 @@ elif menu == "Mini Essay Drill":
                     render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
                     render_trigger_facts("Trigger Facts", qd)
                     render_raw_trigger_facts_expander(qd)
-                    render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                    render_trap_warnings("Trap Warnings", qd["traps"])
                     render_sample_answer_section(qd, expanded=False)
 
             with main_col:
@@ -5640,6 +5923,10 @@ elif menu == "Issue Spotting Drill":
                     "Review mode: show trigger fact highlights immediately",
                     value=False,
                 )
+                show_explanations = st.checkbox(
+                    "Show explanation bubbles on highlighted facts",
+                    value=True,
+                )
 
                 render_trigger_candidate_diagnostics(qd)
 
@@ -5652,10 +5939,11 @@ elif menu == "Issue Spotting Drill":
                     render_raw_tested_issues_expander(qd)
                     render_trigger_facts("Trigger Facts", qd)
                     render_raw_trigger_facts_expander(qd)
-                    render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                    render_trap_warnings("Trap Warnings", qd["traps"])
                     render_question_highlights_with_fallback(
                         "Fact Pattern with Trigger Facts Highlighted by Question",
                         qd,
+                        show_explanations=show_explanations,
                     )
                     render_trigger_candidate_diagnostics(qd)
                     flashcard_matches = find_relevant_rule_flashcards(
@@ -5686,6 +5974,7 @@ elif menu == "Issue Spotting Drill":
                             "Fact Pattern with Trigger Facts Highlighted by Question",
                             qd,
                             text=fact_only,
+                            show_explanations=show_explanations,
                         )
                     else:
                         render_fact_pattern_text("Fact Pattern", fact_only)
@@ -6269,7 +6558,7 @@ elif menu == "Timed IRAC Drill":
                 render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
                 render_trigger_facts("Trigger Facts", qd)
                 render_raw_trigger_facts_expander(qd)
-                render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                render_trap_warnings("Trap Warnings", qd["traps"])
                 render_sample_answer_section(qd, expanded=False)
                 with st.expander("Fact Pattern with Trigger Facts Highlighted", expanded=False):
                     render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
@@ -6318,7 +6607,7 @@ elif menu == "Due Review Queue":
                 render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
                 render_trigger_facts("Trigger Facts", qd)
                 render_raw_trigger_facts_expander(qd)
-                render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                render_trap_warnings("Trap Warnings", qd["traps"])
                 render_sample_answer_section(qd, expanded=False)
 
             score = st.slider("Review score", 0, 5, 0)

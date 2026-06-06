@@ -143,6 +143,15 @@ const LS_KEY = 'trapTrainer.userCards.v1';
 function loadUser(){try{const r=localStorage.getItem(LS_KEY);return r?JSON.parse(r):[];}catch(e){return[];}}
 function saveUser(){try{localStorage.setItem(LS_KEY,JSON.stringify(userCards));return true;}catch(e){return false;}}
 let userCards = loadUser();
+
+/* Track which questions were answered TODAY so we don't repeat them. */
+const LS_DONE = 'trapTrainer.doneToday.v1';
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function loadDone(){try{const r=JSON.parse(localStorage.getItem(LS_DONE)||'{}');if(r.date!==todayStr())return{date:todayStr(),ids:[]};return{date:r.date,ids:Array.isArray(r.ids)?r.ids:[]};}catch(e){return{date:todayStr(),ids:[]};}}
+let doneToday = loadDone();
+function saveDone(){try{localStorage.setItem(LS_DONE,JSON.stringify(doneToday));}catch(e){}}
+function markDone(id){if(doneToday.date!==todayStr())doneToday={date:todayStr(),ids:[]};if(!doneToday.ids.includes(id)){doneToday.ids.push(id);saveDone();}}
+function doneSet(){if(doneToday.date!==todayStr())doneToday={date:todayStr(),ids:[]};return new Set(doneToday.ids);}
 function allCards(){return BUILTIN.concat(userCards);}
 function subjects(){const s=BASE_SUBJECTS.slice();userCards.forEach(c=>{if(c.subj&&!s.includes(c.subj))s.push(c.subj);});return s;}
 function fullName(s){return FULL[s]||s;}
@@ -230,7 +239,11 @@ function renderStart(){
     const badge = isBase ? `<span class="sc">${SCORE[s]}</span>` : `<span class="sc">+${countIn(s)}</span>`;
     return `<div class="chip ${state.selected.has(s)?'sel':''}" data-s="${esc(s)}">${esc(fullName(s))} ${badge}</div>`;
   }).join('');
-  const n = allCards().filter(d=>state.selected.has(d.subj)).length;
+  const totalSel = allCards().filter(d=>state.selected.has(d.subj)).length;
+  const done = doneSet();
+  const remaining = allCards().filter(d=>state.selected.has(d.subj)&&!done.has(d.id)).length;
+  const doneCount = totalSel - remaining;
+  const n = state.mode==='drill' ? remaining : totalSel;
   const uc = userCards.length;
   app.innerHTML = `
     <div class="panel">
@@ -251,6 +264,7 @@ function renderStart(){
     <div class="start-actions">
       <button class="btn btn-primary" id="go">${state.mode==='drill'?'Start drill':'Start lecture'} → ${n} card${n!==1?'s':''}</button>
     </div>
+    ${(state.mode==='drill'&&doneCount>0)?`<div style="font-size:11.5px;color:var(--mut);margin-top:8px">✓ ${doneCount} already answered today and will be skipped. <a href="#" id="resetDone" style="color:var(--orange)">reset today</a></div>`:''}
     <div class="toolbar">
       <button class="btn btn-primary btn-sm" id="advBtn">📥 Import from AdaptiBar</button>
       <button class="btn btn-ghost btn-sm" id="addBtn">➕ Add one manually</button>
@@ -265,23 +279,52 @@ function renderStart(){
   document.getElementById('allBtn').onclick=()=>{state.selected=new Set(subjects());renderStart();};
   document.getElementById('redBtn').onclick=()=>{state.selected=new Set(["CIV PRO","PROPERTY"]);renderStart();};
   document.getElementById('seg').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.mode=b.dataset.m;startRun();});
-  document.getElementById('go').onclick=startRun;
+  document.getElementById('go').onclick=()=>startRun();
   document.getElementById('addBtn').onclick=()=>renderAdd();
   document.getElementById('advBtn').onclick=renderAdaptiImport;
   document.getElementById('myBtn').onclick=renderMyCards;
   document.getElementById('expBtn').onclick=exportCards;
   document.getElementById('impBtn').onclick=()=>document.getElementById('importFile').click();
+  const rd=document.getElementById('resetDone');
+  if(rd)rd.onclick=(e)=>{e.preventDefault();doneToday={date:todayStr(),ids:[]};saveDone();renderStart();};
 }
 
-function startRun(){
+function startRun(ignoreDone){
   const subs=subjects();
-  const pool=allCards().filter(d=>state.selected.has(d.subj));
-  pool.sort((a,b)=>subs.indexOf(a.subj)-subs.indexOf(b.subj));
-  if(pool.length===0){alert('No cards in the selected subjects yet. Add one or pick another subject.');return;}
+  let pool=allCards().filter(d=>state.selected.has(d.subj));
+  if(pool.length===0){renderEmptyPool();return;}
+  // In drill mode, skip questions already answered today (unless overridden).
+  if(state.mode==='drill' && !ignoreDone){
+    const done=doneSet();
+    const fresh=pool.filter(d=>!done.has(d.id));
+    if(fresh.length===0){renderAllDone(pool.length);return;}
+    pool=fresh;
+  }
+  pool=pool.slice().sort((a,b)=>subs.indexOf(a.subj)-subs.indexOf(b.subj));
   state.queue=pool;state.i=0;state.locked=false;state.correct=0;state.streak=0;
   state.bestStreak=0;state.dodged=0;state.missed=[];state.perSubj={};
   pool.forEach(d=>{state.perSubj[d.subj]=state.perSubj[d.subj]||{c:0,t:0};});
   state.mode==='drill'?renderDrill():renderLecture();
+}
+
+function renderEmptyPool(){
+  app.innerHTML=`<div class="panel"><div class="lbl">Nothing to drill</div>
+    <p>No cards in the selected subjects yet. Pick another subject or add a card.</p></div>
+    <div class="start-actions"><button class="btn btn-ghost" id="back">← Back to menu</button></div>`;
+  document.getElementById('back').onclick=renderStart;
+}
+
+function renderAllDone(total){
+  app.innerHTML=`<div class="panel"><div class="lbl">All caught up for today</div>
+    <p>You've already answered every card in the selected subjects today (${total} card${total!==1?'s':''}). Come back tomorrow for a fresh set — or drill them again now.</p></div>
+    <div class="start-actions">
+      <button class="btn btn-primary" id="again">Drill them again anyway</button>
+      <button class="btn btn-ghost" id="back">← Back to menu</button>
+      <button class="btn btn-ghost btn-sm" id="reset">Reset today's history</button>
+    </div>`;
+  document.getElementById('again').onclick=()=>startRun(true);
+  document.getElementById('back').onclick=renderStart;
+  document.getElementById('reset').onclick=()=>{doneToday={date:todayStr(),ids:[]};saveDone();renderStart();};
 }
 
 /* ---------- DRILL ---------- */
@@ -309,6 +352,7 @@ function renderDrill(){
 function pick(opts,k,btns){
   if(state.locked)return;state.locked=true;
   const d=state.queue[state.i];const chosen=opts[k];const correctIdx=opts.findIndex(o=>o.ok);
+  markDone(d.id);
   btns.forEach((b,j)=>{b.classList.add('locked');
     if(opts[j].ok)b.classList.add('correct');else if(j===k)b.classList.add('wrong');else b.classList.add('dim');});
   state.perSubj[d.subj]=state.perSubj[d.subj]||{c:0,t:0};state.perSubj[d.subj].t++;
