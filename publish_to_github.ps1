@@ -29,7 +29,10 @@ $codeFiles = @(
     "import_questions_docx.py",
     "import_plug_play_docx.py",
     "reset_studicata_import.py",
-    ".streamlit\config.toml"
+    "make_user.py",
+    "mbe_trap_trainer.html",
+    ".streamlit\config.toml",
+    ".streamlit\secrets.toml.example"
 )
 
 if (-not (Test-Path $dst)) {
