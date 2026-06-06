@@ -2548,16 +2548,108 @@ def render_sample_answer_text(title, text):
     )
 
 
+def count_question_calls(qd):
+    call_text = str(qd.get("call_of_question", "") or "") if isinstance(qd, dict) else ""
+    numbered = re.findall(r"(?:^|\s)(\d+)\.\s+", call_text)
+    if numbered:
+        return max(1, len(set(numbered)))
+
+    try:
+        flat = flatten_subquestions_for_answer_mapping(qd)
+        return max(1, len(flat))
+    except Exception:
+        try:
+            subquestions = extract_subquestions(qd.get("call_of_question", ""))
+            return max(1, len(subquestions))
+        except Exception:
+            return 1
+
+
+def model_answer_quality(qd):
+    model_text = str(qd.get("model_points", "") or "") if isinstance(qd, dict) else ""
+    cleaned = clean_sample_answer_text(model_text)
+
+    if len(cleaned.strip()) < 250:
+        return "missing"
+
+    damaged_patterns = [
+        r"\bAssuming\s+t\s+Short answer:",
+        r"\bs\s+Short answer:",
+        r"\bking\s+to\s+recover\b",
+        r"\b03\.\s+There\b",
+        r"\bCondensed Analysis\b",
+        r"Condensed sample-answer path:\s*$",
+    ]
+    if any(re.search(pattern, model_text, flags=re.IGNORECASE) for pattern in damaged_patterns):
+        return "damaged"
+
+    try:
+        points = split_model_answer_points(model_text)
+    except Exception:
+        points = []
+
+    call_count = count_question_calls(qd)
+    point_numbers = {p.get("num") for p in points if p.get("num")}
+
+    if call_count > 1 and not points:
+        return "unsplit"
+
+    if points and min(point_numbers or {1}) > 1:
+        return "partial"
+
+    if call_count > 1 and len(point_numbers) < call_count:
+        return "partial"
+
+    return "usable"
+
+
+def build_structured_model_analysis(qd, call_text=None, title="Structured Model Analysis"):
+    parts = [
+        title,
+        "",
+        "The imported model answer for this question is incomplete or not cleanly split. Use this structured answer bank instead.",
+    ]
+
+    if call_text:
+        parts.extend(["", "Call", str(call_text).strip()])
+    elif qd.get("call_of_question"):
+        parts.extend(["", "Call", str(qd.get("call_of_question", "")).strip()])
+
+    sections = [
+        ("Issues to Cover", qd.get("tested_issues", "")),
+        ("Rules", qd.get("rules", "")),
+        ("Trigger Facts", qd.get("trigger_facts", "")),
+        ("Trap Warnings", qd.get("traps", "")),
+    ]
+
+    for heading, text in sections:
+        text = str(text or "").strip()
+        if text:
+            parts.extend(["", heading, text])
+
+    return "\n".join(parts).strip()
+
+
 def render_sample_answer_section(qd, expanded=False):
     model_points = qd.get("model_points", "") if isinstance(qd, dict) else ""
+    quality = model_answer_quality(qd) if isinstance(qd, dict) else "missing"
 
-    if not model_points:
+    if not model_points and quality == "missing" and not (
+        qd.get("tested_issues") or qd.get("rules") or qd.get("trigger_facts")
+    ):
         st.info("No sample answer/model analysis available for this question yet.")
         return
 
     with st.expander("Compare With Sample Answer - open after self-grading", expanded=expanded):
         st.warning("Open this only after you attempted the issue/rule. No passive reading.")
-        render_sample_answer_text("Sample Answer / Model Analysis", model_points)
+        if quality == "usable":
+            render_sample_answer_text("Sample Answer / Model Analysis", model_points)
+        else:
+            render_readable_text(
+                "Structured Model Analysis",
+                build_structured_model_analysis(qd),
+                READING_FONT_SIZE,
+            )
 
 
 def clean_trap_text(text):
@@ -5767,26 +5859,35 @@ def get_model_section_for_subquestion(qd, subq_index, subpart=None):
     model_text = qd.get("model_points", "") or qd.get("rules", "") or ""
     points = split_model_answer_points(model_text)
     wanted_subpart = (subpart or None)
+    quality = model_answer_quality(qd)
 
     for p in points:
-        if p["num"] == subq_index and (p.get("subpart") or None) == wanted_subpart:
+        if quality in ("usable", "partial") and p["num"] == subq_index and (p.get("subpart") or None) == wanted_subpart:
             return p["heading"], p["text"]
 
-    if wanted_subpart is None:
+    if quality in ("usable", "partial") and wanted_subpart is None:
         matching = [p for p in points if p["num"] == subq_index]
         if matching:
             combined = "\n\n".join([p["text"] for p in matching])
             heading = f"Point {subq_index} - Combined"
             return heading, combined
 
-    if model_text and len(model_text.strip()) >= 100:
-        heading = f"Full Available Model Analysis - Question {subq_index}"
-        fallback = (
-            "No separate Point section was detected for this call in the imported answer material.\n\n"
-            "Use the full available model analysis below to compare your answer against the entire MEE answer path.\n\n"
-            f"{model_text.strip()}"
+    if qd.get("tested_issues") or qd.get("rules") or qd.get("trigger_facts"):
+        subquestions = flatten_subquestions_for_answer_mapping(qd)
+        call_text = ""
+        for subq in subquestions:
+            if subq.get("num") == subq_index and (subq.get("subpart") or None) == wanted_subpart:
+                call_text = subq.get("text", "")
+                break
+
+        return (
+            f"Structured Model Analysis - Question {subq_index}",
+            build_structured_model_analysis(
+                qd,
+                call_text=call_text,
+                title=f"Structured Model Analysis - Question {subq_index}",
+            ),
         )
-        return heading, fallback
 
     return None, ""
 
@@ -5805,7 +5906,10 @@ def render_sample_answer_for_subquestion(qd, subq_index, label, subpart=None):
 
     with st.expander(f"Compare With Sample Answer - {title}", expanded=False):
         st.warning("Open only after you attempted this call.")
-        render_readable_text(section_heading or f"Sample Answer - {title}", model_text)
+        if str(section_heading or "").startswith("Structured Model Analysis"):
+            render_readable_text(section_heading or f"Sample Answer - {title}", model_text)
+        else:
+            render_sample_answer_text(section_heading or f"Sample Answer - {title}", model_text)
 
 
 def render_single_mini_question_workflow(qd, subq, display_index, hints_used=0):
