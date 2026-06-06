@@ -94,6 +94,27 @@ Answers (issues, rules, traps, model points) are left blank so you can fill them
 in later. Re-running is safe — questions already present (same exam + number +
 subject) are skipped.
 
+### Word (.docx) question bank — best call detection
+
+If your questions are in Word, `import_questions_docx.py` reads paragraph styles
+to reliably separate the **call(s) of the question** from the fact pattern:
+
+| Style | Meaning |
+|-------|---------|
+| `Heading 1` | Subject |
+| `Heading 2` | "February 1997 - Question 4" |
+| `First Paragraph` | `Summary:` line (first per question, ignored) |
+| `Body Text` / `Compact` | Fact-pattern paragraphs |
+| `Normal` | The call(s) — one per paragraph |
+
+```bash
+python import_questions_docx.py "path/to/your-questions.docx"
+```
+
+Multiple calls are auto-numbered so the app shows them as separate "Question 1 /
+2 / 3" cards. When a question has no `Normal` call paragraphs, the call is split
+off the last fact paragraph heuristically.
+
 ### Option C — PDF import scripts (command line)
 If you have your own materials as PDFs, the helper scripts can parse them into the
 local database. Point them at *your* files:
