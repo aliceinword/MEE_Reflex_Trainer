@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trap Trainer — NY UBE July 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+  :root{--bg:#f5f4f0;--ink:#1a1a1a;--paper:#fff;--line:#d0cfc9;--orange:#e85d26;--green:#2a7a2a;
+    --green-bg:#f0f9f0;--green-ink:#1a3d1a;--orange-bg:#fff8f5;--orange-ink:#663300;
+    --purple:#7c3aed;--purple-bg:#f6f1fc;--purple-ink:#4c1d95;--mut:#666;--dim:#b8b5ae;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--ink);padding:24px;min-height:100vh;
+    background-image:radial-gradient(var(--line) 0.5px,transparent 0.5px);background-size:22px 22px;}
+  .wrap{max-width:760px;margin:0 auto}
+  .top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:18px}
+  .top h1{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+  .top .who{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--mut)}
+  .mono{font-family:'IBM Plex Mono',monospace}
+  .pom{position:fixed;right:18px;bottom:18px;z-index:50;background:var(--ink);color:var(--bg);border-radius:6px;
+    padding:10px 12px;border-left:4px solid var(--orange);box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:'IBM Plex Mono',monospace;min-width:140px}
+  .pom .t{font-size:26px;font-weight:600;letter-spacing:.04em;text-align:center;line-height:1}
+  .pom .lbl{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);text-align:center;margin-bottom:4px}
+  .pom .row{display:flex;gap:5px;margin-top:8px;justify-content:center}
+  .pom button{font-family:inherit;font-size:10px;background:#333;color:var(--bg);border:none;padding:4px 8px;border-radius:3px;cursor:pointer}
+  .pom button:hover{background:var(--orange)}
+  .pom .mode{font-size:9px;color:var(--dim);text-align:center;margin-top:6px;cursor:pointer}
+  .panel{background:var(--ink);color:var(--bg);border-radius:6px;padding:18px 20px;border-left:4px solid var(--orange);margin-bottom:16px;position:relative;overflow:hidden}
+  .panel::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px)}
+  .panel .lbl{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:8px}
+  .panel p{font-size:13px;line-height:1.6;color:#e8e6e0}
+  .panel .ru{display:block;margin-top:8px;color:#c9a8ff;font-style:italic;font-size:12.5px}
+  .btn{font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;border:none;cursor:pointer;border-radius:5px;padding:11px 16px;transition:transform .08s ease,background .15s ease}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--orange);color:#fff}.btn-primary:hover{background:#cf4f1d}
+  .btn-ghost{background:var(--paper);color:var(--ink);border:1px solid var(--line)}.btn-ghost:hover{border-color:var(--orange);color:var(--orange)}
+  .btn-sm{padding:6px 12px;font-size:11.5px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+  .chip{font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:7px 13px;cursor:pointer;display:flex;gap:7px;align-items:center;transition:all .12s}
+  .chip:hover{border-color:var(--orange)}
+  .chip.sel{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .chip .sc{color:var(--orange);font-weight:600}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden;margin:10px 0}
+  .seg button{font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--paper);border:none;padding:8px 14px;cursor:pointer;color:var(--mut)}
+  .seg button.on{background:var(--ink);color:var(--bg)}
+  .start-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+  .hint{font-size:11.5px;color:var(--mut);margin-top:14px;line-height:1.6}
+  .hint .k{font-family:'IBM Plex Mono',monospace;background:#e9e7e0;border:1px solid var(--line);border-radius:3px;padding:1px 6px;font-size:10.5px}
+  .prog-wrap{margin-bottom:14px}
+  .prog-meta{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mut);margin-bottom:6px}
+  .streak{color:var(--orange);font-weight:600}
+  .bar{height:6px;background:#e2e0d9;border-radius:3px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--orange);width:0;transition:width .35s ease}
+  .qcard{animation:slide .28s ease}
+  @keyframes slide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .qmeta{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--orange);margin-bottom:8px;text-transform:uppercase}
+  .qtitle{font-size:15px;font-weight:600;line-height:1.4;margin-bottom:10px}
+  .qask{font-size:13.5px;font-weight:600;color:#ffd9c7;margin-top:12px}
+  .opts{margin:16px 0 4px;display:flex;flex-direction:column;gap:9px}
+  .opt{font-family:'IBM Plex Sans',sans-serif;text-align:left;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:12px 14px;font-size:13px;line-height:1.45;cursor:pointer;display:flex;gap:11px;align-items:flex-start;transition:border-color .12s,background .12s}
+  .opt:hover:not(.locked){border-color:var(--orange)}
+  .opt .key{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:4px;min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .opt.correct{background:var(--green-bg);border-color:var(--green)}.opt.correct .key{background:var(--green);color:#fff;border-color:var(--green)}
+  .opt.wrong{background:var(--orange-bg);border-color:var(--orange)}.opt.wrong .key{background:var(--orange);color:#fff;border-color:var(--orange)}
+  .opt.locked{cursor:default}.opt.dim{opacity:.5}
+  .fb{margin-top:14px;animation:slide .25s ease}
+  .fb-box{border-radius:6px;padding:11px 13px;font-size:12.5px;line-height:1.55;margin-bottom:9px}
+  .fb-rule{background:var(--green-bg);border-left:3px solid var(--green);color:var(--green-ink)}
+  .fb-trap{background:var(--orange-bg);border-left:3px solid var(--orange);color:var(--orange-ink)}
+  .fb-ru{background:var(--purple-bg);border-left:3px solid var(--purple);color:var(--purple-ink);font-style:italic}
+  .fb-plain{background:#eef4fb;border-left:3px solid #2f6db0;color:#173a5e;border-radius:6px;padding:11px 13px;font-size:13px;line-height:1.55;margin-bottom:9px}
+  .fb-plain strong{display:block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;color:#2f6db0}
+  .fb-box strong{display:block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;font-style:normal}
+  .fb-rule strong{color:var(--green)}.fb-trap strong{color:var(--orange)}.fb-ru strong{color:var(--purple)}
+  .dodged{background:#fff4d6;border-left:3px solid #d4a017;color:#7a5c00;border-radius:6px;padding:9px 13px;font-size:12.5px;margin-bottom:9px;display:flex;gap:8px;align-items:center}
+  .dodged .big{font-size:16px}
+  .fb-actions{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+  .verdict{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600}
+  .verdict.ok{color:var(--green)}.verdict.no{color:var(--orange)}
+  .lec-nav{display:flex;justify-content:space-between;margin-top:14px}
+  .end h2{font-size:20px;margin-bottom:4px}.end .sub{color:var(--mut);font-size:12.5px;margin-bottom:16px}
+  .score-big{font-family:'IBM Plex Mono',monospace;font-size:46px;font-weight:700;line-height:1}
+  .score-big .den{font-size:22px;color:var(--mut)}
+  .stat-row{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+  .stat{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:12px 14px;flex:1;min-width:120px}
+  .stat .n{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--orange)}
+  .stat .l{font-size:10.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+  .subj-bars{margin:10px 0}
+  .sb{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:12px}
+  .sb .nm{width:130px;flex-shrink:0;font-weight:500}
+  .sb .track{flex:1;height:14px;background:#e2e0d9;border-radius:7px;overflow:hidden}
+  .sb .track i{display:block;height:100%;border-radius:7px;background:var(--green)}
+  .sb .pct{width:54px;text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--mut)}
+  .missed-list,.cards-list{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 4px;margin:10px 0}
+  .ml-item{padding:8px 12px;border-bottom:1px solid #eee;font-size:12.5px;display:flex;gap:10px;align-items:baseline}
+  .ml-item:last-child{border-bottom:none}
+  .ml-item .id{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--orange);flex-shrink:0}
+  .ml-item .x{margin-left:auto;color:var(--orange);cursor:pointer;font-size:11px;border:1px solid var(--line);border-radius:4px;padding:2px 8px}
+  .ml-item .x:hover{background:var(--orange);color:#fff;border-color:var(--orange)}
+  /* form */
+  .form-row{margin-bottom:13px}
+  .form-row label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:5px}
+  .form-row label .req{color:var(--orange)}
+  .inp,.ta,.sel{width:100%;font-family:'IBM Plex Sans',sans-serif;font-size:13px;border:1px solid var(--line);border-radius:5px;padding:9px 11px;background:var(--paper);color:var(--ink)}
+  .ta{resize:vertical;min-height:60px;line-height:1.5}
+  .inp:focus,.ta:focus,.sel:focus{outline:none;border-color:var(--orange)}
+  .opt-edit{border:1px solid var(--line);border-radius:6px;padding:10px;margin-bottom:9px;background:var(--paper)}
+  .opt-edit .oe-top{display:flex;gap:8px;align-items:center;margin-bottom:7px}
+  .opt-edit .oe-top input[type=text]{flex:1}
+  .oe-flags{display:flex;gap:14px;font-size:11px;color:var(--mut);align-items:center;margin-top:6px;flex-wrap:wrap}
+  .oe-flags label{display:flex;gap:5px;align-items:center;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:400;font-size:11.5px;color:var(--mut);margin:0}
+  .oe-rm{color:var(--orange);cursor:pointer;font-size:16px;line-height:1;border:none;background:none;padding:0 4px}
+  .err{background:#fde8e8;border-left:3px solid #c0392b;color:#7a1f1f;padding:9px 12px;border-radius:5px;font-size:12.5px;margin-bottom:12px}
+  .ok-toast{background:var(--green-bg);border-left:3px solid var(--green);color:var(--green-ink);padding:9px 12px;border-radius:5px;font-size:12.5px;margin-bottom:12px}
+  .footer{margin-top:22px;border-top:1px solid var(--line);padding-top:10px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#999;display:flex;justify-content:space-between}
+  .hidden{display:none}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>Trap Trainer</h1>
+    <div class="who">NY UBE · July 2026</div></div>
+  <div id="app"></div>
+  <div class="footer"><span>Bar Mentor Alex</span><span>threshold first, then doctrine</span></div>
+</div>
+<div class="pom">
+  <div class="lbl" id="pomLbl">Focus</div><div class="t" id="pomT">25:00</div>
+  <div class="row"><button id="pomStart">Start</button><button id="pomReset">Reset</button></div>
+  <div class="mode" id="pomMode">switch to 5:00 break</div>
+</div>
+<input type="file" id="importFile" accept="application/json" class="hidden">
+
+<script>
+const BUILTIN = [{"id": "2452", "subj": "CIV PRO", "sub": "Crossclaim", "title": "A crossclaim must be a CLAIM, not a defense", "scenario": "Owner sues the general contractor and the subcontractor. The general contractor “crossclaims” against the subcontractor — but only asserts that the subcontractor’s bad work was the sole cause of the loss. Owner then settles with the general contractor. The subcontractor moves to dismiss the crossclaim.", "q": "Best argument for dismissing the crossclaim?", "ru": "", "options": [{"t": "It asserts a defense, not a claim for relief", "ok": true, "trap": false, "why": "Rule 13(g) needs an actual claim against a co-party. You can’t dress a defense (“it’s the other defendant’s fault”) as a crossclaim to shift the plaintiff’s damages."}, {"t": "The general contractor is no longer a party after settling", "ok": false, "trap": true, "why": "Red herring. While the crossclaim is alive, both stay in the suit for that claim. The defect is that it was never a valid claim."}, {"t": "They’re opposing parties, not co-parties", "ok": false, "trap": false, "why": "They were both joined as codefendants — co-parties. Wrong."}], "_b": true, "plain": "If you're suing your co-defendant, you have to actually ask them for something. Just saying “it was their fault, not mine” is a defense, not a real claim."}, {"id": "2341", "subj": "CIV PRO", "sub": "Diversity", "title": "Diversity = principal place of business (headquarters), NOT minimum contacts", "scenario": "A shareholder wants to sue a corporation for breach of fiduciary duty in federal court.", "q": "Besides state of incorporation, what determines whether the parties are diverse?", "ru": "", "options": [{"t": "Its principal place of business — the headquarters", "ok": true, "trap": false, "why": "A corporation is a citizen of its state of incorporation AND its principal place of business / nerve center (Hertz v. Friend)."}, {"t": "Where it has minimum contacts", "ok": false, "trap": true, "why": "Minimum contacts is PERSONAL jurisdiction. Diversity is SUBJECT-MATTER jurisdiction. Different question entirely."}, {"t": "Where it manufactures and distributes", "ok": false, "trap": false, "why": "Relevant to where personal jurisdiction might exist — not to citizenship for diversity."}], "_b": true, "plain": "To sue a company in federal court because you're from different states, what counts is where its headquarters is — not just where it does business."}, {"id": "2361", "subj": "CIV PRO", "sub": "Personal Juris.", "title": "personal jurisdiction needs minimum contacts; the 100-mile bulge ≠ original D", "scenario": "A plaintiff from State A sues a defendant from State B; the accident happened in State C. The defendant is served at her State B office, 50 miles from the State A courthouse. Her only contact with State A is an annual vacation. She timely raises lack of personal jurisdiction.", "q": "Should the court dismiss for lack of personal jurisdiction?", "ru": "", "options": [{"t": "Yes — the defendant lacks minimum contacts with State A", "ok": true, "trap": false, "why": "An unrelated annual vacation isn’t purposeful contact related to the claim. No personal jurisdiction."}, {"t": "No — she was served within 100 miles of the courthouse", "ok": false, "trap": true, "why": "The 100-mile bulge rule (4(k)(1)(B)) reaches only parties joined under Rule 14 or 19 — NOT the original defendant. Familiar rule, wrong slot."}, {"t": "No — she waived personal jurisdiction by omitting it from her first answer", "ok": false, "trap": false, "why": "She timely added it by amendment — no waiver."}], "_b": true, "plain": "A court can only pull you in if you have real ties to that state. One yearly vacation there isn't enough."}, {"id": "2480", "subj": "CIV PRO", "sub": "Motions", "title": "No time extension for a Rule 50(b) judgment as a matter of law", "scenario": "A party files a renewed judgment as a matter of law after the 28-day deadline and argues it had good cause for the delay.", "q": "May the court grant the extension?", "ru": "", "options": [{"t": "No — the Rule 50(b) deadline can’t be extended at all", "ok": true, "trap": false, "why": "Rule 6(b)(2) flatly bars extending the deadline for certain motions, including a renewed judgment as a matter of law."}, {"t": "Yes — good cause was shown", "ok": false, "trap": true, "why": "Good cause is irrelevant; the rule prohibits ANY extension for these motions."}], "_b": true, "plain": "Some court deadlines are hard walls. A good excuse doesn't buy you extra time on this one."}, {"id": "2487", "subj": "CIV PRO", "sub": "Default Judgment", "title": "A VOID judgment (no personal jurisdiction) beats “meritorious defense”", "scenario": "A company sues an attorney in State A where he has no related contacts. Believing he isn’t subject to personal jurisdiction, he ignores the suit → default judgment. He moves for relief.", "q": "His best argument?", "ru": "", "options": [{"t": "The judgment is void — no personal jurisdiction", "ok": true, "trap": false, "why": "Rule 60(b)(4): a judgment entered without personal jurisdiction is void and must be set aside."}, {"t": "He has a meritorious defense to assert", "ok": false, "trap": true, "why": "A meritorious defense gets you nothing unless you first fit a 60(b) ground. The threshold is the void judgment, not the merits."}], "_b": true, "plain": "If the court never had power over you in the first place, the whole judgment is dead on arrival — you don't even need a good defense."}, {"id": "2494", "subj": "CIV PRO", "sub": "Rule 54(b)", "title": "No partial final judgment when claims overlap", "scenario": "Employees sue under federal + state overtime law (parallel claims). The court grants summary judgment on the federal claims only. They move to certify an immediate appeal (“no just reason for delay”).", "q": "Will the court certify the immediate appeal?", "ru": "", "options": [{"t": "No — the federal claims aren’t separate & distinct from the state claims", "ok": true, "trap": false, "why": "Rule 54(b): overlapping facts/evidence defeat certification — avoids piecemeal appeals."}, {"t": "Yes — they’re entitled to immediate review of the summary judgment", "ok": false, "trap": true, "why": "There’s no automatic right; the overlap with unresolved claims blocks 54(b)."}], "_b": true, "plain": "You usually can't appeal half a case while the other half is still going, especially when the two halves overlap."}, {"id": "2501", "subj": "CIV PRO", "sub": "Appealability", "title": "Final-judgment rule: one claim resolved ≠ appealable", "scenario": "A scientist sues his ex-employer under federal + state law. The court dismisses ONLY the federal claim; he appeals immediately.", "q": "Is the appeal proper?", "ru": "", "options": [{"t": "No — there’s no final judgment yet", "ok": true, "trap": false, "why": "The state claim is still pending, so the whole action isn’t resolved. Same concept as #2494."}, {"t": "Yes — the decision on the federal claim is final", "ok": false, "trap": true, "why": "Resolving one claim isn’t “final” while others remain. You missed this rule twice in this set."}], "_b": true, "plain": "You generally can't appeal until the whole case is finished. Resolving one piece isn't “done.”"}, {"id": "2508", "subj": "CIV PRO", "sub": "Erie", "title": "Valid Federal Rules of Civil Procedure on point controls (Hanna), not York", "scenario": "Diversity products case. State law bars the class action; Federal Rules of Civil Procedure 23 allows it.", "q": "Which law governs whether it proceeds as a class action?", "ru": "", "options": [{"t": "Federal — a valid Federal Rules of Civil Procedure on point controls", "ok": true, "trap": false, "why": "Hanna/Sibbach: a valid Federal Rules of Civil Procedure directly on point beats conflicting state law. Rule 23 governs."}, {"t": "State — ignoring it would be outcome-determinative", "ok": false, "trap": true, "why": "The York outcome-determinative test applies only to judge-made federal practice, not when a valid Federal Rules of Civil Procedure is on point. Wrong Erie test."}], "_b": true, "plain": "When a federal court rule directly covers the situation, you follow the federal rule — not the state's."}, {"id": "2515", "subj": "CIV PRO", "sub": "Pretrial Order", "title": "Amend a final pretrial order ONLY to prevent manifest injustice", "scenario": "A party moves to amend the final pretrial order and argues excusable neglect.", "q": "What’s the governing standard?", "ru": "", "options": [{"t": "Only to prevent manifest injustice", "ok": true, "trap": false, "why": "Rule 16(e) — the high bar for amending a FINAL pretrial order."}, {"t": "Oversight, inadvertence, or excusable neglect", "ok": false, "trap": true, "why": "That’s the Rule 60(b) standard (relief from judgment) — wrong rule imported."}], "_b": true, "plain": "Once the final game plan for trial is locked in, you can only change it to prevent a real injustice — not just because you forgot something."}, {"id": "2522", "subj": "CIV PRO", "sub": "Rule 50", "title": "Rule 50 standard = no reasonable jury, NOT preponderance", "scenario": "The court rules on a motion for judgment as a matter of law.", "q": "What’s the standard for granting it?", "ru": "", "options": [{"t": "No reasonable jury could find for the non-movant", "ok": true, "trap": false, "why": "The court views evidence in the light most favorable to the non-movant and does NOT weigh it."}, {"t": "The movant wins on a preponderance of the evidence", "ok": false, "trap": true, "why": "Preponderance = weighing evidence, which is exactly what the court may not do on Rule 50."}], "_b": true, "plain": "A judge can take a case from the jury only if no reasonable jury could side with the other person. The judge isn't allowed to just decide who's more convincing."}, {"id": "2533", "subj": "CIV PRO", "sub": "Rule 60(b)", "title": "60(b)(1) motion: 1-year hard ceiling", "scenario": "An employee files a Rule 60(b)(1) “mistake” motion 15 months after the judgment.", "q": "Will it be granted?", "ru": "", "options": [{"t": "No — untimely; 60(b)(1) has a 1-year limit", "ok": true, "trap": false, "why": "Must be filed within a reasonable time AND no later than 1 year. 15 months is too late."}, {"t": "Yes — mistake/excusable neglect applies", "ok": false, "trap": true, "why": "Even if the ground fits, the motion blew past the 1-year ceiling. Check the timing gate first."}], "_b": true, "plain": "There's a one-year clock to undo a “mistake” judgment. Miss it and the door's shut, even if you were right."}, {"id": "2457", "subj": "PROPERTY", "sub": "Notice / Chain", "title": "Constructive notice via the DUTY TO SEARCH the chain", "scenario": "O sells the west tract to W with a residential restriction and promises to restrict any future east-tract deed. W records. O later sells the east tract to E with no restriction; E has no actual notice.", "q": "What is dispositive on whether E is bound?", "ru": "", "options": [{"t": "Whether E had a duty to search the grantor’s other (out-of-chain) deeds", "ok": true, "trap": false, "why": "Jurisdictions split; if buyers are charged with notice of all transfers by their grantor, E is bound."}, {"t": "The type of recording act in the jurisdiction", "ok": false, "trap": true, "why": "The recording-act type doesn’t decide bona fide purchaser status here — the constructive-notice/duty-to-search question does."}, {"t": "Whether W built improvements on her land", "ok": false, "trap": false, "why": "Irrelevant to whether the restriction binds E."}], "_b": true, "plain": "Whether the new buyer is stuck with the restriction comes down to whether he was expected to dig deeper into the seller's earlier deals."}, {"id": "2465", "subj": "PROPERTY", "sub": "“As Is” Sale", "title": "No duty to disclose an UNKNOWN defect in an “as is” sale", "scenario": "An out-of-state buyer buys “as is,” declines an offered inspection, never asks about condition. The seller didn’t know about the termites. Buyer sues after finding termite damage.", "q": "Result of the buyer’s suit?", "ru": "", "options": [{"t": "Buyer loses — “as is” is enforced absent misrepresentation/concealment", "ok": true, "trap": false, "why": "Seller didn’t know, didn’t misrepresent, and offered inspection. No breach."}, {"t": "Buyer wins — the warranty deed covers the defect", "ok": false, "trap": true, "why": "A warranty deed protects TITLE, not physical condition. Wrong category."}], "_b": true, "plain": "If you buy something “as is,” skip the inspection, and the seller didn't know about the problem either, you can't blame them later."}, {"id": "2476", "subj": "PROPERTY", "sub": "Void Deed", "title": "A VOID deed (fraud in execution) defeats even a bona fide purchaser", "scenario": "A son slips a deed among tax papers; the father signs without reading. The son records and sells to an innocent investor. The father dies; his will left the building to his wife.", "q": "Is the wife entitled to the building?", "ru": "", "options": [{"t": "Yes — fraud in the execution makes the deed void; void passes nothing", "ok": true, "trap": false, "why": "Treated like forgery. A void deed conveys no title — even to a bona fide purchaser."}, {"t": "No — the investor is a bona fide purchaser without notice", "ok": false, "trap": true, "why": "THE trap. The bona fide purchaser shield works only against VOIDABLE deeds. Against a void/forged deed it fails completely."}], "_b": true, "plain": "A deed someone was tricked into signing is worthless paper — so even an innocent later buyer gets nothing from it."}, {"id": "2379", "subj": "PROPERTY", "sub": "Equitable Mortgage", "title": "Absolute deed given as security = equitable mortgage", "scenario": "A friend loans the full purchase price; the woman deeds the land to him; he’s to reconvey when repaid; she lives there meanwhile. The deed is silent. After repayment he refuses and calls her payments “rent.”", "q": "Will the woman prevail in compelling reconveyance?", "ru": "", "options": [{"t": "Yes — it’s an equitable mortgage; he must reconvey", "ok": true, "trap": false, "why": "A deed given to secure a loan is an equitable mortgage when that’s the parties’ intent."}, {"t": "No — the contract merged into the deed", "ok": false, "trap": true, "why": "Merger covers title-quality promises — not whether the conveyance was really a security device."}], "_b": true, "plain": "If you sign your house over just as security for a loan, it's really a mortgage. The lender has to give it back when you pay — he can't keep it."}, {"id": "2499", "subj": "PROPERTY", "sub": "Fixtures", "title": "A ceiling fan IS a fixture", "scenario": "A sale contract is silent on what stays. The seller wants to take a garbage disposal, a dining-room ceiling fan, and a power lawn mower.", "q": "Which may the seller remove?", "ru": "", "options": [{"t": "Only the power lawn mower", "ok": true, "trap": false, "why": "The disposal and the mounted ceiling fan are annexed → fixtures (stay). The mower is personal property."}, {"t": "The lawn mower and the ceiling fan", "ok": false, "trap": true, "why": "You let the fan go. A mounted ceiling fan is a fixture — you stopped one item short."}, {"t": "All three", "ok": false, "trap": false, "why": "The disposal and fan are fixtures and must stay."}], "_b": true, "plain": "Stuff attached to the house (like a mounted ceiling fan) stays with the house. The free-standing lawn mower goes with you."}, {"id": "2528", "subj": "PROPERTY", "sub": "Zoning", "title": "Self-created hardship ≠ variance", "scenario": "An owner builds his home on a 3-acre lot (zoning needs 2 vacant acres around any home). Later, ill, he wants to build his caretaker daughter a small home on the west portion — but no room is left to comply. He seeks a variance.", "q": "Should the variance be granted?", "ru": "", "options": [{"t": "No — he created the hardship himself", "ok": true, "trap": false, "why": "He sited his own home so a second couldn’t comply. A self-created hardship can’t support a variance."}, {"t": "Yes — variances are normally granted when the use is consistent", "ok": false, "trap": true, "why": "The sick father + caretaking daughter pull you to “yes.” Sympathetic, but legally a self-created hardship."}], "_b": true, "plain": "You can't bend the zoning rules to fix a problem you created yourself by how you built — no matter how sympathetic the reason."}, {"id": "2531", "subj": "PROPERTY", "sub": "Broker Duty", "title": "Broker’s fiduciary duty to disclose", "scenario": "A broker presents a full-price offer without disclosing the buyer is his daughter, who plans to flip for $100k more. The seller sues to recover the commission.", "q": "Who prevails?", "ru": "", "options": [{"t": "The seller — nondisclosure breached the broker’s fiduciary duty", "ok": true, "trap": false, "why": "A broker must fully disclose any interest the broker or family has. Breach → forfeit the commission."}, {"t": "The broker — the daughter, not he, bought it at arm’s length", "ok": false, "trap": true, "why": "A distraction. The broker’s failure to disclose is itself the breach."}], "_b": true, "plain": "Your agent has to tell you if his own daughter is the buyer. Hiding it means he loses his commission."}, {"id": "2534", "subj": "PROPERTY", "sub": "Mortgage / Waste", "title": "Waste triggers acceleration even if payments are current", "scenario": "A borrower tears down one of two mortgaged warehouses without replacing it. Payments and insurance are current. The bank accelerates; the borrower argues the property’s value still exceeds the balance.", "q": "Is the acceleration valid?", "ru": "", "options": [{"t": "Yes — waste breaches a non-payment covenant", "ok": true, "trap": false, "why": "Acceleration can be triggered by breach of any covenant, here the no-waste term. Demolition impairs the security."}, {"t": "No — the property value still exceeds the loan balance", "ok": false, "trap": true, "why": "The “value still covers it” number is irrelevant; the waste is the breach."}], "_b": true, "plain": "Tearing down the building you put up as collateral breaks the deal, so the bank can call the loan — even if you're paying on time."}, {"id": "2458", "subj": "TORTS", "sub": "Battery", "title": "Battery intent ≠ knowledge of a statistical risk", "scenario": "A tire maker’s memo admits ~1 in 10,000 tires has an undetectable defect that ruptures. A driver is injured and sues for BATTERY.", "q": "Does the battery claim succeed?", "ru": "", "options": [{"t": "No — statistical knowledge isn’t intent to harm a person", "ok": true, "trap": false, "why": "Battery needs purpose or substantial certainty a person will be harmed. Knowing some tires fail isn’t that. (Products liability is the right theory.)"}, {"t": "Yes — the maker knew to a substantial certainty harm would occur", "ok": false, "trap": true, "why": "It knew tires would fail — not that any particular person would be injured. Not battery intent."}], "_b": true, "plain": "Knowing a tiny fraction of your products might fail someday isn't the same as intending to hurt a specific person — so it's not battery."}, {"id": "2485", "subj": "TORTS", "sub": "Land Status", "title": "Invitee status from store policy + permission", "scenario": "A store gives away empty boxes; an employee lets a customer into the storeroom to look for boxes; she’s injured there.", "q": "What is her status in the storeroom?", "ru": "", "options": [{"t": "Invitee — business-connected purpose + permission", "ok": true, "trap": false, "why": "The store’s box policy plus the employee’s permission make her an invitee → highest duty owed."}, {"t": "Licensee — there for her own purposes", "ok": false, "trap": true, "why": "The business-connected permission elevates her from licensee to invitee."}], "_b": true, "plain": "Because the store invited her in for store business, it owed her the highest level of care."}, {"id": "2492", "subj": "TORTS", "sub": "Theory Ranking", "title": "Rank the theories — assault beats intentional infliction of emotional distress here", "scenario": "A father confronts the driver. The question asks for the strongest claim.", "q": "Best theory against the father?", "ru": "", "options": [{"t": "Assault", "ok": true, "trap": false, "why": "Intentionally causing reasonable apprehension of imminent contact — easiest to establish on these facts."}, {"t": "Intentional infliction of emotional distress", "ok": false, "trap": true, "why": "Higher bar: extreme & outrageous conduct + intent to cause severe distress. “Best” means most provable → assault."}], "_b": true, "plain": "Pick the claim with the lowest bar to win. Scaring someone (assault) is easier to prove than “extreme and outrageous” conduct."}, {"id": "2503", "subj": "TORTS", "sub": "NIED", "title": "negligent infliction of emotional distress generally requires a physical injury", "scenario": "A dispatcher suffers severe emotional distress, is hospitalized, and misses months of work — but the facts state NO physical injury. The company moves for summary judgment.", "q": "Should the court grant summary judgment for the company?", "ru": "", "options": [{"t": "Yes — negligent infliction of emotional distress generally needs a physical injury", "ok": true, "trap": false, "why": "The facts stipulate no physical injury, so the general negligent infliction of emotional distress bar applies. summary judgment granted."}, {"t": "No — hospitalization shows real harm", "ok": false, "trap": true, "why": "Tempting, but the facts expressly say no physical injury. Don’t override a stipulated fact."}], "_b": true, "plain": "If the facts flatly say there was no physical harm, a pure emotional-distress claim usually can't get off the ground."}, {"id": "2519", "subj": "TORTS", "sub": "Economic Loss", "title": "Economic loss doctrine bars products tort for pure $ loss", "scenario": "A defective product causes the farmer only lost revenue — no injury, no other-property damage.", "q": "Can he recover on strict products liability?", "ru": "", "options": [{"t": "No — the economic loss doctrine bars it", "ok": true, "trap": false, "why": "No tort recovery for purely economic loss; you need personal injury or damage to OTHER property."}, {"t": "Yes — the product was defective and caused loss", "ok": false, "trap": true, "why": "Pure economic loss is a contract claim, not a tort claim."}], "_b": true, "plain": "If a bad product only cost you money — no injury, nothing else broken — that's a contract problem, not an injury lawsuit."}, {"id": "2532", "subj": "TORTS", "sub": "Economic Loss", "title": "Economic loss: damage to the product ITSELF only", "scenario": "An RV catches fire from a defect; only the RV itself is destroyed — no other property, no injury.", "q": "Can the couple recover on strict products liability?", "ru": "", "options": [{"t": "No — only the product itself was damaged", "ok": true, "trap": false, "why": "Economic loss rule: damage to the product alone → contract remedies only. Same rule as #2519."}, {"t": "Yes — there was clearly a defect", "ok": false, "trap": true, "why": "A defect isn’t enough when only the product itself is harmed. You missed this rule twice."}], "_b": true, "plain": "When the only thing the defect destroyed is the product itself, you're limited to contract remedies, not an injury claim."}, {"id": "2422", "subj": "TORTS", "sub": "Assumption of Risk", "title": "TRADITIONAL assumption of risk = complete bar", "scenario": "The jurisdiction uses the TRADITIONAL assumption-of-risk rule. A man knowingly and voluntarily goes down a darkened stair and falls.", "q": "Is the owner liable?", "ru": "", "options": [{"t": "No — it’s a complete defense, no apportionment", "ok": true, "trap": false, "why": "Traditional assumption of risk fully bars recovery if he knowingly and voluntarily encountered the risk."}, {"t": "Partially — assign a percentage of fault", "ok": false, "trap": true, "why": "That’s comparative fault. The question set the TRADITIONAL rule → all-or-nothing. Read the regime."}], "_b": true, "plain": "Under the old all-or-nothing rule, if you knowingly chose to take the risk, you can't recover anything. There's no splitting the blame."}, {"id": "2453", "subj": "CON LAW", "sub": "Right to Travel", "title": "Congress can’t authorize a durational residency requirement", "scenario": "A state imposes a durational residency requirement; a federal statute purports to authorize states to do so.", "q": "Is the scheme constitutional?", "ru": "", "options": [{"t": "No — it violates the right to travel; Congress can’t authorize that", "ok": true, "trap": false, "why": "Durational residency requirements violate the right to travel (Privileges and Immunities Clause); Congress can’t authorize a constitutional violation."}, {"t": "No — it unconstitutionally commandeers the states", "ok": false, "trap": true, "why": "It authorizes, it doesn’t compel — so no commandeering. Right result, wrong doctrine."}, {"t": "Yes — Congress has the power to permit it", "ok": false, "trap": false, "why": "Congress can’t bless a violation of a fundamental right."}], "_b": true, "plain": "States can't punish you for being new there, and Congress can't give them permission to violate that right."}, {"id": "2342", "subj": "CON LAW", "sub": "Supremacy", "title": "States can’t habeas a federal detention", "scenario": "A state court issues a habeas writ interfering with a federal detention.", "q": "Is the state writ valid?", "ru": "", "options": [{"t": "No — the Supremacy Clause bars it", "ok": true, "trap": false, "why": "Tarble’s Case: state courts can’t interfere with federal custody; federal courts handle it."}, {"t": "Analyze it under the Suspension Clause", "ok": false, "trap": true, "why": "Wrong clause — there’s no suspension problem because federal courts can still issue the writ."}], "_b": true, "plain": "A state court can't free someone the federal government is holding. Federal law wins."}, {"id": "2369", "subj": "CON LAW", "sub": "Commerce Clause", "title": "Can’t reach noncommercial intrastate activity", "scenario": "A statute bans mere POSSESSION of tea — a noncommercial activity with no interstate link.", "q": "Is this within the commerce power?", "ru": "", "options": [{"t": "No — noncommercial intrastate activity with no interstate link", "ok": true, "trap": false, "why": "Lopez: Congress can’t aggregate the effects of non-economic activity."}, {"t": "Yes — aggregate the effects on interstate commerce", "ok": false, "trap": true, "why": "Aggregation needs ECONOMIC activity (Raich = a comprehensive economic scheme). Mere possession isn’t economic."}], "_b": true, "plain": "Congress can regulate business that crosses state lines, but simply owning something, with no business angle, is beyond its reach."}, {"id": "2475", "subj": "CON LAW", "sub": "Takings", "title": "Physical occupation = per se taking; a fee ≠ just compensation", "scenario": "A state forces a public hiking easement across a farm and lets the owner charge hikers a cost-recovery fee.", "q": "Is the law constitutional?", "ru": "", "options": [{"t": "No — a per se physical taking with no just compensation", "ok": true, "trap": false, "why": "A permanent physical occupation requires just compensation = fair market value."}, {"t": "Yes — the fee compensates the owner", "ok": false, "trap": true, "why": "A cost-recovery fee isn’t the fair market value of an easement — inadequate compensation."}], "_b": true, "plain": "If the government forces a public path across your land, it has to pay you full value. Letting you charge a small fee isn't enough."}, {"id": "2395", "subj": "CON LAW", "sub": "Appointments", "title": "Principal officers need Senate confirmation", "scenario": "A commission adopts and enforces regulations and is not subordinate to any other agency.", "q": "How must its members be appointed?", "ru": "", "options": [{"t": "By the President with Senate advice and consent", "ok": true, "trap": false, "why": "Significant authority + not subordinate = principal officers → presidential appointment + Senate confirmation."}, {"t": "By the President alone, no confirmation needed", "ok": false, "trap": true, "why": "That’s how INFERIOR officers can be appointed. These are principal officers — confirmation required."}], "_b": true, "plain": "Officials with real power who answer to no one above them must be picked by the President and approved by the Senate."}, {"id": "2526", "subj": "CON LAW", "sub": "Exactions", "title": "Exactions use Nollan/Dolan nexus, not Penn Central", "scenario": "A city conditions a building permit on the owner opening his new swimming pool to neighborhood residents — rationale: the project will increase street traffic.", "q": "Is the condition a taking?", "ru": "", "options": [{"t": "Yes — no nexus between pool access and traffic harm", "ok": true, "trap": false, "why": "Nollan/Dolan: a demand for public access must be related & roughly proportional to the development’s harm. Pool ≠ traffic."}, {"t": "Analyze via reasonable investment-backed expectations", "ok": false, "trap": true, "why": "That’s the Penn Central regulatory-takings test. Exactions use the nexus/proportionality test."}], "_b": true, "plain": "A city can only attach a permit condition that actually relates to the harm your project causes. Making your pool public doesn't fix traffic."}, {"id": "2448", "subj": "CRIM LAW", "sub": "4th Amendment", "title": "Police-created exigency is OK if police acted lawfully", "scenario": "Police knock and announce (lawfully). Hearing evidence being destroyed, they enter without a warrant.", "q": "Is the warrantless entry valid?", "ru": "", "options": [{"t": "Yes — lawful conduct created the exigency", "ok": true, "trap": false, "why": "Kentucky v. King: police may create the exigency so long as they didn’t do so by violating the 4th Amendment."}, {"t": "No — they could have obtained a warrant", "ok": false, "trap": true, "why": "The doctrine doesn’t ask whether a warrant was obtainable — the exigency is the whole point."}], "_b": true, "plain": "Police can rush in without a warrant when evidence is being destroyed — as long as they didn't break any rules to create that emergency."}, {"id": "2495", "subj": "CRIM LAW", "sub": "Defense of Property", "title": "No deadly force to defend property", "scenario": "A defendant shoots a man with a shotgun to protect property.", "q": "Is the use of force justified?", "ru": "", "options": [{"t": "No — deadly force can never defend property alone", "ok": true, "trap": false, "why": "Deadly force = force likely to cause death/serious injury. It may not be used solely to protect property."}, {"t": "Justified unless serious injury actually resulted", "ok": false, "trap": true, "why": "Actual harm is irrelevant. Firing a shotgun IS deadly force regardless of the outcome."}], "_b": true, "plain": "You can never use deadly force just to protect property. A life isn't worth a thing."}, {"id": "2504", "subj": "CRIM LAW", "sub": "Transferred Intent", "title": "Attempt + murder are separate offenses", "scenario": "A woman tries to kill her husband (fails = attempted murder); the same act kills her son (murder via transferred intent).", "q": "Must the two be charged together?", "ru": "", "options": [{"t": "No — separate offenses, different victims", "ok": true, "trap": false, "why": "Attempt (husband) and completed murder (son) are distinct; attempt isn’t a lesser-included of the murder."}, {"t": "Yes — they merge / attempt is lesser-included", "ok": false, "trap": true, "why": "Different victims and independent theories — they don’t merge."}], "_b": true, "plain": "Trying to kill one person and accidentally killing another are two separate crimes, not one."}, {"id": "2414", "subj": "CRIM LAW", "sub": "Conspiracy", "title": "Conspiracy scope = the agreement actually made", "scenario": "A man agrees with a friend to commit robbery but doesn’t know the friend has a gun. The friend uses it.", "q": "Conspiracy to commit ARMED robbery?", "ru": "", "options": [{"t": "No — he agreed to robbery, not armed robbery", "ok": true, "trap": false, "why": "Conspiracy tracks the agreement. He was unaware of the gun, so it’s outside the agreed scope."}, {"t": "Yes — an armed robbery occurred", "ok": false, "trap": true, "why": "What happened doesn’t expand the agreement. He didn’t agree to a weapon."}], "_b": true, "plain": "You're only on the hook for the crime you actually agreed to. If you didn't know about the gun, you didn't agree to an armed robbery."}, {"id": "2450", "subj": "EVIDENCE", "sub": "Business Records", "title": "Business-records exception covers a criminal ledger", "scenario": "A drug ledger is offered; a codefendant can testify about how the records were kept.", "q": "Admissible under the business-records exception?", "ru": "", "options": [{"t": "Yes — illegal enterprises can keep “business records”", "ok": true, "trap": false, "why": "If the foundation is met (insider knowledge, contemporaneous, routine), criminality doesn’t disqualify it."}, {"t": "No — a criminal operation isn’t a regular business", "ok": false, "trap": true, "why": "Illegal activity can still be “regularly conducted.” The exception applies."}], "_b": true, "plain": "Even a drug dealer's account book can count as a “business record.” Being illegal doesn't make it inadmissible."}, {"id": "2399", "subj": "EVIDENCE", "sub": "Authentication", "title": "Authentication = enough to support a finding (Federal Rules of Evidence 901)", "scenario": "The prosecution authenticates seized items through a witness who saw them in the apartment.", "q": "Is the authentication standard met?", "ru": "", "options": [{"t": "Yes — enough evidence to support a finding it’s what it’s claimed to be", "ok": true, "trap": false, "why": "Federal Rules of Evidence 901’s standard. A witness who saw the items satisfies it."}, {"t": "No — chain of custody is required", "ok": false, "trap": true, "why": "Chain of custody is ONE method, not a requirement. Witness identification suffices."}], "_b": true, "plain": "To prove an item is what you say it is, a witness who saw it is enough. You don't need a perfect paper trail."}, {"id": "2530", "subj": "EVIDENCE", "sub": "Impeachment", "title": "Prior inconsistent statement: extrinsic proof for impeachment ONLY", "scenario": "A girlfriend testifies the defendant was home all morning; she’s confronted with a prior inconsistent statement and denies it; the party offers extrinsic proof of it.", "q": "Admissible — and for what purpose?", "ru": "", "options": [{"t": "Yes — for impeachment only", "ok": true, "trap": false, "why": "Federal Rules of Evidence 613(b): admissible to impeach once she could explain/deny. Not substantive — it’s hearsay if offered for the truth."}, {"t": "Yes — for the truth of the matter asserted", "ok": false, "trap": true, "why": "It comes in to impeach, not as substantive proof of when he left."}], "_b": true, "plain": "You can use someone's earlier contradicting statement to show they're unreliable — but not as proof that the earlier statement was true."}, {"id": "2538", "subj": "EVIDENCE", "sub": "Expert / 704(b)", "title": "Expert can’t opine on the ultimate mental-state defense", "scenario": "A psychiatrist would testify (1) about the defendant’s condition AND (2) that he was legally insane at the time.", "q": "What’s admissible?", "ru": "", "options": [{"t": "Part 1 yes; the legal-insanity conclusion no", "ok": true, "trap": false, "why": "Federal Rules of Evidence 704(b): an expert can’t opine on whether the defendant had the mental state constituting a defense."}, {"t": "All of it / none of it", "ok": false, "trap": true, "why": "It’s split: the condition is admissible; the ultimate legal-insanity opinion is not."}], "_b": true, "plain": "An expert can describe the defendant's mental condition, but can't tell the jury the final verdict like “he was legally insane.”"}, {"id": "2443", "subj": "CONTRACTS", "sub": "UCC 2-501", "title": "Marking/labeling identifies goods to the contract", "scenario": "An outfitter orders 20 kayaks online; the seller later marks specific kayaks with shipping labels in the warehouse.", "q": "When were the goods identified to the contract?", "ru": "", "options": [{"t": "When the seller marked them with shipping labels", "ok": true, "trap": false, "why": "Uniform Commercial Code §2-501: goods are identified when shipped, marked, or otherwise designated — even after formation."}, {"t": "Never — the marking happened after formation", "ok": false, "trap": true, "why": "Identification can occur after formation. Marking is exactly how it’s done."}], "_b": true, "plain": "The goods become tied to your deal the moment the seller tags them for you — even if that happens after you ordered."}, {"id": "2468", "subj": "CONTRACTS", "sub": "Impracticability", "title": "Impracticability discharges — but restitution for work done", "scenario": "An arborist’s job is cut short by vandalism and a fire (a basic-assumption casualty).", "q": "What can he recover?", "ru": "", "options": [{"t": "Restitution for the value of work performed", "ok": true, "trap": false, "why": "Performance is discharged by impracticability, but he recovers the value of what he did before discharge."}, {"t": "Expectation damages", "ok": false, "trap": true, "why": "Expectation is a BREACH remedy — no one breached here. The remedy is restitution."}], "_b": true, "plain": "When a disaster that's nobody's fault ends the job early, the worker gets paid for what he already did — not for the whole job."}, {"id": "2488", "subj": "CONTRACTS", "sub": "Good Faith", "title": "Implied covenant of good faith fills the gap", "scenario": "A lease lets the owner re-let the property but is silent on entering to show the house to prospective lessees.", "q": "May the owner enter to show it?", "ru": "", "options": [{"t": "Yes — implied covenant of good faith infers the right", "ok": true, "trap": false, "why": "The right is inferred to carry out the parties’ clear re-letting intent."}, {"t": "Yes — under the “reasonable expectations” doctrine", "ok": false, "trap": true, "why": "Reasonable expectations is an INSURANCE-law doctrine — wrong tool for a general contract."}], "_b": true, "plain": "Even if the lease doesn't spell it out, the landlord can do what's reasonably needed to carry out what both sides clearly intended."}, {"id": "2505", "subj": "CONTRACTS", "sub": "Repudiation", "title": "“Agree or I won’t perform” = repudiation; buyer covers", "scenario": "A seller demands a price increase and says it won’t perform otherwise. The buyer covers elsewhere at $3,000 more.", "q": "What can the buyer recover?", "ru": "", "options": [{"t": "$3,000 — cover price minus the contract price", "ok": true, "trap": false, "why": "The demand was a repudiation/breach (Uniform Commercial Code §2-610). Buyer covers and recovers the difference (§2-712)."}, {"t": "Nothing — the cover wasn’t a reasonable substitute", "ok": false, "trap": true, "why": "The seller’s “modify-or-I-walk” threat was a breach; cover damages of $3,000 apply."}], "_b": true, "plain": "If a seller says “pay more or I walk,” that's breaking the deal. You can buy elsewhere and charge them the extra cost."}];
+const BASE_SUBJECTS = ["CIV PRO","PROPERTY","TORTS","CON LAW","CRIM LAW","EVIDENCE","CONTRACTS"];
+const FULL = {"CIV PRO":"Civil Procedure","PROPERTY":"Real Property","TORTS":"Torts","CON LAW":"Constitutional Law","CRIM LAW":"Criminal Law","EVIDENCE":"Evidence","CONTRACTS":"Contracts"};
+const SCORE = {"CIV PRO":"3/14","PROPERTY":"6/14","TORTS":"8/15","CON LAW":"8/14","CRIM LAW":"10/14","EVIDENCE":"10/14","CONTRACTS":"11/15"};
+const LS_KEY = 'trapTrainer.userCards.v1';
+
+function loadUser(){try{const r=localStorage.getItem(LS_KEY);return r?JSON.parse(r):[];}catch(e){return[];}}
+function saveUser(){try{localStorage.setItem(LS_KEY,JSON.stringify(userCards));return true;}catch(e){return false;}}
+let userCards = loadUser();
+function allCards(){return BUILTIN.concat(userCards);}
+function subjects(){const s=BASE_SUBJECTS.slice();userCards.forEach(c=>{if(c.subj&&!s.includes(c.subj))s.push(c.subj);});return s;}
+function fullName(s){return FULL[s]||s;}
+function countIn(s){return allCards().filter(c=>c.subj===s).length;}
+
+const SUBJ_MAP={"Constitutional Law":"CON LAW","Criminal Law":"CRIM LAW","Civil Procedure":"CIV PRO","Real Property":"PROPERTY","Torts":"TORTS","Contracts":"CONTRACTS","Evidence":"EVIDENCE"};
+function parseAdaptiBar(raw){
+  let t=raw.replace(/ /g,' ').replace(/\r/g,'');
+  t=t.replace(/©\s*Copyright[^\n]*/g,'');
+  const cards=[];const seen=new Set();
+  const re=/Question #(\d+)\s*-\s*([^\n/]+?)\s*\/\s*([^\n]+?)\s*\n/g;
+  let m,idxs=[];
+  while((m=re.exec(t))!==null){idxs.push({id:m[1],subj:m[2].trim(),sub:m[3].trim().replace(/\s*\(Simulated\)\s*$/i,''),start:m.index,hstart:re.lastIndex});}
+  for(let i=0;i<idxs.length;i++){
+    const cur=idxs[i],end=(i+1<idxs.length)?idxs[i+1].start:t.length;
+    const body=t.slice(cur.hstart,end);
+    let mr=body.match(/You\s+answered\s+([A-D])\.\s*The correct answer is\s+([A-D])/);
+    if(!mr)continue;
+    const picked=mr[1],correct=mr[2];
+    if(seen.has(cur.id))continue;seen.add(cur.id);
+    const exm=body.match(/\n\s*(?:Brief\s+)?Explanation\s*\n/);
+    const qPart=exm?body.slice(0,exm.index):body;
+    const ePart=exm?body.slice(exm.index):body;
+    const qm=qPart.match(/\bQuestion\s*\n([\s\S]*?)(?=\n\s*A:\s)/);
+    let stem=qm?qm[1].trim().replace(/\s+/g,' '):'';
+    const choices={};
+    const cre=/\n\s*([A-D]):\s*([\s\S]*?)(?=\n\s*[A-D]:\s|$)/g;
+    let cm;while((cm=cre.exec(qPart))!==null){choices[cm[1]]=cm[2].trim().replace(/\s+/g,' ');}
+    const expl={};
+    const ere=/\b([A-D]) is (?:correct|incorrect)\.\s*([\s\S]*?)(?=\b[A-D] is (?:correct|incorrect)\.|$)/g;
+    let em;while((em=ere.exec(ePart))!==null){expl[em[1]]=em[2].trim().replace(/\s+/g,' ');}
+    if(Object.keys(choices).length<2)continue;
+    let scenario=stem,q='Which answer is correct?';
+    const qpos=stem.lastIndexOf('?');
+    if(qpos>0){const before=stem.slice(0,qpos+1);const cs=before.lastIndexOf('. ')>=0?before.lastIndexOf('. ')+2:0;
+      q=before.slice(cs).trim();scenario=stem.slice(0,cs).trim()||stem;}
+    const options=['A','B','C','D'].filter(L=>choices[L]!==undefined).map(L=>({t:choices[L],ok:(L===correct),trap:(L===picked),why:expl[L]||''}));
+    if(options.filter(o=>o.ok).length!==1)continue;
+    cards.push({id:'A'+cur.id,advId:cur.id,subj:SUBJ_MAP[cur.subj]||cur.subj,sub:cur.sub,
+      title:cur.sub,scenario,q,ru:'',options,_b:false});
+  }
+  return cards;
+}
+
+if(window.pdfjsLib){try{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}}
+async function extractPdfText(arrayBuffer, onProgress){
+  if(!window.pdfjsLib) throw new Error('pdfjs-not-loaded');
+  const pdf=await pdfjsLib.getDocument({data:arrayBuffer}).promise;
+  let out='';
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const c=await page.getTextContent();
+    let lastY=null;
+    for(const it of c.items){
+      const y=it.transform?it.transform[5]:null;
+      if(lastY!==null && y!==null && Math.abs(y-lastY)>2) out+='\n';
+      out+=it.str; if(it.hasEOL) out+='\n'; lastY=y;
+    }
+    out+='\n';
+    if(onProgress && (p%10===0||p===pdf.numPages)) onProgress(p,pdf.numPages);
+  }
+  return out;
+}
+
+let state = { mode:'drill', selected:null, seen:new Set(), queue:[], i:0, locked:false,
+  correct:0, streak:0, bestStreak:0, dodged:0, missed:[], perSubj:{} };
+
+const app = document.getElementById('app');
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function esc(s){const d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+
+function syncSelected(){
+  if(state.selected===null) state.selected=new Set(subjects());
+  subjects().forEach(s=>{if(!state.seen.has(s)){state.seen.add(s);state.selected.add(s);}});
+  [...state.selected].forEach(s=>{if(!subjects().includes(s))state.selected.delete(s);});
+  if(state.selected.size===0) subjects().forEach(s=>state.selected.add(s));
+}
+
+/* ---------- START ---------- */
+function renderStart(){
+  syncSelected();
+  const subs=subjects();
+  let chips = subs.map(s=>{
+    const isBase=BASE_SUBJECTS.includes(s);
+    const badge = isBase ? `<span class="sc">${SCORE[s]}</span>` : `<span class="sc">+${countIn(s)}</span>`;
+    return `<div class="chip ${state.selected.has(s)?'sel':''}" data-s="${esc(s)}">${esc(fullName(s))} ${badge}</div>`;
+  }).join('');
+  const n = allCards().filter(d=>state.selected.has(d.subj)).length;
+  const uc = userCards.length;
+  app.innerHTML = `
+    <div class="panel">
+      <div class="lbl">The one pattern behind almost all of these</div>
+      <p>You grab the first familiar doctrine — or the sympathetic outcome — before running the threshold question. This trainer makes you commit, then names the exact trap. Now it's yours to grow: add your own misses and they join the drill.</p>
+    </div>
+    <div style="font-size:12.5px;color:var(--mut);margin-bottom:4px">Pick subjects (worst first):</div>
+    <div class="chips" id="chips">${chips}</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-ghost btn-sm" id="allBtn">All</button>
+      <button class="btn btn-ghost btn-sm" id="redBtn">Just the two red ones</button>
+    </div>
+    <div style="margin-top:16px;font-size:12.5px;color:var(--mut)">Mode:</div>
+    <div class="seg" id="seg">
+      <button data-m="drill" class="${state.mode==='drill'?'on':''}">⚔ Drill (test me)</button>
+      <button data-m="lecture" class="${state.mode==='lecture'?'on':''}">📖 Lecture (walk me through)</button>
+    </div>
+    <div class="start-actions">
+      <button class="btn btn-primary" id="go">${state.mode==='drill'?'Start drill':'Start lecture'} → ${n} card${n!==1?'s':''}</button>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-primary btn-sm" id="advBtn">📥 Import from AdaptiBar</button>
+      <button class="btn btn-ghost btn-sm" id="addBtn">➕ Add one manually</button>
+      <button class="btn btn-ghost btn-sm" id="myBtn">🗂 My cards (${uc})</button>
+      <button class="btn btn-ghost btn-sm" id="expBtn">⬇ Export</button>
+      <button class="btn btn-ghost btn-sm" id="impBtn">⬆ Import file</button>
+    </div>
+    <div class="hint">Drill keys: <span class="k">1</span><span class="k">2</span><span class="k">3</span> to answer, <span class="k">Enter</span> for next. Your cards save automatically in this browser — hit <b>Export</b> now and then to keep a backup file.</div>`;
+  document.getElementById('chips').querySelectorAll('.chip').forEach(c=>{
+    c.onclick=()=>{const s=c.dataset.s;state.selected.has(s)?state.selected.delete(s):state.selected.add(s);
+      if(state.selected.size===0)state.selected.add(s);renderStart();};});
+  document.getElementById('allBtn').onclick=()=>{state.selected=new Set(subjects());renderStart();};
+  document.getElementById('redBtn').onclick=()=>{state.selected=new Set(["CIV PRO","PROPERTY"]);renderStart();};
+  document.getElementById('seg').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.mode=b.dataset.m;renderStart();});
+  document.getElementById('go').onclick=startRun;
+  document.getElementById('addBtn').onclick=()=>renderAdd();
+  document.getElementById('advBtn').onclick=renderAdaptiImport;
+  document.getElementById('myBtn').onclick=renderMyCards;
+  document.getElementById('expBtn').onclick=exportCards;
+  document.getElementById('impBtn').onclick=()=>document.getElementById('importFile').click();
+}
+
+function startRun(){
+  const subs=subjects();
+  const pool=allCards().filter(d=>state.selected.has(d.subj));
+  pool.sort((a,b)=>subs.indexOf(a.subj)-subs.indexOf(b.subj));
+  if(pool.length===0){alert('No cards in the selected subjects yet. Add one or pick another subject.');return;}
+  state.queue=pool;state.i=0;state.locked=false;state.correct=0;state.streak=0;
+  state.bestStreak=0;state.dodged=0;state.missed=[];state.perSubj={};
+  pool.forEach(d=>{state.perSubj[d.subj]=state.perSubj[d.subj]||{c:0,t:0};});
+  state.mode==='drill'?renderDrill():renderLecture();
+}
+
+/* ---------- DRILL ---------- */
+function renderDrill(){
+  const d=state.queue[state.i];const opts=shuffle(d.options);state.locked=false;
+  const pct=Math.round((state.i)/state.queue.length*100);
+  app.innerHTML=`
+    <div class="prog-wrap"><div class="prog-meta">
+      <span>${esc(fullName(d.subj))} · Q ${state.i+1} / ${state.queue.length}</span>
+      <span class="streak">${state.streak>0?'🔥 streak '+state.streak:'streak 0'} · score ${state.correct}</span>
+    </div><div class="bar"><i style="width:${pct}%"></i></div></div>
+    <div class="qcard panel">
+      <div class="qmeta">${d._b?'Q#'+d.id:'★ MY CARD'} · ${esc(d.subj)}${d.sub?' / '+esc(d.sub):''}</div>
+      <div class="qtitle">${esc(d.scenario)}</div>
+      <div class="qask">${esc(d.q)}</div></div>
+    <div class="opts" id="opts">
+      ${opts.map((o,k)=>`<button class="opt" data-k="${k}"><span class="key">${k+1}</span><span>${esc(o.t)}</span></button>`).join('')}
+    </div><div id="fb"></div>`;
+  const btns=[...document.querySelectorAll('#opts .opt')];
+  btns.forEach((b,k)=>b.onclick=()=>pick(opts,k,btns));
+  window._opts=opts;window._btns=btns;
+}
+function pick(opts,k,btns){
+  if(state.locked)return;state.locked=true;
+  const d=state.queue[state.i];const chosen=opts[k];const correctIdx=opts.findIndex(o=>o.ok);
+  btns.forEach((b,j)=>{b.classList.add('locked');
+    if(opts[j].ok)b.classList.add('correct');else if(j===k)b.classList.add('wrong');else b.classList.add('dim');});
+  state.perSubj[d.subj]=state.perSubj[d.subj]||{c:0,t:0};state.perSubj[d.subj].t++;
+  let dodged=false;
+  if(chosen.ok){state.correct++;state.streak++;state.bestStreak=Math.max(state.bestStreak,state.streak);
+    state.perSubj[d.subj].c++;if(d.options.some(o=>o.trap)){state.dodged++;dodged=true;}}
+  else{state.streak=0;state.missed.push(d);}
+  const rule=opts[correctIdx];const trapOpt=d.options.find(o=>o.trap);
+  let fb=`<div class="fb"><div class="fb-actions" style="margin-bottom:8px"><span class="verdict ${chosen.ok?'ok':'no'}">${chosen.ok?'✓ Correct':'✗ Not quite'}</span></div>`;
+  if(dodged&&trapOpt){fb+=`<div class="dodged"><span class="big">🎯</span><span><strong>Trap dodged.</strong> On the real set you picked: “${esc(trapOpt.t)}”. You just beat your own reflex.</span></div>`;}
+  fb+=`<div class="fb-box fb-rule"><strong>The rule</strong>${esc(rule.why)||'(the correct answer)'}</div>`;
+  if(!chosen.ok){fb+=`<div class="fb-box fb-trap"><strong>Why “${esc(chosen.t)}” is wrong</strong>${esc(chosen.why)||'(not the governing rule here)'}</div>`;
+    if(chosen.trap){fb+=`<div class="dodged" style="background:#fde8e8;border-left-color:#c0392b;color:#7a1f1f"><span class="big">⚠</span><span>This is the <strong>exact answer you picked on the real test.</strong> Same trap, same place — name it in the journal.</span></div>`;}}
+  if(d.ru){fb+=`<div class="fb-box fb-ru"><strong>Shortcut</strong>${esc(d.ru)}</div>`;}
+  fb+=`<div class="fb-actions"><span style="font-size:11px;color:var(--mut)" class="mono">press Enter for next</span>
+    <button class="btn btn-primary" id="next">${state.i+1<state.queue.length?'Next →':'See results →'}</button></div></div>`;
+  document.getElementById('fb').innerHTML=fb;
+  document.getElementById('next').onclick=nextCard;
+  document.querySelector('.bar i').style.width=Math.round((state.i+1)/state.queue.length*100)+'%';
+}
+function nextCard(){state.i++;state.i>=state.queue.length?renderEnd():renderDrill();}
+
+/* ---------- LECTURE ---------- */
+function renderLecture(){
+  const d=state.queue[state.i];const correct=d.options.find(o=>o.ok);
+  const trap=d.options.find(o=>o.trap)||d.options.find(o=>!o.ok)||{t:'',why:''};
+  app.innerHTML=`
+    <div class="prog-wrap"><div class="prog-meta"><span>${esc(fullName(d.subj))} · ${state.i+1} / ${state.queue.length}</span>
+      <span class="mono">📖 lecture</span></div><div class="bar"><i style="width:${Math.round((state.i+1)/state.queue.length*100)}%"></i></div></div>
+    <div class="qcard panel"><div class="qmeta">${d._b?'Q#'+d.id:'★ MY CARD'} · ${esc(d.subj)}${d.sub?' / '+esc(d.sub):''}</div>
+      <div class="qtitle">${esc(d.title||d.q)}</div><p style="margin-top:8px">${esc(d.scenario)}</p>
+      <div class="qask">${esc(d.q)}</div></div>
+    ${d.plain?`<div class="fb-plain"><strong>In plain English</strong>${esc(d.plain)}</div>`:''}
+    <div class="fb-box fb-rule"><strong>The answer + rule</strong><b>${esc(correct.t)}.</b> ${esc(correct.why)}</div>
+    <div class="fb-box fb-trap"><strong>The trap</strong><b>${esc(trap.t)}.</b> ${esc(trap.why)}</div>
+    ${d.ru?`<div class="fb-box fb-ru"><strong>Shortcut</strong>${esc(d.ru)}</div>`:''}
+    <div class="lec-nav"><button class="btn btn-ghost" id="prev" ${state.i===0?'disabled style=opacity:.4':''}>← Prev</button>
+      <button class="btn btn-primary" id="next">${state.i+1<state.queue.length?'Next →':'Done — drill it ⚔'}</button></div>`;
+  document.getElementById('prev').onclick=()=>{if(state.i>0){state.i--;renderLecture();}};
+  document.getElementById('next').onclick=()=>{if(state.i+1<state.queue.length){state.i++;renderLecture();}else{state.mode='drill';startRun();}};
+}
+
+/* ---------- IMPORT FROM ADAPTIBAR ---------- */
+let advParsed=null;
+function renderAdaptiImport(note){
+  app.innerHTML=`
+    <h2 style="font-size:18px;margin-bottom:4px">Import from AdaptiBar</h2>
+    <div style="color:var(--mut);font-size:12.5px;margin-bottom:12px;line-height:1.6">
+      Finish your test, open the AdaptiBar <b>Exam Report</b>, then either paste the text or load a saved <span class="mono">.txt</span> file.
+      Every <b>missed</b> question becomes a card automatically — your wrong pick and the correct answer are flagged for you.</div>
+    <div class="panel" style="padding:12px 16px">
+      <div class="lbl">Easiest: just give it the PDF</div>
+      <p style="font-size:12px">Click <b>Upload PDF</b> below and pick your AdaptiBar report file. No copying needed. (If that doesn't work — e.g. you're offline — paste the text instead.)</p>
+    </div>
+    ${note?`<div class="ok-toast">${esc(note)}</div>`:''}
+    <div class="start-actions" style="margin-top:4px;margin-bottom:14px">
+      <button class="btn btn-primary" id="advPdfBtn">📄 Upload PDF</button>
+      <span id="advStatus" style="font-size:12px;color:var(--mut);align-self:center"></span>
+    </div>
+    <div class="form-row">
+      <label>…or paste the report text</label>
+      <textarea class="ta" id="advText" style="min-height:120px" placeholder="Question #2443 - Contracts / Performance...&#10;You answered A. The correct answer is B&#10;Question ..."></textarea>
+    </div>
+    <div class="start-actions" style="margin-top:4px">
+      <button class="btn btn-ghost btn-sm" id="advFileBtn">📄 …or load a .txt file</button>
+      <button class="btn btn-primary" id="advParse">Find my missed questions →</button>
+      <button class="btn btn-ghost" id="advBack">← Back</button>
+    </div>
+    <input type="file" id="advFile" accept=".txt,text/plain" class="hidden">
+    <input type="file" id="advPdf" accept="application/pdf,.pdf" class="hidden">
+    <div id="advPreview" style="margin-top:16px"></div>`;
+  document.getElementById('advBack').onclick=renderStart;
+  document.getElementById('advFileBtn').onclick=()=>document.getElementById('advFile').click();
+  document.getElementById('advPdfBtn').onclick=()=>document.getElementById('advPdf').click();
+  const statusEl=()=>document.getElementById('advStatus');
+  document.getElementById('advPdf').onchange=function(e){
+    const f=e.target.files[0];if(!f)return;
+    if(!window.pdfjsLib){statusEl().innerHTML='<span style="color:var(--orange)">PDF reader didn’t load (no internet?). Paste the text instead.</span>';this.value='';return;}
+    statusEl().textContent='Reading PDF…';
+    const r=new FileReader();
+    r.onload=async()=>{
+      try{
+        const text=await extractPdfText(r.result,(p,tot)=>{statusEl().textContent='Reading PDF… page '+p+'/'+tot;});
+        document.getElementById('advText').value=text;
+        statusEl().innerHTML='<span style="color:var(--green)">✓ PDF read. Scanning for misses…</span>';
+        doParse();
+      }catch(err){statusEl().innerHTML='<span style="color:var(--orange)">Couldn’t read that PDF. Try the paste option.</span>';}
+    };
+    r.readAsArrayBuffer(f);this.value='';
+  };
+  document.getElementById('advFile').onchange=function(e){
+    const f=e.target.files[0];if(!f)return;const r=new FileReader();
+    r.onload=()=>{document.getElementById('advText').value=r.result;doParse();};r.readAsText(f);this.value='';};
+  document.getElementById('advParse').onclick=doParse;
+  function doParse(){
+    const raw=document.getElementById('advText').value;
+    if(!raw.trim()){document.getElementById('advPreview').innerHTML=`<div class="err">Paste the report text first.</div>`;return;}
+    let cards;
+    try{cards=parseAdaptiBar(raw);}catch(e){cards=[];}
+    const existing=new Set(userCards.map(c=>c.advId).filter(Boolean));
+    const fresh=cards.filter(c=>!existing.has(c.advId));
+    const dupes=cards.length-fresh.length;
+    advParsed=fresh;
+    if(cards.length===0){
+      document.getElementById('advPreview').innerHTML=`<div class="err">Couldn't find any missed questions in that text. Make sure you copied the full Exam Report (it should contain lines like “You answered A. The correct answer is B”).</div>`;return;}
+    // tally by subject
+    const tally={};fresh.forEach(c=>{tally[c.subj]=(tally[c.subj]||0)+1;});
+    const rows=Object.keys(tally).sort().map(s=>`<div class="sb"><span class="nm">${esc(fullName(s))}</span><span class="track"><i style="width:${Math.min(100,tally[s]*9)}%;background:var(--orange)"></i></span><span class="pct">${tally[s]}</span></div>`).join('');
+    document.getElementById('advPreview').innerHTML=`
+      <div class="ok-toast">Found <b>${cards.length}</b> missed question${cards.length!==1?'s':''}${dupes?` (${dupes} already imported — will skip)`:''}. ${fresh.length} new.</div>
+      <div class="subj-bars">${rows||'<div style="color:var(--mut);font-size:12.5px">All already imported.</div>'}</div>
+      ${fresh.length?`<button class="btn btn-primary" id="advConfirm">Import ${fresh.length} card${fresh.length!==1?'s':''} into the drill ⚔</button>`:''}`;
+    const cf=document.getElementById('advConfirm');
+    if(cf)cf.onclick=()=>{
+      userCards=userCards.concat(advParsed);const saved=saveUser();
+      state.selected=null;state.seen=new Set();
+      renderAdaptiImport((saved?'✓ ':'(saved in memory — Export to keep a backup) ')+advParsed.length+' card(s) imported. They’re in the drill now. Paste another report or go Back.');
+    };
+  }
+}
+
+/* ---------- ADD CARD ---------- */
+let formOpts=[{t:'',ok:true,trap:false,why:''},{t:'',ok:false,trap:false,why:''}];
+function renderAdd(err,okmsg){
+  const subs=subjects();
+  let optHtml=formOpts.map((o,i)=>`
+    <div class="opt-edit" data-i="${i}">
+      <div class="oe-top">
+        <input type="text" class="inp oe-text" placeholder="Answer option ${i+1}" value="${esc(o.t)}">
+        ${formOpts.length>2?`<button class="oe-rm" data-rm="${i}" title="remove">×</button>`:''}
+      </div>
+      <input type="text" class="inp oe-why" placeholder="Why it's right / why it's wrong (the feedback shown)" value="${esc(o.why)}" style="font-size:12px">
+      <div class="oe-flags">
+        <label><input type="radio" name="correct" ${o.ok?'checked':''} data-ok="${i}"> ✓ correct answer</label>
+        <label><input type="checkbox" ${o.trap?'checked':''} data-trap="${i}"> 🎯 my real wrong answer (trap)</label>
+      </div>
+    </div>`).join('');
+  app.innerHTML=`
+    <h2 style="font-size:18px;margin-bottom:4px">Add a question</h2>
+    <div style="color:var(--mut);font-size:12.5px;margin-bottom:14px">Turn one of your AdaptiBar misses into a drill card. Only the starred fields are required.</div>
+    ${err?`<div class="err">${esc(err)}</div>`:''}
+    ${okmsg?`<div class="ok-toast">${esc(okmsg)}</div>`:''}
+    <div class="form-row"><label>Subject <span class="req">*</span></label>
+      <select class="sel" id="fSubj">${subs.map(s=>`<option value="${esc(s)}">${esc(fullName(s))}</option>`).join('')}
+        <option value="__new">+ New subject…</option></select>
+      <input type="text" class="inp hidden" id="fSubjNew" placeholder="New subject name (e.g. Agency, Secured Tx)" style="margin-top:7px">
+    </div>
+    <div class="form-row"><label>Subtopic (optional)</label><input type="text" class="inp" id="fSub" placeholder="e.g. Hearsay exceptions"></div>
+    <div class="form-row"><label>Short rule title <span class="req">*</span></label><input type="text" class="inp" id="fTitle" placeholder="e.g. A void deed defeats even a BFP"></div>
+    <div class="form-row"><label>Scenario / facts <span class="req">*</span></label><textarea class="ta" id="fScn" placeholder="The fact pattern in a sentence or two."></textarea></div>
+    <div class="form-row"><label>The question / call <span class="req">*</span></label><input type="text" class="inp" id="fQ" placeholder="e.g. Is the wife entitled to the building?"></div>
+    <div class="form-row"><label>Answer options <span class="req">*</span> (mark one correct)</label>
+      <div id="optWrap">${optHtml}</div>
+      ${formOpts.length<4?`<button class="btn btn-ghost btn-sm" id="addOpt">+ add option</button>`:''}
+    </div>
+    <div class="form-row"><label>Memory shortcut (optional)</label><input type="text" class="inp" id="fRu" placeholder="e.g. threshold first, then doctrine"></div>
+    <div class="start-actions">
+      <button class="btn btn-primary" id="saveCard">Save card</button>
+      <button class="btn btn-ghost" id="cancelAdd">← Back</button>
+    </div>`;
+  // wire option editing (preserve typed values into formOpts)
+  function readForm(){
+    document.querySelectorAll('#optWrap .opt-edit').forEach(el=>{
+      const i=+el.dataset.i;
+      formOpts[i].t=el.querySelector('.oe-text').value;
+      formOpts[i].why=el.querySelector('.oe-why').value;
+    });
+  }
+  document.querySelectorAll('[data-ok]').forEach(r=>r.onclick=()=>{readForm();formOpts.forEach((o,j)=>o.ok=(j===+r.dataset.ok));});
+  document.querySelectorAll('[data-trap]').forEach(c=>c.onclick=()=>{readForm();const i=+c.dataset.trap;formOpts[i].trap=c.checked;});
+  document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{readForm();const i=+b.dataset.rm;formOpts.splice(i,1);
+    if(!formOpts.some(o=>o.ok))formOpts[0].ok=true;renderAdd();});
+  const addOpt=document.getElementById('addOpt');
+  if(addOpt)addOpt.onclick=()=>{readForm();if(formOpts.length<4)formOpts.push({t:'',ok:false,trap:false,why:''});renderAdd();};
+  const sel=document.getElementById('fSubj');
+  sel.onchange=()=>{document.getElementById('fSubjNew').classList.toggle('hidden',sel.value!=='__new');};
+  document.getElementById('cancelAdd').onclick=()=>{formOpts=[{t:'',ok:true,trap:false,why:''},{t:'',ok:false,trap:false,why:''}];renderStart();};
+  document.getElementById('saveCard').onclick=()=>{
+    readForm();
+    let subj=sel.value;
+    if(subj==='__new')subj=(document.getElementById('fSubjNew').value||'').trim();
+    const title=document.getElementById('fTitle').value.trim();
+    const scn=document.getElementById('fScn').value.trim();
+    const q=document.getElementById('fQ').value.trim();
+    const sub=document.getElementById('fSub').value.trim();
+    const ru=document.getElementById('fRu').value.trim();
+    const opts=formOpts.filter(o=>o.t.trim()!=='').map(o=>({t:o.t.trim(),ok:!!o.ok,trap:!!o.trap,why:o.why.trim()}));
+    if(!subj){renderAdd('Pick or name a subject.');return;}
+    if(!title){renderAdd('Add a short rule title.');return;}
+    if(!scn){renderAdd('Add the scenario/facts.');return;}
+    if(!q){renderAdd('Add the question/call.');return;}
+    if(opts.length<2){renderAdd('Add at least two answer options with text.');return;}
+    const corr=opts.filter(o=>o.ok);
+    if(corr.length!==1){renderAdd('Mark exactly ONE option as the correct answer.');return;}
+    const card={id:'U'+Date.now().toString(36),subj,sub,title,scenario:scn,q,ru,options:opts,_b:false};
+    userCards.push(card);const saved=saveUser();
+    formOpts=[{t:'',ok:true,trap:false,why:''},{t:'',ok:false,trap:false,why:''}];
+    renderAdd(saved?'':'Saved in memory, but this browser blocked auto-save — use Export to keep a backup.',
+      '✓ Card added to “'+fullName(subj)+'”. Add another, or go Back to drill it.');
+  };
+}
+
+/* ---------- MY CARDS ---------- */
+function renderMyCards(){
+  let list = userCards.length? userCards.map(c=>`<div class="ml-item">
+      <span class="id">★ ${esc(c.subj)}</span><span>${esc(c.title||c.q)}</span>
+      <button class="x" data-del="${c.id}">delete</button></div>`).join('')
+    : `<div class="ml-item" style="color:var(--mut)">No cards yet. Tap “Add a question” to make your first.</div>`;
+  app.innerHTML=`
+    <h2 style="font-size:18px;margin-bottom:4px">My cards (${userCards.length})</h2>
+    <div style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Your own cards. They save in this browser automatically.</div>
+    <div class="cards-list">${list}</div>
+    <div class="start-actions">
+      <button class="btn btn-primary" id="addMore">➕ Add another</button>
+      <button class="btn btn-ghost" id="exp2">⬇ Export backup</button>
+      <button class="btn btn-ghost" id="imp2">⬆ Import</button>
+      <button class="btn btn-ghost" id="back2">← Back</button>
+    </div>`;
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    if(confirm('Delete this card?')){userCards=userCards.filter(c=>c.id!==b.dataset.del);saveUser();renderMyCards();}});
+  document.getElementById('addMore').onclick=()=>renderAdd();
+  document.getElementById('exp2').onclick=exportCards;
+  document.getElementById('imp2').onclick=()=>document.getElementById('importFile').click();
+  document.getElementById('back2').onclick=renderStart;
+}
+
+/* ---------- EXPORT / IMPORT ---------- */
+function exportCards(){
+  if(userCards.length===0){alert('No custom cards to export yet.');return;}
+  const blob=new Blob([JSON.stringify(userCards,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download='trap_trainer_cards.json';a.click();URL.revokeObjectURL(url);
+}
+document.getElementById('importFile').onchange=function(e){
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const arr=JSON.parse(r.result);if(!Array.isArray(arr))throw 0;
+    const mode=confirm('OK = ADD these to your cards.\nCancel = REPLACE all your cards with this file.');
+    const clean=arr.filter(c=>c&&c.options&&c.q).map(c=>({id:c.id||'U'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+      subj:c.subj||'CONTRACTS',sub:c.sub||'',title:c.title||c.q,scenario:c.scenario||'',q:c.q,ru:c.ru||'',
+      options:c.options,_b:false}));
+    userCards = mode? userCards.concat(clean) : clean;
+    saveUser();state.selected=null;state.seen=new Set();alert('Imported '+clean.length+' card(s).');renderStart();
+  }catch(err){alert('That file could not be read as Trap Trainer cards.');}};
+  r.readAsText(f);this.value='';
+};
+
+/* ---------- END ---------- */
+function renderEnd(){
+  const total=state.queue.length,c=state.correct,acc=Math.round(c/total*100);
+  let msg;
+  if(acc>=85){msg="Exam-ready discrimination. The reflex is rewiring.";}
+  else if(acc>=65){msg="Solid. The traps you still hit are named now.";}
+  else{msg="Rough round — but that's the point. You found the reflexes to fix.";}
+  let bars=subjects().filter(s=>state.perSubj[s]&&state.perSubj[s].t>0).map(s=>{
+    const o=state.perSubj[s];const p=Math.round(o.c/o.t*100);
+    const col=p>=70?'var(--green)':p>=50?'#d4a017':'var(--orange)';
+    return `<div class="sb"><span class="nm">${esc(fullName(s))}</span><span class="track"><i style="width:${p}%;background:${col}"></i></span><span class="pct">${o.c}/${o.t}</span></div>`;}).join('');
+  let ml=state.missed.length?state.missed.map(d=>`<div class="ml-item"><span class="id">${d._b?'Q#'+d.id:'★'}</span><span>${esc(d.title||d.q)}</span></div>`).join('')
+    :`<div class="ml-item" style="color:var(--green)">Clean sweep — nothing missed. 🔥</div>`;
+  app.innerHTML=`<div class="end"><h2>Round complete</h2>
+    <div class="sub">${esc(msg)}</div>
+    <div class="score-big">${c}<span class="den">/${total}</span> <span style="font-size:20px;color:var(--orange)">${acc}%</span></div>
+    <div class="stat-row">
+      <div class="stat"><div class="n">${state.bestStreak}</div><div class="l">best streak</div></div>
+      <div class="stat"><div class="n">${state.dodged}</div><div class="l">traps dodged 🎯</div></div>
+      <div class="stat"><div class="n">${state.missed.length}</div><div class="l">to revisit</div></div></div>
+    <div style="font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin:6px 0">By subject</div>
+    <div class="subj-bars">${bars}</div>
+    <div style="font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 4px">Still slipping on</div>
+    <div class="missed-list">${ml}</div>
+    <div class="start-actions">
+      ${state.missed.length?`<button class="btn btn-primary" id="retry">Retry just the ${state.missed.length} I missed ⚔</button>`:''}
+      <button class="btn btn-ghost" id="restart">Back to start</button></div></div>`;
+  if(state.missed.length){document.getElementById('retry').onclick=()=>{
+    const ms=state.missed.slice();state.queue=ms;state.i=0;state.correct=0;state.streak=0;
+    state.bestStreak=0;state.dodged=0;state.missed=[];state.perSubj={};
+    ms.forEach(d=>state.perSubj[d.subj]={c:0,t:0});renderDrill();};}
+  document.getElementById('restart').onclick=renderStart;
+}
+
+document.addEventListener('keydown',e=>{
+  if(state.mode!=='drill'||!state.queue.length)return;
+  if(!state.locked&&window._btns){const n=parseInt(e.key);if(n>=1&&n<=window._btns.length)window._btns[n-1].click();}
+  else if(state.locked&&(e.key==='Enter'||e.key==='ArrowRight')){const nx=document.getElementById('next');if(nx)nx.click();}
+});
+
+/* POMODORO */
+let pomSec=25*60,pomRun=false,pomTimer=null,pomBreak=false;
+const pomT=document.getElementById('pomT'),pomLbl=document.getElementById('pomLbl'),pomMode=document.getElementById('pomMode');
+function fmt(s){const m=Math.floor(s/60),x=s%60;return `${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`;}
+function pomDraw(){pomT.textContent=fmt(pomSec);}
+function pomTick(){if(pomSec>0){pomSec--;pomDraw();}else{pomRun=false;clearInterval(pomTimer);pomLbl.textContent=pomBreak?'Break done':'Time! Break';pomT.textContent='00:00';}}
+document.getElementById('pomStart').onclick=function(){if(pomRun){pomRun=false;clearInterval(pomTimer);this.textContent='Start';}else{pomRun=true;this.textContent='Pause';pomTimer=setInterval(pomTick,1000);}};
+document.getElementById('pomReset').onclick=function(){pomRun=false;clearInterval(pomTimer);pomSec=pomBreak?5*60:25*60;pomDraw();document.getElementById('pomStart').textContent='Start';};
+pomMode.onclick=function(){pomBreak=!pomBreak;pomSec=pomBreak?5*60:25*60;pomRun=false;clearInterval(pomTimer);pomLbl.textContent=pomBreak?'Break':'Focus';pomMode.textContent=pomBreak?'switch to 25:00 focus':'switch to 5:00 break';document.getElementById('pomStart').textContent='Start';pomDraw();};
+pomDraw();
+
+renderStart();
+</script>
+</body>
+</html>

@@ -18,6 +18,8 @@ rep at a time, then ladder up to full timed essays.
 - **MEE Muscle Ladder** – five intensity levels, from issue-spotting to a full timed MEE.
 - **Issue Spotting / Rule Retrieval / Timed IRAC** drills.
 - **Due Review Queue** – spaced repetition based on your self-scores.
+- **MBE Drills (Trap Trainer)** – multiple-choice trap drilling with drill/lecture
+  modes, AdaptiBar import, and your own add-your-own cards (saved in your browser).
 - **Live stopwatch** on every drill so you can see how long an answer took.
 - **Progressive hints** that reveal help gradually, never the full answer first.
 - **Attack Outline rules** and **Plug & Play essay templates** searchable in-app.

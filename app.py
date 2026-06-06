@@ -3,6 +3,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
+import os
 import random
 import re
 import time
@@ -16,6 +17,10 @@ from database import (
     get_question_by_id,
     save_attempt,
     get_attempts,
+    save_rule_attempt,
+    get_rule_attempts,
+    get_rule_flashcards,
+    search_rule_flashcards,
     get_subjects,
     get_statuses,
     get_dashboard_stats,
@@ -32,14 +37,51 @@ from text_cleanup import normalize_extracted_text
 
 st.set_page_config(
     page_title="MEE Reflex Trainer",
-    layout="wide"
+    page_icon=":books:",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 init_db()
 
 
-st.title("MEE Reflex Trainer")
-st.caption("Focused MEE training: issue spotting -> rule retrieval -> IRAC under pressure.")
+def render_app_header():
+    st.markdown(
+        """
+        <div class="app-top-header">
+            <div>
+                <div class="app-title">MEE Reflex Trainer</div>
+                <div class="app-subtitle">Focused MEE training: issue spotting -> rule flash -> IRAC under pressure.</div>
+            </div>
+            <div class="app-pill">NY UBE July 2026</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_page_title(title, subtitle=None):
+    subtitle_html = f'<div class="page-subtitle">{escape(str(subtitle))}</div>' if subtitle else ""
+    st.markdown(
+        f"""
+        <div class="page-title-block">
+            <div class="page-title-text">{escape(str(title))}</div>
+            {subtitle_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_reading_mode_notice():
+    st.markdown(
+        """
+        <div class="reading-mode-notice">
+            Reading mode is on: larger text, wider spacing, narrower reading boxes.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.markdown("""
 <style>
@@ -51,24 +93,145 @@ st.markdown("""
 
 /* Main content container */
 .block-container {
-    width: 100%;
-    max-width: 1760px;
-    padding-top: 0.75rem;
-    padding-right: clamp(1rem, 2vw, 2rem);
-    padding-bottom: 2rem;
-    padding-left: clamp(1rem, 2vw, 2rem);
+    max-width: 1500px !important;
+    padding-top: 1.15rem !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+    padding-bottom: 2.5rem !important;
+    overflow: visible !important;
 }
 
 .main .block-container > div:first-child {
     padding-top: 0;
+    overflow: visible !important;
+}
+
+header[data-testid="stHeader"] {
+    height: 2.65rem !important;
+    min-height: 2.65rem !important;
+    background: transparent !important;
+    pointer-events: none;
+}
+
+div[data-testid="stToolbar"] {
+    right: 0.8rem;
+    pointer-events: auto;
+}
+
+.app-top-header {
+    width: 100%;
+    max-width: 1500px;
+    margin: 0.25rem auto 1rem auto;
+    padding: 0.85rem 1rem;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid #D6E4FF;
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    min-height: 4.35rem;
+    overflow: visible;
+}
+
+.app-title {
+    color: #2F5597;
+    font-size: 1.55rem;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1.25;
+    padding: 0.05rem 0;
+    overflow: visible;
+}
+
+.app-subtitle {
+    color: #64748B;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
+.app-pill {
+    background: #E0F2FE;
+    color: #075985;
+    border: 1px solid #BAE6FD;
+    border-radius: 999px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.page-title-block {
+    margin: 0.85rem 0 1rem 0;
+    padding: 0.1rem 0 0.15rem 0;
+    overflow: visible;
+}
+
+.page-title-text {
+    color: #2F5597 !important;
+    font-size: 1.75rem !important;
+    line-height: 1.28 !important;
+    min-height: 2.35rem;
+    display: block;
+    overflow: visible;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-weight: 900;
+}
+
+.page-subtitle {
+    color: #64748B;
+    font-size: 0.92rem;
+    margin-top: 0.35rem;
+}
+
+.reading-mode-notice {
+    background: #DBEAFE;
+    border: 1px solid #BFDBFE;
+    color: #1E3A8A;
+    border-radius: 12px;
+    padding: 0.55rem 0.8rem;
+    margin: 0.5rem 0 0.8rem 0;
+    font-size: 0.9rem;
+    font-weight: 650;
+}
+
+.main-workspace {
+    max-width: 1480px;
+    margin: 0 auto;
+}
+
+.element-container {
+    margin-bottom: 0.35rem;
+}
+
+.study-card {
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid #D6E4FF;
+    border-radius: 18px;
+    padding: 1rem 1.15rem;
+    box-shadow: 0 8px 22px rgba(37, 99, 235, 0.06);
+    margin-bottom: 0.9rem;
+}
+
+.sticky-panel {
+    position: sticky;
+    top: 1rem;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid #D8B4FE;
+    border-radius: 18px;
+    padding: 1rem;
+    box-shadow: 0 8px 24px rgba(90, 24, 154, 0.08);
 }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #EAF4FF 0%, #E8FFF9 100%);
     border-right: 2px solid #CDEBFF;
-    min-width: 320px !important;
-    width: 320px !important;
+    min-width: 245px !important;
+    max-width: 285px !important;
+    width: 270px !important;
 }
 
 [data-testid="stSidebar"] * {
@@ -86,29 +249,32 @@ st.markdown("""
 }
 
 [data-testid="stSidebar"] > div {
-    min-width: 320px !important;
+    min-width: 245px !important;
+    max-width: 285px !important;
 }
 
 /* Headers */
 h1, h2, h3 {
     color: #1D4E89 !important;
     font-weight: 800 !important;
+    line-height: 1.35 !important;
+    padding: 0.12rem 0 !important;
+    margin-top: 0.35rem !important;
+    overflow: visible !important;
 }
 
 h1 {
     background: none !important;
     color: #2563EB !important;
     -webkit-text-fill-color: #2563EB !important;
-    text-align: center !important;
     line-height: 1.22 !important;
     padding-top: 0.35rem !important;
-    margin-bottom: 0.25rem !important;
+    margin-bottom: 0.35rem !important;
 }
 
 [data-testid="stHeading"]:has(h1),
 [data-testid="stHeading"] h1 {
     width: 100% !important;
-    text-align: center !important;
     overflow: visible !important;
 }
 
@@ -120,8 +286,28 @@ h1 {
 }
 
 h2, h3 {
+    line-height: 1.35 !important;
+    padding: 0.1rem 0 !important;
     margin-top: 0.75rem !important;
-    margin-bottom: 0.35rem !important;
+    margin-bottom: 0.45rem !important;
+    overflow: visible !important;
+}
+
+[data-testid="stHeading"],
+[data-testid="stHeadingWithActionElements"],
+[data-testid="stMarkdownContainer"],
+.stMarkdown {
+    overflow: visible !important;
+}
+
+[data-testid="stHeading"] h1,
+[data-testid="stHeading"] h2,
+[data-testid="stHeading"] h3,
+[data-testid="stHeadingWithActionElements"] h1,
+[data-testid="stHeadingWithActionElements"] h2,
+[data-testid="stHeadingWithActionElements"] h3 {
+    min-height: 1.8em !important;
+    overflow: visible !important;
 }
 
 div[data-testid="stCaptionContainer"],
@@ -344,6 +530,11 @@ div[data-testid="stNumberInput"] button svg * {
 div[data-testid="stAlert"] {
     border-radius: 14px;
     border: 1.5px solid #CDEBFF;
+    padding: 0.65rem 0.9rem;
+}
+
+div[data-baseweb="select"] {
+    width: 100%;
 }
 
 /* Dataframes */
@@ -381,13 +572,17 @@ div[data-testid="stAlert"] {
 [data-testid="stSidebar"] [role="radiogroup"] label div,
 [data-testid="stSidebar"] [role="radiogroup"] label p,
 [data-testid="stSidebar"] [role="radiogroup"] label span {
-    font-size: 18px !important;
+    font-size: 16px !important;
     line-height: 1.32 !important;
 }
 
 [data-testid="stSidebar"] [role="radiogroup"] label {
-    min-height: 50px !important;
-    padding: 11px 14px !important;
+    min-height: 42px !important;
+    padding: 8px 11px !important;
+}
+
+[data-testid="stSidebar"] .stRadio > div {
+    gap: 0.25rem;
 }
 
 [role="radio"][aria-checked="true"],
@@ -395,11 +590,6 @@ div[data-testid="stAlert"] {
 [role="radiogroup"] label:has([aria-checked="true"]) {
     background-color: #DDF4FF !important;
     color: #102033 !important;
-}
-
-/* Streamlit toolbar/menu can render as a dark strip in custom themes */
-header {
-    background: rgba(247, 251, 255, 0.96) !important;
 }
 
 header,
@@ -410,7 +600,7 @@ header,
 [data-testid="stMainMenu"],
 [data-baseweb="menu"],
 [role="listbox"] {
-    background-color: #F7FBFF !important;
+    background-color: transparent !important;
     color: #102033 !important;
 }
 
@@ -450,7 +640,7 @@ header *,
     padding: 0.9rem 1rem;
     margin: 0.55rem 0 0.8rem 0;
     box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
-    max-width: 100%;
+    max-width: 1000px;
 }
 
 .readable-box.compact {
@@ -498,7 +688,7 @@ header *,
     padding: 0.9rem 1rem;
     margin: 0.55rem 0 0.8rem 0;
     box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
-    max-width: 100%;
+    max-width: 1000px;
 }
 
 .question-title {
@@ -534,6 +724,291 @@ header *,
 
 .trigger-facts-text::selection {
     background: #DDF4FF;
+}
+
+.triggers-box {
+    background: rgba(255, 255, 255, 0.97);
+    border: 1.5px solid #FDE68A;
+    border-radius: 18px;
+    padding: 1rem 1.2rem;
+    margin: 0.85rem 0 1.1rem 0;
+    box-shadow: 0 6px 18px rgba(250, 204, 21, 0.10);
+    max-width: 1000px;
+}
+
+.triggers-title {
+    color: #92400E;
+    font-weight: 850;
+    font-size: 1.05rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid #FEF3C7;
+}
+
+.trigger-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-radius: 14px;
+    padding: 0.75rem 0.85rem;
+    margin-bottom: 0.55rem;
+}
+
+.trigger-number {
+    min-width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 999px;
+    background: #FACC15;
+    color: #713F12;
+    font-weight: 850;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.trigger-content {
+    flex: 1;
+}
+
+.trigger-fact-text {
+    color: #1E293B;
+    font-size: 16.5px;
+    line-height: 1.5;
+    font-weight: 650;
+}
+
+.trigger-why {
+    color: #78350F;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    margin-top: 0.35rem;
+}
+
+.issues-box {
+    background: rgba(255, 255, 255, 0.97);
+    border: 1.5px solid #BFDBFE;
+    border-radius: 18px;
+    padding: 1rem 1.2rem;
+    margin: 0.85rem 0 1.1rem 0;
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.08);
+    max-width: 1000px;
+}
+
+.issues-title {
+    color: #1D4ED8;
+    font-weight: 850;
+    font-size: 1.05rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid #DBEAFE;
+}
+
+.issue-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: #F8FBFF;
+    border: 1px solid #DBEAFE;
+    border-radius: 14px;
+    padding: 0.75rem 0.85rem;
+    margin-bottom: 0.55rem;
+}
+
+.issue-number {
+    min-width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 999px;
+    background: #DBEAFE;
+    color: #1D4ED8;
+    font-weight: 850;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.issue-text {
+    color: #1E293B;
+    font-size: 16.5px;
+    line-height: 1.5;
+}
+
+.flash-page-wrap {
+    background: #f5f4f0;
+    padding: 1rem;
+    border-radius: 18px;
+}
+
+.flash-header {
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+}
+
+.flash-header h2 {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #1a1a1a !important;
+    margin: 0;
+}
+
+.flash-header .flash-meta {
+    font-size: 11px;
+    color: #666;
+    font-family: monospace;
+}
+
+.flash-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.flash-card {
+    background: #fff;
+    border: 1px solid #d0cfc9;
+    border-radius: 6px;
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.flash-front {
+    background: #1a1a1a;
+    color: #f5f4f0;
+    padding: 14px 16px;
+    border-bottom: 3px solid #e85d26;
+}
+
+.flash-card-num {
+    font-family: monospace;
+    font-size: 10px;
+    color: #e85d26;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+}
+
+.flash-front h3 {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 0 0 8px 0;
+    color: #f5f4f0 !important;
+}
+
+.flash-question {
+    font-size: 12px;
+    color: #b8b5ae;
+    line-height: 1.5;
+    font-style: italic;
+}
+
+.flash-back {
+    padding: 14px 16px;
+    background: #fff;
+}
+
+.flash-rule-line {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-bottom: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.flash-rule-key {
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: #e85d26;
+    min-width: 120px;
+    flex-shrink: 0;
+    padding-top: 1px;
+}
+
+.flash-rule-val {
+    color: #1a1a1a;
+}
+
+.flash-trap-box {
+    background: #fff8f5;
+    border-left: 3px solid #e85d26;
+    padding: 7px 10px;
+    margin-top: 10px;
+    font-size: 11px;
+    color: #663300;
+    line-height: 1.5;
+}
+
+.flash-key-rule {
+    background: #f0f9f0;
+    border-left: 3px solid #2a7a2a;
+    padding: 7px 10px;
+    margin-top: 10px;
+    font-size: 11px;
+    color: #1a3d1a;
+    line-height: 1.5;
+}
+
+.flash-ru-box {
+    background: #f3f1fa;
+    border-left: 3px solid #5b3fa0;
+    padding: 7px 10px;
+    margin-top: 10px;
+    font-size: 11px;
+    color: #2e2150;
+    line-height: 1.5;
+}
+
+.flash-mini-title {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+    font-weight: 800;
+}
+
+.flash-tags {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.flash-tag {
+    font-family: monospace;
+    font-size: 10px;
+    background: #f0efe9;
+    color: #666;
+    padding: 2px 7px;
+    border-radius: 3px;
+}
+
+@media print {
+    [data-testid="stSidebar"], header, footer {
+        display: none !important;
+    }
+    .block-container {
+        max-width: none !important;
+        padding: 10px !important;
+    }
+    .flash-page-wrap {
+        background: #fff;
+    }
+    .flash-grid {
+        gap: 12px;
+    }
 }
 
 .hint-box {
@@ -573,7 +1048,7 @@ header *,
     padding: 0.9rem 1rem;
     margin: 0.55rem 0 0.8rem 0;
     box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
-    max-width: 100%;
+    max-width: 1000px;
 }
 
 .call-title {
@@ -630,7 +1105,7 @@ header *,
     padding: 0.8rem 1rem;
     margin: 0.45rem 0 0.65rem 0;
     box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
-    max-width: 100%;
+    max-width: 1000px;
 }
 
 .outline-rule-title {
@@ -673,6 +1148,34 @@ header *,
     display: block;
     width: 100%;
     max-width: none;
+}
+
+.meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid #D6E4FF;
+    border-radius: 14px;
+    padding: 0.65rem 0.8rem;
+    margin: 0.65rem 0 0.9rem 0;
+    color: #1E293B;
+}
+
+.meta-strip span {
+    background: #F8FBFF;
+    border: 1px solid #E0E7FF;
+    border-radius: 999px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.9rem;
+}
+
+.meta-strip .badge-active {
+    background: #DCFCE7 !important;
+    border-color: #BBF7D0 !important;
+    color: #166534 !important;
+    font-weight: 800;
 }
 
 .plug-grid {
@@ -818,9 +1321,19 @@ hr {
 [data-testid="stSidebar"] .stButton > button {
     text-align: left !important;
     justify-content: flex-start !important;
-    padding: 0.5rem 0.9rem !important;
+    padding: 0.5rem 0.75rem !important;
     margin-bottom: 2px !important;
     font-weight: 600 !important;
+    font-size: 16px !important;
+    line-height: 1.35 !important;
+    min-height: 40px !important;
+}
+
+[data-testid="stSidebar"] .stButton > button *,
+[data-testid="stSidebar"] .stButton > button p,
+[data-testid="stSidebar"] .stButton > button span {
+    font-size: 16px !important;
+    line-height: 1.35 !important;
 }
 
 /* Inactive nav button (secondary) — flat, light */
@@ -866,7 +1379,7 @@ hr {
     padding: 1.05rem 1.25rem;
     margin: 0.85rem 0 1.1rem 0;
     box-shadow: 0 6px 18px rgba(99, 102, 241, 0.08);
-    max-width: 920px;
+    max-width: 1000px;
 }
 
 .fact-title {
@@ -892,8 +1405,34 @@ hr {
 .fact-text p:last-child {
     margin-bottom: 0;
 }
+
+.trigger-highlight {
+    background: linear-gradient(180deg, rgba(255, 245, 157, 0.15) 0%, rgba(255, 235, 59, 0.72) 100%);
+    border-bottom: 2px solid #FACC15;
+    padding: 0.05rem 0.18rem;
+    border-radius: 5px;
+    font-weight: 700;
+    color: #1E293B;
+}
+
+.highlighted-fact-box {
+    border-color: #FACC15 !important;
+    box-shadow: 0 8px 22px rgba(250, 204, 21, 0.16) !important;
+}
+
+.fact-highlight-legend {
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-radius: 14px;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+    color: #78350F;
+    font-size: 0.95rem;
+}
 </style>
 """, unsafe_allow_html=True)
+
+render_app_header()
 
 
 def parse_optional_int(value, default=None):
@@ -1031,6 +1570,21 @@ def render_readable_text(title, text, font_size=None):
         ),
         unsafe_allow_html=True,
     )
+
+
+def render_sample_answer_section(qd, expanded=False):
+    model_points = qd.get("model_points", "") if isinstance(qd, dict) else ""
+
+    if not model_points:
+        st.info("No sample answer/model analysis available for this question yet.")
+        return
+
+    with st.expander("Compare With Sample Answer - open after self-grading", expanded=expanded):
+        st.warning("Open this only after you attempted the issue/rule. No passive reading.")
+        if "render_readable_text" in globals():
+            render_readable_text("Sample Answer / Model Analysis", model_points, READING_FONT_SIZE)
+        else:
+            st.write(model_points)
 
 
 def clean_question_text(question_text):
@@ -1296,37 +1850,195 @@ def render_fact_pattern_text(title, text, max_chars=None):
 
 def clean_trigger_facts_text(text):
     if not text:
-        return "No trigger facts available."
+        return ""
 
-    text = str(text).replace("\r\n", "\n").replace("\r", "\n").replace("\u00a0", " ")
-    raw_lines = text.splitlines()
+    text = str(text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\u00a0", " ").replace("Â ", " ")
+
+    text = re.sub(r"\bTrigger Facts:\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bRelevant Facts:\s*", "", text, flags=re.IGNORECASE)
+
+    junk_patterns = [
+        r"\bFEBRUARY\s+\d{4}\s+MEE\b",
+        r"\bJULY\s+\d{4}\s+MEE\b",
+        r"\bMEE\s+QUESTION\s+\d+\b",
+        r"Â©\s*\d{4}.*",
+        r"National Conference of Bar Examiners.*",
+        r"Studicata.*",
+        r"www\..*",
+    ]
+
+    for pattern in junk_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+
+    citation_patterns = [
+        r"\b[A-Z][A-Za-z.]+ v\. [A-Z][A-Za-z. ]+,?\s*[^.]*\(\d{4}\)",
+        r"\b\d+\s+[A-Z][A-Za-z. ]+\s+\d+[,\s]*\d*\s*\([A-Za-z. ]*\d{4}\)",
+        r"\bId\.\s*;?",
+        r"\bsee also\b.*?(?=\.|$)",
+    ]
+
+    for pattern in citation_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+
+    text = re.sub(r"(\w)-\s*\n+\s*(\w)", r"\1-\2", text)
+    text = re.sub(r',"\s*', ', "', text)
+    text = re.sub(r'\."\s*', '." ', text)
+
     lines = []
-
-    for line in raw_lines:
+    for line in text.splitlines():
         line = re.sub(r"[ \t]+", " ", line).strip()
         if line:
             lines.append(line)
 
-    text = " ".join(lines)
-    text = re.sub(r"\s*;\s*", ";\n", text)
-    text = re.sub(r"\s+(\(\d+\)|\d+\.)\s+", r"\n\1 ", text)
+    text = "\n".join(lines)
+    text = re.sub(r"\n{2,}", "\n", text)
 
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return "\n".join(lines).strip()
+    return text.strip()
+
+
+def extract_trigger_fact_items(trigger_facts_text):
+    text = clean_trigger_facts_text(trigger_facts_text)
+
+    if not text:
+        return []
+
+    parts = re.split(r"(?:\n|;|\||•|(?:\s+-\s+))", text)
+    items = []
+
+    for part in parts:
+        part = part.strip(" -•\t")
+        part = re.sub(r"^\d+[.)]\s*", "", part)
+        part = re.sub(r"^[a-z][.)]\s*", "", part, flags=re.IGNORECASE)
+        part = re.sub(r"\s+", " ", part).strip()
+
+        if len(part) < 8:
+            continue
+
+        citation_noise = (
+            re.search(r"\b[A-Z][A-Za-z.]+\s+v\.\s+[A-Z]", part)
+            or re.search(r"\b\d+\s*(?:So\.|P\.|F\.|N\.?W\.?|U\.S\.)", part, flags=re.IGNORECASE)
+        )
+        if citation_noise:
+            continue
+
+        if len(part) > 260:
+            sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z\"'])", part)
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if 8 <= len(sentence) <= 260:
+                    items.append(sentence)
+        else:
+            items.append(part)
+
+    clean = []
+    seen = set()
+
+    for item in items:
+        key = item.lower()
+        if key not in seen:
+            seen.add(key)
+            clean.append(item)
+
+    return clean
+
+
+def infer_fact_relevance(fact, qd):
+    fact_l = fact.lower()
+    subject = (qd.get("subject", "") or "").lower()
+    tested = (qd.get("tested_issues", "") or "").lower()
+    rules = (qd.get("rules", "") or "").lower()
+    blob = tested + " " + rules
+
+    relevance = []
+
+    if any(w in fact_l for w in ["filed", "served", "complaint", "motion", "summary judgment", "federal court", "state court"]):
+        relevance.append("procedure / posture")
+
+    if any(w in fact_l for w in [
+        "injured", "damaged", "hit", "collision", "negligent", "violated",
+        "statute", "foreseeable", "bus", "stop sign", "emergency", "truck",
+        "honked", "scraped", "bumper",
+    ]):
+        relevance.append("duty / breach / causation")
+
+    if any(w in fact_l for w in ["blocked", "locked", "confined", "detained", "restroom", "leave"]):
+        relevance.append("false imprisonment / confinement")
+
+    if any(w in fact_l for w in ["offer", "accept", "agreed", "signed", "oral", "writing", "price", "goods", "delivery"]):
+        relevance.append("contract formation / statute of frauds")
+
+    if any(w in fact_l for w in ["citizen", "domicile", "incorporated", "principal place", "amount", "75,000", "minimum contacts", "venue"]):
+        relevance.append("jurisdiction / venue")
+
+    if (
+        ("constitutional" in subject or "first amendment" in blob)
+        and any(w in fact_l for w in ["ordinance", "speech", "sign", "public", "forum", "content", "government", "town"])
+    ):
+        relevance.append("First Amendment / constitutional scrutiny")
+
+    if any(w in fact_l for w in ["agent", "principal", "authority", "partner", "profits", "corporation", "director", "board"]):
+        relevance.append("relationship / authority / fiduciary duty")
+
+    if any(w in fact_l for w in ["statement", "testified", "hearsay", "objected", "witness", "expert", "character"]):
+        relevance.append("admissibility / evidence rule")
+
+    if any(w in fact_l for w in ["deed", "recorded", "mortgage", "lease", "tenant", "easement", "covenant", "title"]):
+        relevance.append("property interest / notice / priority")
+
+    if any(w in fact_l for w in ["police", "warrant", "search", "arrest", "miranda", "confession", "weapon", "killed"]):
+        relevance.append("criminal procedure / offense element")
+
+    if "foreseeability" in blob and any(w in fact_l for w in ["death", "patient", "foreseeable", "summary judgment", "surgery", "hospital"]):
+        relevance.append("foreseeability / proximate cause")
+
+    if relevance:
+        return "Why it matters: " + "; ".join(dict.fromkeys(relevance)) + "."
+
+    if subject:
+        return f"Why it matters: likely relevant to {qd.get('subject', 'the tested subject')}."
+
+    return "Why it matters: this fact likely triggers a legal issue or rule element."
 
 
 def render_trigger_facts_text(title, text):
-    formatted = clean_trigger_facts_text(text)
-    safe_title = escape_display_text(title)
-    safe_text = escape_display_text(formatted)
+    qd = text if isinstance(text, dict) else {"trigger_facts": text, "subject": "", "tested_issues": "", "rules": ""}
+    render_trigger_facts(title, qd)
+
+
+def render_raw_trigger_facts_expander(qd):
+    with st.expander("Raw trigger facts text", expanded=False):
+        st.text(qd.get("trigger_facts", "") or "")
+
+
+def render_trigger_facts(title, qd):
+    facts = get_clean_trigger_facts(qd)
+
+    if not facts:
+        st.info("No trigger facts available yet.")
+        return
+
+    cards_html = ""
+
+    for idx, fact in enumerate(facts, start=1):
+        cards_html += f"""
+            <div class="trigger-card">
+                <div class="trigger-number">{idx}</div>
+                <div class="trigger-content">
+                    <div class="trigger-fact-text">{escape_display_text(fact)}</div>
+                    <div class="trigger-why">{escape_display_text(infer_fact_relevance(fact, qd))}</div>
+                </div>
+            </div>
+        """
 
     st.markdown(
-        (
-            '<div class="question-box">'
-            f'<div class="question-title">{safe_title}</div>'
-            f'<div class="trigger-facts-text">{safe_text}</div>'
-            '</div>'
-        ),
+        f"""
+        <div class="triggers-box">
+            <div class="triggers-title">{escape_display_text(str(title))}</div>
+            {cards_html}
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -1335,26 +2047,183 @@ def clean_tested_issues_text(text):
     if not text:
         return "No tested issues available."
 
-    text = str(text).replace("\r\n", "\n").replace("\r", "\n").replace("\u00a0", " ")
-    raw_lines = text.splitlines()
-    lines = []
+    text = str(text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\u00a0", " ").replace("Â ", " ")
+    text = re.sub(r"[ \t]+", " ", text)
 
-    for line in raw_lines:
-        line = re.sub(r"[ \t]+", " ", line).strip()
-        if line:
-            lines.append(line)
+    text = re.sub(r"\bLegal Problems:\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bDISCUSSION\b.*", "", text, flags=re.IGNORECASE | re.DOTALL)
+
+    citation_patterns = [
+        r"\b\d+\s+[A-Z][A-Za-z. ]+\s+\d+[,\s]*\d*\s*\([A-Za-z. ]*\d{4}\)",
+        r"\b[A-Z][A-Za-z.]+ v\. [A-Z][A-Za-z. ]+,?\s*[^.]*\(\d{4}\)",
+        r"\bId\.\s*;?",
+        r"\bsee also\b.*?(?=\.|$)",
+        r"\bP\.\s*W\.",
+        r"\bSo\.\s*\d+d\b",
+        r"\bN\.?W\.?\d?d\b",
+        r"\bF\.\s?\d+d\b",
+        r"\bU\.S\.\b",
+    ]
+
+    for pattern in citation_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+
+    lines = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+
+        if re.fullmatch(r"[\d\s.,;()A-Za-z]*\d{4}[\d\s.,;()A-Za-z]*", line) and len(line) < 90:
+            continue
+
+        if len(line) < 4:
+            continue
+
+        lines.append(line)
 
     text = " ".join(lines)
-    text = re.sub(r"\s+(\(\d+\))\s+", r"\n\1 ", text)
-    text = re.sub(r"\s+(\d+\.)\s+", r"\n\1 ", text)
-    text = re.sub(r"\s+([a-z]\.)\s+", r"\n   \1 ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    text = re.sub(r"([.!?])([A-Z])", r"\1 \2", text)
 
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return "\n".join(lines).strip()
+    return text.strip() or "No tested issues available."
+
+
+def extract_issue_bullets(tested_issues_text):
+    if not tested_issues_text:
+        return []
+
+    text = clean_tested_issues_text(tested_issues_text)
+
+    if not text or text == "No tested issues available.":
+        return []
+
+    issues = []
+
+    if re.search(r"(?:^|\s)-\s+", text):
+        dash_parts = re.split(r"(?:^|\s)-\s+", text)
+        for part in dash_parts:
+            part = part.strip(" -;")
+            if len(part) >= 10:
+                issues.append(part)
+
+    if not issues:
+        numbered = re.findall(
+            r"(?:^|\s)\(?(\d+)\)?[.)]\s+(.*?)(?=(?:\s\(?\d+\)?[.)]\s+)|$)",
+            text,
+            flags=re.DOTALL,
+        )
+
+        if numbered:
+            for _, body in numbered:
+                body = body.strip(" -;")
+                if body:
+                    issues.append(body)
+
+    if not issues:
+        question_sentences = re.findall(r"([^?]+\?)", text)
+        for question in question_sentences:
+            question = question.strip(" -;")
+            if len(question) >= 10:
+                issues.append(question)
+
+    if not issues:
+        sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text)
+        issue_starters = (
+            "whether", "can", "could", "does", "did", "is", "are",
+            "may", "must", "should", "was", "were",
+        )
+
+        for sentence in sentences:
+            sentence = sentence.strip(" -;")
+            if len(sentence) < 15:
+                continue
+            if sentence.lower().startswith(issue_starters):
+                issues.append(sentence)
+
+    clean = []
+    seen = set()
+
+    for issue in issues:
+        issue = re.sub(r"\s+", " ", issue).strip()
+        issue = issue.strip(" -;.")
+
+        citation_noise = (
+            re.search(r"\b[A-Z][A-Za-z.]+\s+v\.\s+[A-Z]", issue)
+            or re.search(r"\b\d+\s*(?:So\.|P\.|F\.|N\.?W\.?|U\.S\.)", issue, flags=re.IGNORECASE)
+            or re.search(r"\b(?:Washington|Schmanski|Casimir|Nat\.?|Gas|Co\.)\b", issue, flags=re.IGNORECASE)
+        )
+        if citation_noise:
+            continue
+
+        split_issue = re.split(r",\s+and\s+(?=(?:is|are|can|could|does|did|may|must|should|was|were)\b)", issue, flags=re.IGNORECASE)
+        if len(split_issue) > 1:
+            for piece in split_issue:
+                piece = piece.strip(" -;.")
+                if len(piece) < 10:
+                    continue
+                piece = piece[:1].upper() + piece[1:]
+                if not piece.endswith("?") and issue.endswith("?"):
+                    piece += "?"
+                key = piece.lower()
+                if key not in seen:
+                    seen.add(key)
+                    clean.append(piece)
+            continue
+
+        if len(issue) > 320:
+            issue = issue[:320].rsplit(" ", 1)[0] + "..."
+
+        if len(issue) < 10:
+            continue
+
+        key = issue.lower()
+        if key not in seen:
+            seen.add(key)
+            clean.append(issue)
+
+    return clean
+
+
+def render_tested_issues(title, tested_issues_text):
+    issues = extract_issue_bullets(tested_issues_text)
+
+    if not issues:
+        cleaned = clean_tested_issues_text(tested_issues_text)
+        render_readable_text(title, cleaned, READING_FONT_SIZE)
+        return
+
+    issue_cards_html = ""
+
+    for idx, issue in enumerate(issues, start=1):
+        issue_cards_html += f"""
+            <div class="issue-card">
+                <div class="issue-number">{idx}</div>
+                <div class="issue-text">{escape_display_text(issue)}</div>
+            </div>
+        """
+
+    st.markdown(
+        f"""
+        <div class="issues-box">
+            <div class="issues-title">{escape_display_text(str(title))}</div>
+            {issue_cards_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_tested_issues_text(title, text):
-    render_question_text(title, clean_tested_issues_text(text))
+    render_tested_issues(title, text)
+
+
+def render_raw_tested_issues_expander(qd):
+    with st.expander("Raw tested issues text", expanded=False):
+        st.text(qd.get("tested_issues", "") or "")
 
 
 def extract_fact_pattern_only(question_text, call_text=None):
@@ -1387,6 +2256,297 @@ def extract_fact_pattern_only(question_text, call_text=None):
             text = text[:cutoff]
 
     return clean_fact_pattern_text(text)
+
+
+SUBJECT_TRIGGER_KEYWORDS = {
+    "Business Associations": [
+        "agent", "principal", "authority", "actual authority", "apparent authority",
+        "ratified", "partnership", "partner", "profits", "losses", "co-owner",
+        "ordinary course", "corporation", "director", "officer", "shareholder",
+        "board", "fiduciary", "duty of care", "duty of loyalty", "LLC", "member",
+    ],
+    "Civil Procedure": [
+        "filed", "served", "complaint", "answer", "motion", "dismiss",
+        "federal court", "state court", "diversity", "citizen", "domicile",
+        "incorporated", "principal place of business", "amount in controversy",
+        "personal jurisdiction", "minimum contacts", "venue", "transfer",
+        "summary judgment", "claim preclusion", "issue preclusion", "joinder",
+    ],
+    "Constitutional Law": [
+        "ordinance", "statute", "government", "state", "town", "city",
+        "speech", "sign", "public forum", "content", "viewpoint", "religion",
+        "equal protection", "due process", "fundamental right", "suspect class",
+        "commerce", "tax", "taking", "search", "seizure", "First Amendment",
+    ],
+    "Contracts": [
+        "offer", "accept", "agreement", "promise", "consideration", "signed",
+        "writing", "oral", "merchant", "goods", "sale", "price", "quantity",
+        "delivery", "breach", "repudiated", "damages", "cover", "installment",
+        "UCC", "common law", "modification", "condition", "performance",
+    ],
+    "Criminal Law & Procedure": [
+        "police", "officer", "arrest", "warrant", "search", "seized", "stop",
+        "frisk", "Miranda", "custody", "interrogation", "confession",
+        "statement", "probable cause", "reasonable suspicion", "intent",
+        "killed", "weapon", "conspiracy", "attempt", "theft", "robbery",
+    ],
+    "Evidence": [
+        "witness", "testified", "statement", "offered", "objected",
+        "hearsay", "truth of the matter", "impeach", "character", "prior",
+        "expert", "lay opinion", "authentication", "privilege", "relevance",
+        "probative", "prejudice",
+    ],
+    "Real Property": [
+        "deed", "recorded", "conveyed", "buyer", "seller", "mortgage",
+        "lease", "tenant", "landlord", "easement", "covenant", "servitude",
+        "adverse possession", "title", "notice", "bona fide purchaser",
+        "foreclosure", "zoning",
+    ],
+    "Torts": [
+        "negligent", "negligently", "duty", "breach", "injury", "harm",
+        "caused", "proximate", "foreseeable", "damages", "reasonable person",
+        "statute", "violation", "battery", "assault", "false imprisonment",
+        "defamation", "strict liability", "product", "defect", "res ipsa",
+    ],
+    "Family Law": [
+        "married", "divorce", "custody", "child", "support", "alimony",
+        "premarital", "property", "best interests", "adoption", "parent",
+    ],
+    "Trusts & Estates": [
+        "will", "trust", "settlor", "beneficiary", "trustee", "estate",
+        "devise", "bequest", "heir", "intestate", "probate", "revocation",
+        "capacity", "undue influence", "fiduciary",
+    ],
+    "Secured Transactions": [
+        "security interest", "collateral", "debtor", "secured party",
+        "financing statement", "perfected", "attachment", "priority",
+        "PMSI", "inventory", "equipment", "buyer", "default",
+    ],
+    "Conflict of Laws": [
+        "state", "forum", "law of", "choice of law", "diversity",
+        "domicile", "most significant relationship", "place of injury",
+        "place of contracting", "recognize", "judgment",
+    ],
+}
+
+
+def split_fact_sentences(text):
+    if not text:
+        return []
+
+    text = clean_fact_pattern_text(text) if "clean_fact_pattern_text" in globals() else str(text)
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z\"'])", text)
+    return [s.strip() for s in sentences if len(s.strip()) > 20]
+
+
+def extract_trigger_phrases(text):
+    return extract_trigger_fact_items(text)
+
+
+def get_universal_trigger_candidates(qd, max_candidates=18):
+    subject = qd.get("subject", "") or ""
+    question_text = qd.get("question_text", "") or ""
+    call_text = qd.get("call_of_question", "") or ""
+    tested_issues = qd.get("tested_issues", "") or ""
+    stored_triggers = qd.get("trigger_facts", "") or ""
+    rules = qd.get("rules", "") or ""
+    traps = qd.get("traps", "") or ""
+
+    candidates = []
+    candidates.extend(extract_trigger_phrases(stored_triggers))
+
+    keywords = []
+    for subj, words in SUBJECT_TRIGGER_KEYWORDS.items():
+        if subj.lower() in subject.lower() or subject.lower() in subj.lower():
+            keywords.extend(words)
+
+    source_blob = f"{tested_issues} {call_text} {rules} {traps}"
+    raw_terms = re.findall(r"\b[A-Za-z][A-Za-z\-]{4,}\b", source_blob)
+    stopwords = {
+        "because", "therefore", "however", "explain", "whether", "would",
+        "should", "could", "court", "likely", "under", "where", "which",
+        "their", "there", "about", "against", "action", "claim", "issue",
+        "question", "answer", "facts", "rules", "legal",
+    }
+
+    for term in raw_terms:
+        if term.lower() not in stopwords:
+            keywords.append(term.lower())
+
+    seen_kw = set()
+    clean_keywords = []
+    for kw in keywords:
+        kw = kw.lower().strip()
+        if kw and kw not in seen_kw:
+            seen_kw.add(kw)
+            clean_keywords.append(kw)
+
+    fact_only = extract_fact_pattern_only(question_text, call_text)
+    sentences = split_fact_sentences(fact_only)
+    scored = []
+
+    for sent in sentences:
+        lower = sent.lower()
+        score = sum(1 for kw in clean_keywords if kw in lower)
+
+        if any(x in lower for x in [
+            "signed", "filed", "served", "told", "said", "agreed",
+            "refused", "objected", "moved", "sued", "charged",
+            "ordinance", "statute", "contract", "injured", "damages",
+            "police", "warrant", "arrest", "recorded", "delivered",
+        ]):
+            score += 2
+
+        if score > 0:
+            scored.append((score, sent))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    candidates.extend(sent for _, sent in scored[:max_candidates])
+
+    clean = []
+    seen = set()
+    for candidate in candidates:
+        candidate = re.sub(r"\s+", " ", str(candidate)).strip()
+        if not (5 <= len(candidate) <= 260):
+            continue
+
+        key = candidate.lower()
+        if key not in seen:
+            seen.add(key)
+            clean.append(candidate)
+
+    return clean[:max_candidates]
+
+
+def get_clean_trigger_facts(qd, max_items=12):
+    items = extract_trigger_fact_items(qd.get("trigger_facts", ""))
+
+    if len(items) < 3:
+        candidates = get_universal_trigger_candidates(qd, max_candidates=max_items)
+        items.extend(candidates)
+
+    if not items:
+        question_text = qd.get("question_text", "")
+        call_text = qd.get("call_of_question", "")
+        fact_only = extract_fact_pattern_only(question_text, call_text)
+        sentences = split_fact_sentences(fact_only)
+
+        signal_words = [
+            "said", "told", "agreed", "signed", "filed", "served", "sued",
+            "violated", "injured", "damaged", "refused", "ordinance",
+            "contract", "police", "warrant", "recorded", "delivered",
+            "hit", "collision", "blocked", "locked", "confined",
+        ]
+
+        for sentence in sentences:
+            if any(word in sentence.lower() for word in signal_words):
+                items.append(sentence.strip())
+            if len(items) >= max_items:
+                break
+
+    clean = []
+    seen = set()
+
+    for item in items:
+        item = re.sub(r"\s+", " ", str(item).strip())
+
+        if len(item) < 8:
+            continue
+        if len(item) > 280:
+            item = item[:280].rsplit(" ", 1)[0] + "..."
+
+        citation_noise = (
+            re.search(r"\b[A-Z][A-Za-z.]+\s+v\.\s+[A-Z]", item)
+            or re.search(r"\b\d+\s*(?:So\.|P\.|F\.|N\.?W\.?|U\.S\.)", item, flags=re.IGNORECASE)
+        )
+        if citation_noise:
+            continue
+
+        if item and item[0].islower():
+            item = item[0].upper() + item[1:]
+
+        key = item.lower()
+        if key not in seen:
+            seen.add(key)
+            clean.append(item)
+
+        if len(clean) >= max_items:
+            break
+
+    return clean
+
+
+def highlight_universal_triggers(question_text, qd):
+    if not question_text:
+        return "No fact pattern available."
+
+    base_text = clean_fact_pattern_text(question_text) if "clean_fact_pattern_text" in globals() else str(question_text)
+    escaped_text = escape(base_text)
+    candidates = get_clean_trigger_facts(qd)
+
+    if len(candidates) < 5:
+        candidates.extend(get_universal_trigger_candidates(qd, max_candidates=12))
+
+    if not candidates:
+        return escaped_text
+
+    for phrase in sorted(candidates, key=len, reverse=True):
+        phrase_clean = clean_fact_pattern_text(phrase) if "clean_fact_pattern_text" in globals() else str(phrase)
+        phrase_clean = re.sub(r"\s+", " ", phrase_clean).strip()
+        if len(phrase_clean) < 5:
+            continue
+
+        escaped_phrase = escape(phrase_clean)
+        pattern = re.escape(escaped_phrase).replace(r"\ ", r"\s+")
+
+        try:
+            escaped_text = re.sub(
+                pattern,
+                lambda m: f'<span class="trigger-highlight">{m.group(0)}</span>',
+                escaped_text,
+                flags=re.IGNORECASE,
+            )
+        except re.error:
+            continue
+
+    return escaped_text
+
+
+def render_universal_highlighted_fact_pattern(title, qd, text=None):
+    if text is None:
+        question_text = qd.get("question_text", "")
+        call_text = qd.get("call_of_question", "")
+        text = extract_fact_pattern_only(question_text, call_text)
+
+    paragraphs = split_fact_pattern_paragraphs(text)
+    highlighted_paragraphs = "".join(
+        f"<p>{highlight_universal_triggers(paragraph, qd)}</p>" for paragraph in paragraphs
+    )
+
+    st.markdown(
+        f"""
+        <div class="fact-highlight-legend">
+            Highlighted text marks likely trigger facts. Use it for review after retrieval, not before the first attempt.
+        </div>
+        <div class="fact-box highlighted-fact-box">
+            <div class="fact-title">{escape(str(title))}</div>
+            <div class="fact-text">
+                {highlighted_paragraphs}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_trigger_candidate_diagnostics(qd):
+    with st.expander("Detected trigger facts for highlighting", expanded=False):
+        candidates = get_universal_trigger_candidates(qd)
+        if candidates:
+            for candidate in candidates:
+                st.write("- " + candidate)
+        else:
+            st.info("No trigger facts detected yet.")
 
 
 def question_looks_suspicious(qd):
@@ -1651,6 +2811,245 @@ def render_attack_rule_box(rule):
             )
 
 
+FLASHCARD_EXPORT_CSS = """
+body { background:#f5f4f0; font-family: Arial, sans-serif; margin: 20px; color:#1a1a1a; }
+.flash-page-wrap { background:#f5f4f0; padding:1rem; border-radius:18px; }
+.flash-header { margin-bottom:1rem; border-bottom:2px solid #1a1a1a; padding-bottom:.75rem; display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; }
+.flash-header h2 { font-size:13px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#1a1a1a; margin:0; }
+.flash-header .flash-meta { font-size:11px; color:#666; font-family:monospace; }
+.flash-grid { display:grid; grid-template-columns:repeat(2, minmax(320px, 1fr)); gap:16px; }
+.flash-card { background:#fff; border:1px solid #d0cfc9; border-radius:6px; overflow:hidden; break-inside:avoid; page-break-inside:avoid; }
+.flash-front { background:#1a1a1a; color:#f5f4f0; padding:14px 16px; border-bottom:3px solid #e85d26; }
+.flash-card-num { font-family:monospace; font-size:10px; color:#e85d26; letter-spacing:.1em; margin-bottom:6px; }
+.flash-front h3 { font-size:14px; font-weight:700; line-height:1.35; margin:0 0 8px 0; color:#f5f4f0; }
+.flash-question { font-size:12px; color:#b8b5ae; line-height:1.5; font-style:italic; }
+.flash-back { padding:14px 16px; background:#fff; }
+.flash-rule-line { display:flex; gap:8px; align-items:flex-start; margin-bottom:6px; font-size:12px; line-height:1.5; }
+.flash-rule-key { font-family:monospace; font-size:11px; font-weight:700; color:#e85d26; min-width:120px; flex-shrink:0; padding-top:1px; }
+.flash-rule-val { color:#1a1a1a; }
+.flash-trap-box { background:#fff8f5; border-left:3px solid #e85d26; padding:7px 10px; margin-top:10px; font-size:11px; color:#663300; line-height:1.5; }
+.flash-key-rule { background:#f0f9f0; border-left:3px solid #2a7a2a; padding:7px 10px; margin-top:10px; font-size:11px; color:#1a3d1a; line-height:1.5; }
+.flash-ru-box { background:#f3f1fa; border-left:3px solid #5b3fa0; padding:7px 10px; margin-top:10px; font-size:11px; color:#2e2150; line-height:1.5; }
+.flash-mini-title { display:block; font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:3px; font-weight:800; }
+.flash-tags { margin-top:10px; display:flex; flex-wrap:wrap; gap:4px; }
+.flash-tag { font-family:monospace; font-size:10px; background:#f0efe9; color:#666; padding:2px 7px; border-radius:3px; }
+@media print { body { margin: 10px; background:#fff; } .flash-page-wrap { background:#fff; } .flash-grid { gap:12px; } }
+"""
+
+
+def short_text(text, max_chars=420):
+    if not text:
+        return ""
+
+    text = re.sub(r"\s+", " ", str(text)).strip()
+
+    if len(text) <= max_chars:
+        return text
+
+    return text[:max_chars].rsplit(" ", 1)[0] + "..."
+
+
+def _flash_tags(subject, title, source):
+    words = re.findall(r"[A-Za-z][A-Za-z0-9&-]{2,}", f"{subject or ''} {title or ''}")
+    tags = [subject, source]
+
+    for word in words[:5]:
+        if word.lower() not in {str(t).lower() for t in tags if t}:
+            tags.append(word)
+
+    return [str(tag) for tag in tags if tag][:7]
+
+
+def make_rule_card_from_outline(rule, index):
+    (
+        rule_id,
+        subject,
+        rule_title,
+        appearance_rate,
+        rule_text,
+        pdf_page,
+        printed_page,
+        source_file,
+    ) = rule
+
+    return {
+        "num": index,
+        "category": subject or "Rule",
+        "title": rule_title or "Untitled Rule",
+        "question": f"What is the rule for {rule_title or 'this doctrine'}?",
+        "rule_lines": [
+            ("Source", "Attack Outline"),
+            ("Appearance", appearance_rate or "Not specified"),
+            ("Rule", short_text(rule_text, 520)),
+        ],
+        "key_rule": short_text(rule_text, 360),
+        "trap": "Recite elements first; then apply facts. Do not jump to conclusion.",
+        "ru": "Сначала элементы правила, потом факты.",
+        "tags": _flash_tags(subject, rule_title, "Attack Outline"),
+    }
+
+
+def make_rule_card_from_template(template, index):
+    (
+        template_id,
+        subject,
+        module_title,
+        scenario_trigger,
+        issue_statement,
+        rule_text,
+        analysis_template,
+        conclusion_template,
+        testing_notes,
+        pdf_page,
+        source_file,
+    ) = template
+
+    return {
+        "num": index,
+        "category": subject or "Template",
+        "title": module_title or "Untitled Template",
+        "question": issue_statement or f"What is the framework for {module_title or 'this issue'}?",
+        "rule_lines": [
+            ("Source", "Plug & Play"),
+            ("Trigger", short_text(scenario_trigger, 220)),
+            ("Rule", short_text(rule_text, 520)),
+        ],
+        "key_rule": short_text(rule_text, 360),
+        "trap": short_text(testing_notes, 320) or "Use the template; do not write a rule dump.",
+        "ru": "Форма ответа снижает панику: issue, rule, facts, conclusion.",
+        "tags": _flash_tags(subject, module_title, "Plug & Play"),
+    }
+
+
+def make_rule_card_from_flashcard(card, index):
+    card_id, subject, rule_title, rule_text, source_file, tags = card
+
+    tag_list = [tag for tag in str(tags or "").split() if tag]
+    if not tag_list:
+        tag_list = _flash_tags(subject, rule_title, "Flashcards2025")
+
+    return {
+        "num": index,
+        "category": subject or "Rule",
+        "title": rule_title or "Untitled Rule",
+        "question": f"What is the rule for {rule_title or 'this doctrine'}?",
+        "rule_lines": [
+            ("Source", source_file or "Flashcards2025"),
+            ("Subject", subject or "Unknown"),
+            ("Rule", short_text(rule_text, 620)),
+        ],
+        "key_rule": short_text(rule_text, 420),
+        "trap": "Recite elements first, then apply facts.",
+        "ru": "Сначала правило, потом факты.",
+        "tags": tag_list[:7],
+    }
+
+
+def render_rule_flashcard_box(card):
+    card_id, subject, rule_title, rule_text, source_file, tags = card
+    card_dict = make_rule_card_from_flashcard(card, 1)
+    card_dict["rule_lines"] = [
+        ("Subject", subject or "Unknown"),
+        ("Source", source_file or "Flashcards2025"),
+        ("Rule", short_text(rule_text, 1200)),
+    ]
+    st.markdown(flashcard_html(card_dict, include_ru=False), unsafe_allow_html=True)
+
+
+def find_relevant_rule_flashcards(query, subject=None, limit=3):
+    if "search_rule_flashcards" not in globals():
+        return []
+
+    results = search_rule_flashcards(query, subject=subject, limit=limit)
+
+    if not results and subject and subject != "All":
+        results = search_rule_flashcards(query, subject=None, limit=limit)
+
+    return results[:limit]
+
+
+def flashcard_html(card, include_ru=True):
+    rule_lines_html = ""
+
+    for key, value in card.get("rule_lines", []):
+        if not value:
+            continue
+        rule_lines_html += (
+            '<div class="flash-rule-line">'
+            f'<div class="flash-rule-key">{escape_display_text(key)}</div>'
+            f'<div class="flash-rule-val">{escape_display_text(value)}</div>'
+            '</div>'
+        )
+
+    tags_html = "".join(
+        f'<span class="flash-tag">{escape_display_text(tag)}</span>'
+        for tag in card.get("tags", [])
+        if tag
+    )
+
+    ru_html = ""
+    if include_ru and card.get("ru"):
+        ru_html = (
+            '<div class="flash-ru-box">'
+            '<span class="flash-mini-title">Russian Shortcut</span>'
+            f'{escape_display_text(card.get("ru", ""))}'
+            '</div>'
+        )
+
+    return f"""
+    <div class="flash-card">
+      <div class="flash-front">
+        <div class="flash-card-num">CARD {int(card.get("num", 0)):02d} · {escape_display_text(card.get("category", ""))}</div>
+        <h3>{escape_display_text(card.get("title", ""))}</h3>
+        <div class="flash-question">{escape_display_text(card.get("question", ""))}</div>
+      </div>
+      <div class="flash-back">
+        {rule_lines_html}
+        <div class="flash-key-rule"><span class="flash-mini-title">Key Rule</span>{escape_display_text(card.get("key_rule", ""))}</div>
+        <div class="flash-trap-box"><span class="flash-mini-title">Trap</span>{escape_display_text(card.get("trap", ""))}</div>
+        {ru_html}
+        <div class="flash-tags">{tags_html}</div>
+      </div>
+    </div>
+    """
+
+
+def render_flashcard(card):
+    st.markdown(flashcard_html(card), unsafe_allow_html=True)
+
+
+def flashcard_grid_html(cards, include_ru=True):
+    cards_html = "".join(flashcard_html(card, include_ru=include_ru) for card in cards)
+    return f"""
+    <div class="flash-page-wrap">
+      <div class="flash-header">
+        <h2>MEE Rule Flashcards</h2>
+        <div class="flash-meta">{len(cards)} cards · print-ready</div>
+      </div>
+      <div class="flash-grid">{cards_html}</div>
+    </div>
+    """
+
+
+def render_flashcard_grid(cards, include_ru=True):
+    st.markdown(flashcard_grid_html(cards, include_ru=include_ru), unsafe_allow_html=True)
+
+
+def build_flashcards_html_document(cards, include_ru=True):
+    return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MEE Rule Flashcards</title>
+  <style>{FLASHCARD_EXPORT_CSS}</style>
+</head>
+<body>
+{flashcard_grid_html(cards, include_ru=include_ru)}
+</body>
+</html>
+"""
+
+
 def first_nonempty_lines(text, n=3):
     if not text:
         return "No hint available yet."
@@ -1752,10 +3151,10 @@ def make_short_hint(text, max_sentences=3, max_chars=900):
 
 
 def make_trigger_fact_hint(qd):
-    trigger_text = qd.get("trigger_facts", "")
+    trigger_items = get_clean_trigger_facts(qd, max_items=5)
 
-    if trigger_text:
-        return first_nonempty_lines(clean_trigger_facts_text(trigger_text), n=5)
+    if trigger_items:
+        return "\n".join(trigger_items[:5])
 
     question_text = extract_fact_pattern_only(
         qd.get("question_text", ""),
@@ -2221,6 +3620,45 @@ def render_call_text(title, call_text):
     )
 
 
+def get_rule_flash_prompts(qd):
+    prompts = []
+
+    if "extract_subquestions" in globals():
+        subquestions = extract_subquestions(qd.get("call_of_question", ""))
+
+        for subq in subquestions:
+            text = subq.get("text", "")
+            if text:
+                prompts.append(text)
+
+            for subpart in subq.get("subparts", []):
+                if subpart.get("text"):
+                    prompts.append(subpart["text"])
+
+    if "extract_issue_bullets" in globals():
+        for issue in extract_issue_bullets(qd.get("tested_issues", "")):
+            prompts.append(issue)
+
+    if not prompts:
+        prompts.append(qd.get("call_of_question", "Write the rule tested by this question."))
+
+    clean = []
+    seen = set()
+
+    for prompt in prompts:
+        prompt = re.sub(r"\s+", " ", str(prompt)).strip()
+
+        if len(prompt) < 8:
+            continue
+
+        key = prompt.lower()
+        if key not in seen:
+            seen.add(key)
+            clean.append(prompt)
+
+    return clean[:8]
+
+
 def render_subquestion_card(qd, subq, index, hints_used=0):
     label = subq.get("label") or f"Call {index}"
     call_text = subq.get("text", "").strip()
@@ -2292,10 +3730,22 @@ def render_subquestion_card(qd, subq, index, hints_used=0):
         )
 
         with st.expander(f"Exact Rule Support for {label}", expanded=False):
+            flashcard_matches = find_relevant_rule_flashcards(
+                f"{full_call}\n{qd.get('tested_issues', '')}",
+                subject=qd.get("subject", ""),
+                limit=3,
+            )
+
+            if flashcard_matches:
+                st.markdown("##### Flashcards2025 Rules")
+                for card in flashcard_matches:
+                    render_rule_flashcard_box(card)
+
             if outline_matches:
+                st.markdown("##### Attack Outline Rules")
                 for rule in outline_matches:
                     render_attack_rule_box(rule)
-            else:
+            elif not flashcard_matches:
                 st.info("No exact outline rule found for this call yet.")
 
     issue_spotted = st.text_area(
@@ -2449,6 +3899,29 @@ def render_question_strip(qd):
         unsafe_allow_html=True,
     )
     render_data_health_warning(qd)
+
+
+def render_meta_strip(qd):
+    status = qd.get("july_2026_status", "") or "-"
+    st.markdown(
+        f"""
+        <div class="meta-strip">
+          <span><b>{escape_display_text(qd['exam_name'])} Q{escape_display_text(str(qd['question_number']))}</b></span>
+          <span>{escape_display_text(qd['subject'])}</span>
+          <span class="badge-active">{escape_display_text(status)}</span>
+          <span>Priority {escape_display_text(str(qd.get('priority') or '-'))}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    render_data_health_warning(qd)
+
+
+def section_card(title=None, body=None):
+    if title:
+        st.markdown(f"### {title}")
+    if body:
+        st.markdown(body)
 
 
 def render_step_block(step_n, total, label, description=""):
@@ -2636,7 +4109,7 @@ def question_picker(active_default=True, due_only=False):
 
 NAV_GROUPS = [
     ("TRAIN",   ["Daily Workout", "Mini Essay Drill", "Muscle Ladder", "Timed IRAC Drill"]),
-    ("DRILLS",  ["Issue Spotting Drill", "Rule Retrieval Drill", "Due Review Queue"]),
+    ("DRILLS",  ["Issue Spotting Drill", "Rule Flashcards", "MBE Drills", "Due Review Queue"]),
     ("LIBRARY", ["Attack Outline Rules", "Plug & Play Templates", "Review Attempts"]),
     ("MANAGE",  ["Question Bank"]),
 ]
@@ -2744,17 +4217,15 @@ textarea {{
 .stMarkdown {{
     line-height: {READING_LINE_HEIGHT};
 }}
-
-{" .block-container { max-width: 980px !important; } " if ADHD_READING_MODE else ""}
 </style>
 """, unsafe_allow_html=True)
 
 if ADHD_READING_MODE:
-    st.info("Reading mode is on: larger text, wider spacing, narrower column.")
+    render_reading_mode_notice()
 
 
 if menu == "Dashboard":
-    st.header("Today's Training Mission")
+    render_page_title("Today's Training Mission")
 
     stats = get_dashboard_stats()
 
@@ -2774,7 +4245,7 @@ if menu == "Dashboard":
     ### Minimum Practice Session: 35 minutes
 
     1. **5 min** - Issue spotting
-    2. **7 min** - Rule retrieval
+    2. **7 min** - Rule flash
     3. **15 min** - IRAC paragraph
     4. **5 min** - Self-grade
     5. **3 min** - Make one weak-rule note
@@ -2783,12 +4254,30 @@ if menu == "Dashboard":
     """)
 
     st.info("The goal is to build reliable recall, not to wait until the question feels easy.")
+    st.info("Where is the sample answer? Open any drill, attempt first, then click 'Compare With Sample Answer.'")
+
+    rule_bank_cards = get_rule_flashcards() if "get_rule_flashcards" in globals() else []
+    rule_bank_subjects = sorted({row[1] for row in rule_bank_cards if len(row) > 1 and row[1]})
+
+    st.subheader("Rule Bank Status")
+    rb_col1, rb_col2 = st.columns(2)
+    rb_col1.metric("Flashcards2025 Rules", len(rule_bank_cards))
+    rb_col2.metric("Subjects Covered", len(rule_bank_subjects))
+
+    if not rule_bank_cards:
+        st.warning("Import Flashcards2025.rtf by running:")
+        st.code("python import_flashcards2025.py Flashcards2025.rtf")
 
     st.subheader("Today's Quick Win")
     st.markdown("""
-    - **Do one Level 1 Mini Run**
+    - **Do one Mini Essay Drill OR one Rule Learning Portal rep**
     - **Save the attempt**
     - **Stop after 7 minutes if energy is low**
+    """)
+
+    st.subheader("Rule Flashcards")
+    st.markdown("""
+    Print 4-8 cards for weak rules. One tiny stack beats rereading 40 pages.
     """)
 
     st.subheader("Today's Plug & Play Rep")
@@ -3065,20 +4554,21 @@ elif menu == "Add MEE Question":
 
 
 elif menu == "MEE Muscle Ladder":
-    st.header("MEE Muscle Ladder")
-    st.caption("Train gradually: issue -> rule -> trigger facts -> IRAC -> full essay.")
+    render_page_title(
+        "MEE Muscle Ladder",
+        "Train gradually: issue -> rule -> trigger facts -> IRAC -> full essay.",
+    )
 
-    st.markdown("""
-    ### How this works
+    with st.expander("How this works", expanded=False):
+        st.markdown("""
+        You are not trying to write a perfect essay immediately.
 
-    You are not trying to write a perfect essay immediately.
+        You are training the reflex:
 
-    You are training the reflex:
+        **Call -> Issue -> Rule -> Facts -> Conclusion**
 
-    **Call -> Issue -> Rule -> Facts -> Conclusion**
-
-    Fact without rule = story. Rule without fact = flashcard. We need both.
-    """)
+        Fact without rule = story. Rule without fact = flashcard. We need both.
+        """)
 
     question_id = question_picker(active_default=True)
 
@@ -3126,13 +4616,20 @@ elif menu == "MEE Muscle Ladder":
             with st.expander("Call of the Question", expanded=True):
                 render_call_text("Call of the Question", qd["call_of_question"])
 
+            show_ladder_highlights = st.checkbox("Show trigger fact highlights", value=False)
+
             with st.expander("Fact Pattern", expanded=True):
                 fact_only = (
                     extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
                     if "extract_fact_pattern_only" in globals()
                     else qd["question_text"]
                 )
-                render_fact_pattern_text("Fact Pattern", fact_only)
+                if show_ladder_highlights:
+                    render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd, text=fact_only)
+                else:
+                    render_fact_pattern_text("Fact Pattern", fact_only)
+
+            render_trigger_candidate_diagnostics(qd)
 
             hints_used = render_progressive_hints(qd)
 
@@ -3235,12 +4732,14 @@ TRIGGER FACTS:
 
             if st.button("Reveal Answer Bank"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
+                render_raw_tested_issues_expander(qd)
                 render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                render_trigger_facts_text("Trigger Facts", qd["trigger_facts"])
+                render_trigger_facts("Trigger Facts", qd)
+                render_raw_trigger_facts_expander(qd)
                 render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
-
-                with st.expander("Model Points - open after self-grading", expanded=False):
-                    render_readable_text("Model Points", qd["model_points"], READING_FONT_SIZE)
+                render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
+                render_trigger_candidate_diagnostics(qd)
+                render_sample_answer_section(qd, expanded=False)
 
             col1, col2, col3 = st.columns(3)
 
@@ -3289,11 +4788,14 @@ TRIGGER FACTS:
 
 
 elif menu == "Mini Essay Drill":
-    st.header("Mini Essay Drill")
-    st.caption("Previous exam question -> issue -> rule -> trigger facts. No full essay.")
+    render_page_title(
+        "Mini Essay Drill",
+        "Previous exam question -> issue -> rule -> trigger facts. No full essay.",
+    )
     st.info("This is an 8-minute drill focused on recognition, rule recall, and fact connection.")
 
-    question_id = question_picker(active_default=True)
+    with st.container(border=True):
+        question_id = question_picker(active_default=True)
 
     if question_id:
         q = get_question_by_id(question_id)
@@ -3302,128 +4804,187 @@ elif menu == "Mini Essay Drill":
             st.error("Question not found.")
         else:
             qd = unpack_question(q)
-
-            render_question_strip(qd)
-            render_stopwatch(f"mini_{qd['id']}")
             subquestions = extract_subquestions(qd["call_of_question"])
+            reveal_key = f"mini_reveal_{qd['id']}"
 
-            with st.expander("1. Call of the Question - read this first", expanded=True):
-                render_call_text("Call of the Question", qd["call_of_question"])
+            render_meta_strip(qd)
 
-            st.markdown("### Mini Fact Packet")
-            render_fact_pattern_text("Mini Fact Packet", make_mini_fact_packet(qd["question_text"]), max_chars=None)
+            main_col, side_col = st.columns([2.25, 1], gap="large")
 
-            with st.expander("Open full fact pattern if needed", expanded=False):
-                fact_only = (
-                    extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
-                    if "extract_fact_pattern_only" in globals()
-                    else qd["question_text"]
-                )
-                render_fact_pattern_text("Full Fact Pattern", fact_only)
+            with side_col:
+                st.markdown("### Study Tools")
+                render_stopwatch(f"mini_{qd['id']}")
 
-            try:
-                hints_used = render_progressive_hints(qd)
-            except NameError:
-                hints_used = 0
+                with st.container(border=True):
+                    st.markdown("#### Question Snapshot")
+                    st.write(f"Subject: {qd['subject']}")
+                    st.write(f"Status: {qd['july_2026_status'] or '-'}")
+                    st.write(f"Priority: {qd['priority'] or '-'}")
+                    st.write(f"Source: {qd['source'] or '-'}")
 
-            st.markdown("### Breakout Calls")
-            st.caption("Answer one call at a time. Compact call formatting is intentional.")
+                try:
+                    hints_used = render_progressive_hints(qd)
+                except NameError:
+                    hints_used = 0
 
-            all_subanswers = []
+                render_trigger_candidate_diagnostics(qd)
 
-            for index, subq in enumerate(subquestions, start=1):
-                with st.container():
-                    st.markdown("---")
-                    answer_piece = render_subquestion_card(qd, subq, index, hints_used)
-                    all_subanswers.append(answer_piece)
+                with st.expander("Exact Attack Outline Rule", expanded=False):
+                    outline_matches = find_best_outline_rules_for_question(
+                        qd.get("subject", ""),
+                        qd.get("tested_issues", ""),
+                        qd.get("rules", ""),
+                        qd.get("traps", ""),
+                        limit=3,
+                    )
 
-            combined_answer = "\n\n====================\n\n".join(all_subanswers)
-
-            with st.expander("Search Attack Outline rules manually", expanded=False):
-                search_term = st.text_input(
-                    "Search Attack Outline rules",
-                    placeholder="personal jurisdiction, hearsay, statute of frauds"
-                )
-
-                if search_term:
-                    results = search_outline_rules(search_term, subject=qd["subject"], limit=5)
-
-                    if results:
-                        for rule in results:
+                    if outline_matches:
+                        for rule in outline_matches:
                             render_attack_rule_box(rule)
                     else:
-                        st.info("No Attack Outline rules matched that search.")
+                        st.info("No exact outline rule found yet.")
 
-            reveal_gate_box("Reveal only after writing your answer.")
+                    search_term = st.text_input(
+                        "Search Attack Outline rules",
+                        placeholder="personal jurisdiction, hearsay, statute of frauds",
+                        key=f"mini_outline_search_{qd['id']}",
+                    )
 
-            if st.button("Reveal Issues + Rules"):
-                render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                render_trigger_facts_text("Trigger Facts", qd["trigger_facts"])
-                render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                    if search_term:
+                        results = search_outline_rules(search_term, subject=qd["subject"], limit=5)
 
-                with st.expander("Model Points - open only after self-grading", expanded=False):
-                    render_readable_text("Model Points", qd["model_points"], READING_FONT_SIZE)
+                        if results:
+                            for rule in results:
+                                render_attack_rule_box(rule)
+                        else:
+                            st.info("No Attack Outline rules matched that search.")
 
-            st.divider()
-            st.info(
-                "Score the whole mini drill honestly. If you needed hints or only got one call right, "
-                "reserve a 5 for a complete, mostly independent answer."
-            )
+                with st.expander("Plug & Play Template", expanded=False):
+                    plug_matches = find_best_plug_play_for_call(
+                        qd.get("subject", ""),
+                        qd.get("call_of_question", ""),
+                        qd.get("question_text", ""),
+                        qd.get("tested_issues", ""),
+                        limit=3,
+                    )
 
-            col1, col2, col3 = st.columns(3)
+                    if plug_matches:
+                        for template in plug_matches:
+                            render_plug_play_template(template)
+                    else:
+                        st.info("No Plug & Play template matched yet.")
 
-            with col1:
-                issue_score = st.slider("Issue spotting score", 0, 5, 0)
+                reveal_gate_box("Reveal only after writing your answer.")
 
-            with col2:
-                rule_score = st.slider("Rule recall score", 0, 5, 0)
+                if st.button("Reveal Issues + Rules"):
+                    st.session_state[reveal_key] = True
 
-            with col3:
-                fact_score = st.slider("Fact trigger score", 0, 5, 0)
+                if st.session_state.get(reveal_key, False):
+                    render_tested_issues_text("Tested Issues", qd["tested_issues"])
+                    render_raw_tested_issues_expander(qd)
+                    render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
+                    render_trigger_facts("Trigger Facts", qd)
+                    render_raw_trigger_facts_expander(qd)
+                    render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                    render_sample_answer_section(qd, expanded=False)
 
-            raw_score = round((issue_score + rule_score + fact_score) / 3)
-            adjusted_score = max(0, raw_score - 1) if hints_used >= 3 else raw_score
+            with main_col:
+                with st.expander("1. Call of the Question - read this first", expanded=True):
+                    render_call_text("Call of the Question", qd["call_of_question"])
 
-            score_col1, score_col2 = st.columns(2)
-            score_col1.metric("Raw score", f"{raw_score}/5")
-            score_col2.metric("Adjusted training score", f"{adjusted_score}/5")
+                st.markdown("### Mini Fact Packet")
+                render_fact_pattern_text("Mini Fact Packet", make_mini_fact_packet(qd["question_text"]), max_chars=None)
 
-            missed = st.text_area(
-                "What did you miss?",
-                placeholder="Example: I spotted the broad issue but missed one required element.",
-                height=100
-            )
+                if st.session_state.get(reveal_key, False):
+                    render_universal_highlighted_fact_pattern(
+                        "Mini Fact Packet with Trigger Facts Highlighted",
+                        qd,
+                        text=make_mini_fact_packet(qd["question_text"]),
+                    )
 
-            notes = st.text_area(
-                "Fix note for future you",
-                placeholder="Example: Next time map issue -> rule -> trigger fact before writing.",
-                height=100
-            )
+                with st.expander("Open full fact pattern if needed", expanded=False):
+                    fact_only = (
+                        extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
+                        if "extract_fact_pattern_only" in globals()
+                        else qd["question_text"]
+                    )
+                    render_fact_pattern_text("Full Fact Pattern", fact_only)
 
-            if st.button("Save Mini Essay Attempt"):
-                notes_with_hints = f"Hints used: {hints_used}/5\n\n{notes}"
+                st.markdown("### Breakout Calls")
+                st.caption("Answer one call at a time. Compact call formatting is intentional.")
 
-                save_attempt(
-                    qd["id"],
-                    "Mini Essay Drill - Broken Out by Calls",
-                    combined_answer,
-                    adjusted_score,
-                    missed,
-                    notes_with_hints,
-                    minutes_spent=8
+                all_subanswers = []
+
+                for index, subq in enumerate(subquestions, start=1):
+                    with st.container():
+                        st.markdown("---")
+                        answer_piece = render_subquestion_card(qd, subq, index, hints_used)
+                        all_subanswers.append(answer_piece)
+
+                combined_answer = "\n\n====================\n\n".join(all_subanswers)
+
+                st.divider()
+                st.info(
+                    "Score the whole mini drill honestly. If you needed hints or only got one call right, "
+                    "reserve a 5 for a complete, mostly independent answer."
                 )
 
-                st.success("Mini essay attempt saved.")
+                col1, col2, col3 = st.columns(3)
 
-            st.info(
-                "Mini Essay Rule: if you can spot the issue and write the rule from memory, "
-                "the full essay becomes much easier."
-            )
+                with col1:
+                    issue_score = st.slider("Issue spotting score", 0, 5, 0)
+
+                with col2:
+                    rule_score = st.slider("Rule recall score", 0, 5, 0)
+
+                with col3:
+                    fact_score = st.slider("Fact trigger score", 0, 5, 0)
+
+                raw_score = round((issue_score + rule_score + fact_score) / 3)
+                adjusted_score = max(0, raw_score - 1) if hints_used >= 3 else raw_score
+
+                score_col1, score_col2 = st.columns(2)
+                score_col1.metric("Raw score", f"{raw_score}/5")
+                score_col2.metric("Adjusted training score", f"{adjusted_score}/5")
+
+                missed = st.text_area(
+                    "What did you miss?",
+                    placeholder="Example: I spotted the broad issue but missed one required element.",
+                    height=100
+                )
+
+                notes = st.text_area(
+                    "Fix note for future you",
+                    placeholder="Example: Next time map issue -> rule -> trigger fact before writing.",
+                    height=100
+                )
+
+                if st.button("Save Mini Essay Attempt"):
+                    notes_with_hints = f"Hints used: {hints_used}/5\n\n{notes}"
+
+                    save_attempt(
+                        qd["id"],
+                        "Mini Essay Drill - Broken Out by Calls",
+                        combined_answer,
+                        adjusted_score,
+                        missed,
+                        notes_with_hints,
+                        minutes_spent=8
+                    )
+
+                    st.success("Mini essay attempt saved.")
+
+                st.info(
+                    "Mini Essay Rule: if you can spot the issue and write the rule from memory, "
+                    "the full essay becomes much easier."
+                )
 
 
 elif menu == "Issue Spotting Drill":
-    st.header("Issue Spotting Drill")
+    render_page_title(
+        "Issue Spotting Drill",
+        "Spot tested issues first, then compare against the answer bank.",
+    )
 
     question_id = question_picker()
 
@@ -3435,38 +4996,70 @@ elif menu == "Issue Spotting Drill":
         else:
             qd = unpack_question(q)
 
-            render_question_strip(qd)
-            render_stopwatch(f"issue_{qd['id']}")
+            render_meta_strip(qd)
 
             study_tip("Timer target: 5 minutes. Read the call first, then identify the legal triggers.")
 
-            with st.expander("Call of the Question", expanded=True):
-                render_call_text("Call of the Question", qd["call_of_question"])
+            issue_main_col, issue_side_col = st.columns([2.1, 1], gap="large")
 
-            with st.expander("Fact Pattern", expanded=True):
-                fact_only = (
-                    extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
-                    if "extract_fact_pattern_only" in globals()
-                    else qd["question_text"]
+            with issue_side_col:
+                st.markdown("### Study Tools")
+                render_stopwatch(f"issue_{qd['id']}")
+
+                show_highlights_early = st.checkbox(
+                    "Review mode: show trigger fact highlights immediately",
+                    value=False,
                 )
-                render_fact_pattern_text("Fact Pattern", fact_only)
 
-            hints_used = render_progressive_hints(qd)
+                render_trigger_candidate_diagnostics(qd)
 
-            user_issues = st.text_area(
-                "Your issue list",
-                placeholder="List each issue in short phrases.",
-                height=180
-            )
+                hints_used = render_progressive_hints(qd)
+
+                reveal_gate_box("Reveal only after writing your answer.")
+
+                if st.button("Reveal Tested Issues"):
+                    render_tested_issues_text("Tested Issues", qd["tested_issues"])
+                    render_raw_tested_issues_expander(qd)
+                    render_trigger_facts("Trigger Facts", qd)
+                    render_raw_trigger_facts_expander(qd)
+                    render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                    render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
+                    render_trigger_candidate_diagnostics(qd)
+                    flashcard_matches = find_relevant_rule_flashcards(
+                        qd.get("tested_issues", ""),
+                        subject=qd.get("subject", ""),
+                        limit=3,
+                    )
+                    if flashcard_matches:
+                        st.markdown("### Relevant Flashcard Rules")
+                        for card in flashcard_matches:
+                            render_rule_flashcard_box(card)
+                    else:
+                        st.info("No relevant Flashcards2025 rules matched this issue yet.")
+                    render_sample_answer_section(qd, expanded=False)
+
+            with issue_main_col:
+                with st.expander("Call of the Question", expanded=True):
+                    render_call_text("Call of the Question", qd["call_of_question"])
+
+                with st.expander("Fact Pattern", expanded=True):
+                    fact_only = (
+                        extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
+                        if "extract_fact_pattern_only" in globals()
+                        else qd["question_text"]
+                    )
+                    if show_highlights_early:
+                        render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd, text=fact_only)
+                    else:
+                        render_fact_pattern_text("Fact Pattern", fact_only)
+
+                user_issues = st.text_area(
+                    "Your issue list",
+                    placeholder="List each issue in short phrases.",
+                    height=180
+                )
 
             confidence = st.slider("Confidence", 1, 5, 3)
-
-            reveal_gate_box("Reveal only after writing your answer.")
-
-            if st.button("Reveal Tested Issues"):
-                render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                render_trigger_facts_text("Trigger Facts", qd["trigger_facts"])
-                render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
 
             col1, col2 = st.columns(2)
 
@@ -3496,71 +5089,425 @@ elif menu == "Issue Spotting Drill":
                 st.success("Attempt saved.")
 
 
-elif menu == "Rule Retrieval Drill":
-    st.header("Rule Retrieval Drill")
+elif menu == "Rule Flashcards":
+    render_page_title(
+        "Rule Flashcards",
+        "Printable rule cards for active recall. Inspired by your MBE miss-card format.",
+    )
 
-    question_id = question_picker()
+    imported_flashcards_all = get_rule_flashcards() if "get_rule_flashcards" in globals() else []
+    outline_rules_all = get_outline_rules() if "get_outline_rules" in globals() else []
+    templates_all = get_plug_play_templates() if "get_plug_play_templates" in globals() else []
 
-    if question_id:
-        q = get_question_by_id(question_id)
+    subjects = sorted({
+        str(row[1]).strip()
+        for row in imported_flashcards_all
+        if len(row) > 1 and str(row[1]).strip()
+    } | {
+        str(row[1]).strip()
+        for row in outline_rules_all
+        if len(row) > 1 and str(row[1]).strip()
+    } | {
+        str(row[1]).strip()
+        for row in templates_all
+        if len(row) > 1 and str(row[1]).strip()
+    })
 
-        if q is None:
-            st.error("Question not found.")
+    if not subjects:
+        st.warning("No flashcards found. Import Flashcards2025, Attack Outline rules, or Plug & Play templates first.")
+        st.code("python import_flashcards2025.py Flashcards2025.rtf")
+        st.code('python import_attack_outline.py "bar attack.pdf"')
+        st.code('python import_plug_play_templates.py "LBP Plug and Play-Essay Templates to Help You Write Faster Score Higher.pdf"')
+        st.stop()
+
+    controls_col1, controls_col2, controls_col3 = st.columns([1.2, 1.1, 1], gap="large")
+
+    with controls_col1:
+        selected_subject = st.selectbox("Subject filter", ["All"] + subjects, key="flashcards_subject")
+
+    with controls_col2:
+        source_filter = st.radio(
+            "Source",
+            ["Flashcards2025", "Attack Outline", "Plug & Play", "All"],
+            horizontal=True,
+            key="flashcards_source",
+        )
+
+    with controls_col3:
+        card_count = st.slider("Number of cards", 4, 40, 12, key="flashcards_count")
+
+    search_term = st.text_input(
+        "Search rule topic",
+        placeholder="battery, personal jurisdiction, hearsay, agency, statute of frauds",
+        key="flashcards_search",
+    )
+
+    include_ru = st.checkbox("Include Russian shortcut", value=True, key="flashcards_ru")
+
+    if st.button("Print this page"):
+        st.info("Use your browser print shortcut: Ctrl+P / Cmd+P. Print CSS is enabled.")
+
+    imported_results = []
+    outline_results = []
+    template_results = []
+    subject_arg = None if selected_subject == "All" else selected_subject
+
+    if source_filter in ["Flashcards2025", "All"]:
+        if search_term:
+            imported_results = search_rule_flashcards(search_term, subject=subject_arg, limit=card_count)
         else:
-            qd = unpack_question(q)
+            imported_results = get_rule_flashcards(subject=subject_arg)[:card_count]
 
-            render_question_strip(qd)
-            render_stopwatch(f"rule_{qd['id']}")
+    if source_filter in ["Attack Outline", "All"]:
+        if search_term:
+            outline_results = search_outline_rules(search_term, subject=subject_arg, limit=card_count)
+        else:
+            outline_results = get_outline_rules(subject=subject_arg)[:card_count]
 
-            st.markdown("### Tested Issue Bank")
-            render_tested_issues_text("Tested Issues", qd["tested_issues"])
+    if source_filter in ["Plug & Play", "All"]:
+        if search_term:
+            template_results = search_plug_play_templates(search_term, subject=subject_arg, limit=card_count)
+        else:
+            template_results = get_plug_play_templates(subject=subject_arg)[:card_count]
 
-            reveal_gate_box("Write the rule from memory before opening the answer.")
+    cards = []
+    card_index = 1
 
-            hints_used = render_progressive_hints(qd)
+    for card in imported_results:
+        cards.append(make_rule_card_from_flashcard(card, card_index))
+        card_index += 1
 
-            user_rule = st.text_area(
-                "Write the rule from memory",
-                placeholder="Under the rule..., elements are...",
-                height=180
+    for rule in outline_results:
+        cards.append(make_rule_card_from_outline(rule, card_index))
+        card_index += 1
+
+    for template in template_results:
+        cards.append(make_rule_card_from_template(template, card_index))
+        card_index += 1
+
+    cards = cards[:card_count]
+
+    if not cards:
+        st.warning("No flashcards found. Import Flashcards2025, Attack Outline rules, or Plug & Play templates first, or broaden your search.")
+    else:
+        export_html = build_flashcards_html_document(cards, include_ru=include_ru)
+
+        if st.button("Export Flashcards HTML"):
+            st.session_state["show_flashcards_download"] = True
+
+        if st.session_state.get("show_flashcards_download", False):
+            st.download_button(
+                "Download Flashcards HTML",
+                data=export_html,
+                file_name="mee_rule_flashcards.html",
+                mime="text/html",
             )
 
-            reveal_gate_box("Reveal only after writing your answer.")
+        render_flashcard_grid(cards, include_ru=include_ru)
 
-            if st.button("Reveal Rule"):
-                render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
 
-            col1, col2 = st.columns(2)
+elif menu in ["Rule Learning Portal", "Rule Flash Drill", "Rule Retrieval Drill"]:
+    render_page_title(
+        "Rule Learning Portal",
+        "Learn black-letter rules by subject. No MEE question required.",
+    )
+    st.info(
+        "Use this when the rule itself is fuzzy. Pick a subject and rule, write it from memory, "
+        "reveal the exact rule, then rewrite your clean version."
+    )
 
-            with col1:
-                self_score = st.slider("Self-score: rule retrieval", 0, 5, 0)
+    imported_flashcards = get_rule_flashcards() if "get_rule_flashcards" in globals() else []
+    outline_rules = get_outline_rules() if "get_outline_rules" in globals() else []
+    plug_templates = get_plug_play_templates() if "get_plug_play_templates" in globals() else []
 
-            with col2:
-                _sw_min = min(60, max(0, stopwatch_minutes(f"rule_{qd['id']}")))
-                minutes_spent = st.number_input("Minutes spent", min_value=0, max_value=60, value=_sw_min or 7)
+    subjects = sorted({
+        str(row[1]).strip()
+        for row in imported_flashcards
+        if len(row) > 1 and str(row[1]).strip()
+    } | {
+        str(row[1]).strip()
+        for row in outline_rules
+        if len(row) > 1 and str(row[1]).strip()
+    } | {
+        str(row[1]).strip()
+        for row in plug_templates
+        if len(row) > 1 and str(row[1]).strip()
+    })
 
-            missed_issues = st.text_area("Which rule/element did you miss?", height=100)
-            notes = st.text_area("Fix note", height=100)
+    if not subjects:
+        st.warning("No rules imported yet. Import Flashcards2025, Attack Outline rules, or Plug & Play templates first.")
+        st.code("python import_flashcards2025.py Flashcards2025.rtf")
+        st.code('python import_attack_outline.py "bar attack.pdf"')
+        st.code('python import_plug_play_templates.py "LBP Plug and Play-Essay Templates to Help You Write Faster Score Higher.pdf"')
+        st.stop()
 
-            if st.button("Save Rule Retrieval Attempt"):
-                notes_with_hints = f"Hints used: {hints_used}/5\n\n{notes}"
+    top_col1, top_col2 = st.columns([1, 1], gap="large")
 
-                save_attempt(
-                    qd["id"],
-                    "Rule Retrieval",
-                    user_rule,
-                    self_score,
-                    missed_issues,
-                    notes_with_hints,
-                    minutes_spent=minutes_spent
+    with top_col1:
+        selected_subject = st.selectbox("Choose subject", subjects)
+
+    with top_col2:
+        source_choice = st.radio(
+            "Rule source",
+            ["Flashcards2025", "Attack Outline Rules", "Plug & Play Templates", "All"],
+            horizontal=True,
+        )
+
+    search_term = st.text_input(
+        "Search rule topic",
+        placeholder="battery, personal jurisdiction, hearsay, actual authority, statute of frauds",
+    )
+
+    if search_term:
+        subject_flashcards = (
+            search_rule_flashcards(search_term, subject=selected_subject, limit=50)
+            if source_choice in ["Flashcards2025", "All"]
+            else []
+        )
+        subject_outline_rules = (
+            search_outline_rules(search_term, subject=selected_subject, limit=50)
+            if source_choice in ["Attack Outline Rules", "All"]
+            else []
+        )
+        subject_templates = (
+            search_plug_play_templates(search_term, subject=selected_subject, limit=50)
+            if source_choice in ["Plug & Play Templates", "All"]
+            else []
+        )
+    else:
+        subject_flashcards = (
+            get_rule_flashcards(subject=selected_subject)[:50]
+            if source_choice in ["Flashcards2025", "All"]
+            else []
+        )
+        subject_outline_rules = (
+            get_outline_rules(subject=selected_subject)[:50]
+            if source_choice in ["Attack Outline Rules", "All"]
+            else []
+        )
+        subject_templates = (
+            get_plug_play_templates(subject=selected_subject)[:50]
+            if source_choice in ["Plug & Play Templates", "All"]
+            else []
+        )
+
+    rule_options = []
+
+    for row in subject_flashcards:
+        card_id, subject, rule_title, rule_text, source_file, tags = row
+        label = f"{rule_title} - Flashcards2025"
+        rule_options.append((label, "Flashcards2025", row))
+
+    for row in subject_outline_rules:
+        rule_id, subject, rule_title, appearance_rate, rule_text, pdf_page, printed_page, source_file = row
+        appearance = appearance_rate or "Rule"
+        label = f"{rule_title} - {appearance} - Attack Outline"
+        rule_options.append((label, "Attack Outline", row))
+
+    for row in subject_templates:
+        template_id, subject, module_title, scenario_trigger, issue_statement, rule_text, analysis_template, conclusion_template, testing_notes, pdf_page, source_file = row
+        label = f"{module_title} - Plug & Play"
+        rule_options.append((label, "Plug & Play", row))
+
+    if not rule_options:
+        st.info("No matching rules found for this subject/search. Try a broader search term.")
+        st.stop()
+
+    labels = [item[0] for item in rule_options]
+    selected_rule_label = st.selectbox("Choose rule/topic to drill", labels)
+    selected_index = labels.index(selected_rule_label)
+    selected_label, selected_source_type, selected_item = rule_options[selected_index]
+
+    if selected_source_type == "Flashcards2025":
+        selected_rule_title = selected_item[2]
+        prompt = f"What is the rule for {selected_rule_title}?"
+    elif selected_source_type == "Attack Outline":
+        selected_rule_title = selected_item[2]
+        prompt = f"What is the rule for: {selected_rule_title}?"
+    else:
+        selected_rule_title = selected_item[2]
+        prompt = f"What is the rule and issue framework for: {selected_rule_title}?"
+
+    prompt_slug = re.sub(r"[^A-Za-z0-9]+", "_", selected_rule_label[:80]).strip("_")
+    reveal_key = f"rule_learning_reveal_{prompt_slug}"
+
+    main_col, side_col = st.columns([2.1, 1], gap="large")
+
+    with main_col:
+        st.markdown("### Rule Prompt")
+        st.info(prompt)
+
+        memory_rule = st.text_area(
+            "Write the rule from memory",
+            placeholder="State the legal test, required elements, standard, and any major exception.",
+            height=180,
+            key=f"rule_learning_memory_{prompt_slug}",
+        )
+        st.caption("Do this closed-book first. The goal is active recall, not recognition.")
+
+        confidence = st.slider(
+            "Confidence before reveal",
+            1,
+            5,
+            3,
+            key=f"rule_learning_confidence_{prompt_slug}",
+        )
+
+        if st.button("Reveal Exact Rule", key=f"rule_learning_reveal_btn_{prompt_slug}"):
+            st.session_state[reveal_key] = True
+
+        if st.session_state.get(reveal_key, False):
+            st.markdown("### Exact Rule")
+
+            if selected_source_type == "Flashcards2025":
+                render_rule_flashcard_box(selected_item)
+                related_rules = search_outline_rules(selected_rule_title, subject=selected_subject, limit=2)
+                related_templates = search_plug_play_templates(selected_rule_title, subject=selected_subject, limit=2)
+                if source_choice == "All" and (related_rules or related_templates):
+                    with st.expander("Related Rule Support", expanded=False):
+                        for rule in related_rules:
+                            render_attack_rule_box(rule)
+                        for template in related_templates:
+                            render_plug_play_template(template)
+            elif selected_source_type == "Attack Outline":
+                render_attack_rule_box(selected_item)
+                related_templates = search_plug_play_templates(selected_rule_title, subject=selected_subject, limit=2)
+                if source_choice == "All" and related_templates:
+                    with st.expander("Related Plug & Play Templates", expanded=False):
+                        for template in related_templates:
+                            render_plug_play_template(template)
+            else:
+                render_plug_play_template(selected_item)
+                related_rules = search_outline_rules(selected_rule_title, subject=selected_subject, limit=3)
+                if source_choice == "All" and related_rules:
+                    with st.expander("Related Attack Outline Rules", expanded=False):
+                        for rule in related_rules:
+                            render_attack_rule_box(rule)
+
+            with st.expander("Rule comparison checklist", expanded=True):
+                st.markdown("""
+                Check your answer:
+                - Did I name the correct doctrine?
+                - Did I include all elements?
+                - Did I include the correct standard?
+                - Did I include exceptions or defenses?
+                - Could I write this in 20 seconds on the MEE?
+                """)
+
+            final_rule = st.text_area(
+                "Rewrite the clean final rule in your own words",
+                placeholder="This is the version future-you should memorize. Keep it short, accurate, and exam-ready.",
+                height=160,
+                key=f"rule_learning_final_{prompt_slug}",
+            )
+
+            score_col1, score_col2, score_col3 = st.columns(3)
+
+            with score_col1:
+                element_score = st.slider("Element accuracy", 0, 5, 0, key=f"rule_learning_element_{prompt_slug}")
+
+            with score_col2:
+                completeness_score = st.slider("Completeness", 0, 5, 0, key=f"rule_learning_complete_{prompt_slug}")
+
+            with score_col3:
+                fluency_score = st.slider("Speed / fluency", 0, 5, 0, key=f"rule_learning_fluency_{prompt_slug}")
+
+            average_score = round((element_score + completeness_score + fluency_score) / 3)
+            st.metric("Rule score", f"{average_score}/5")
+
+            missed_elements = st.text_area(
+                "What did you miss?",
+                placeholder="Example: I forgot that offensive contact counts for battery even without physical injury.",
+                height=100,
+                key=f"rule_learning_missed_{prompt_slug}",
+            )
+
+            mnemonic = st.text_area(
+                "Memory note / mnemonic",
+                placeholder="Example: Battery = intent + harmful/offensive contact.",
+                height=100,
+                key=f"rule_learning_notes_{prompt_slug}",
+            )
+
+            if st.button("Save Rule Attempt", key=f"rule_learning_save_{prompt_slug}"):
+                save_rule_attempt(
+                    subject=selected_subject,
+                    rule_title=selected_rule_title,
+                    source_type=selected_source_type,
+                    prompt=prompt,
+                    memory_rule=memory_rule,
+                    final_rule=final_rule,
+                    score=average_score,
+                    missed_elements=missed_elements,
+                    notes=f"Confidence before reveal: {confidence}/5\n\n{mnemonic}",
                 )
 
-                st.success("Attempt saved.")
+                st.success("Rule attempt saved. Weak rules become review material.")
+
+    with side_col:
+        with st.expander("Browse rules in this subject", expanded=False):
+            browser_rows = []
+            for row in get_rule_flashcards(subject=selected_subject)[:50]:
+                browser_rows.append({
+                    "rule title": row[2],
+                    "appearance": "",
+                    "source": row[4] or "Flashcards2025",
+                })
+            for row in get_outline_rules(subject=selected_subject)[:50]:
+                browser_rows.append({
+                    "rule title": row[2],
+                    "appearance": row[3] or "",
+                    "source": "Attack Outline",
+                })
+            for row in get_plug_play_templates(subject=selected_subject)[:50]:
+                browser_rows.append({
+                    "rule title": row[2],
+                    "appearance": "",
+                    "source": "Plug & Play",
+                })
+
+            if browser_rows:
+                st.dataframe(pd.DataFrame(browser_rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("No rules found for this subject.")
+
+        with st.expander("Review recent rule attempts", expanded=False):
+            recent_attempts = get_rule_attempts(limit=20) if "get_rule_attempts" in globals() else []
+
+            if not recent_attempts:
+                st.info("No rule attempts saved yet.")
+            else:
+                for attempt in recent_attempts:
+                    (
+                        attempt_id,
+                        subject,
+                        rule_title,
+                        source_type,
+                        attempt_prompt,
+                        attempt_memory_rule,
+                        attempt_final_rule,
+                        score,
+                        missed_elements,
+                        notes,
+                        created_at,
+                    ) = attempt
+
+                    st.markdown(f"**{created_at} - {subject} - {rule_title} - {score}/5**")
+                    st.caption(source_type)
+                    st.markdown("**Prompt**")
+                    st.write(attempt_prompt)
+                    st.markdown("**Missed elements**")
+                    st.write(missed_elements or "No missed elements saved.")
+                    st.markdown("**Final clean rule**")
+                    st.write(attempt_final_rule or "No final rule saved.")
+                    st.divider()
 
 
 elif menu == "Timed IRAC Drill":
-    st.header("Timed IRAC Drill")
+    render_page_title(
+        "Timed IRAC Drill",
+        "Write under time, then compare rule accuracy and fact use.",
+    )
 
     question_id = question_picker()
 
@@ -3615,7 +5562,9 @@ elif menu == "Timed IRAC Drill":
                 # Issue tags as colored pills
                 _issues_raw = qd.get("tested_issues", "") or ""
                 if _issues_raw:
-                    _tags = [t.strip() for t in re.split(r"[;\n]", _issues_raw) if t.strip()]
+                    _tags = extract_issue_bullets(_issues_raw)
+                    if not _tags:
+                        _tags = [t.strip() for t in re.split(r"[;\n]", clean_tested_issues_text(_issues_raw)) if t.strip()]
                     if _tags:
                         _pills = "".join(
                             f'<span style="display:inline-block;background:#dbeafe;color:#1e40af;'
@@ -3680,11 +5629,16 @@ elif menu == "Timed IRAC Drill":
             reveal_gate_box("Reveal only after writing your answer.")
 
             if st.button("Reveal Model Points"):
-                with st.expander("Model Points - open after self-grading", expanded=False):
-                    render_readable_text("Model Points", qd["model_points"], READING_FONT_SIZE)
+                render_tested_issues_text("Tested Issues", qd["tested_issues"])
+                render_raw_tested_issues_expander(qd)
                 render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                render_trigger_facts_text("Trigger Facts", qd["trigger_facts"])
+                render_trigger_facts("Trigger Facts", qd)
+                render_raw_trigger_facts_expander(qd)
                 render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                render_sample_answer_section(qd, expanded=False)
+                with st.expander("Fact Pattern with Trigger Facts Highlighted", expanded=False):
+                    render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
+                render_trigger_candidate_diagnostics(qd)
 
 
 elif menu == "Due Review Queue":
@@ -3722,9 +5676,12 @@ elif menu == "Due Review Queue":
 
             if st.button("Reveal Answer Bank"):
                 render_tested_issues_text("Tested Issues", qd["tested_issues"])
+                render_raw_tested_issues_expander(qd)
                 render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                render_trigger_facts_text("Trigger Facts", qd["trigger_facts"])
+                render_trigger_facts("Trigger Facts", qd)
+                render_raw_trigger_facts_expander(qd)
                 render_readable_text("Traps", qd["traps"], READING_FONT_SIZE)
+                render_sample_answer_section(qd, expanded=False)
 
             score = st.slider("Review score", 0, 5, 0)
             missed = st.text_area("Still weak on:", height=100)
@@ -3961,6 +5918,7 @@ elif menu == "Review Attempts":
         for row in attempts:
             (
                 attempt_id,
+                question_id,
                 subject,
                 exam_name,
                 question_number,
@@ -3978,10 +5936,46 @@ elif menu == "Review Attempts":
             ):
                 st.write(f"Minutes spent: {minutes_spent}")
                 st.markdown("### Response")
-                st.write(response_text)
+                if response_text:
+                    st.text_area(
+                        "Student response",
+                        value=response_text,
+                        height=220,
+                        key=f"attempt_response_{attempt_id}",
+                        disabled=True,
+                    )
+                else:
+                    st.info("No student response saved for this attempt.")
 
                 st.markdown("### Missed")
-                st.write(missed)
+                st.write(missed or "No missed issues saved.")
 
                 st.markdown("### Notes")
-                st.write(notes)
+                st.write(notes or "No notes saved.")
+
+                q = get_question_by_id(question_id)
+                if q is not None:
+                    qd = unpack_question(q)
+                    render_sample_answer_section(qd, expanded=False)
+                else:
+                    st.info("Original question not found for this attempt.")
+
+
+elif menu == "MBE Drills":
+    st.header("MBE Drills - Trap Trainer")
+    st.caption(
+        "Multiple-choice trap drilling. Drill or lecture mode, import your "
+        "AdaptiBar misses, and add your own cards. Your added cards save in this "
+        "browser - use Export now and then to keep a backup file."
+    )
+
+    _mbe_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mbe_trap_trainer.html")
+    try:
+        with open(_mbe_path, "r", encoding="utf-8") as _f:
+            _mbe_html = _f.read()
+        components.html(_mbe_html, height=1500, scrolling=True)
+    except FileNotFoundError:
+        st.error(
+            "mbe_trap_trainer.html was not found next to app.py. "
+            "Make sure the file is in the project folder."
+        )
