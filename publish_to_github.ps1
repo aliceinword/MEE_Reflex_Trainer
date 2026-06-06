@@ -28,9 +28,15 @@ $codeFiles = @(
     "import_questions_bank.py",
     "import_questions_docx.py",
     "import_plug_play_docx.py",
+    "import_condensed_sample_answers.py",
+    "import_flashcards2025.py",
+    "populate_traps.py",
+    "audit_sample_answers.py",
     "reset_studicata_import.py",
     "make_user.py",
     "mbe_trap_trainer.html",
+    "requirements.txt",
+    "run_app.bat",
     ".streamlit\config.toml",
     ".streamlit\secrets.toml.example"
 )
