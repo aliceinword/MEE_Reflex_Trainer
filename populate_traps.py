@@ -13,12 +13,12 @@ DB_PATH = Path("mee_reflex.db")
 SUBJECT_TRAPS = {
     "business associations": [
         "Do not confuse actual authority with apparent authority.",
-        "Actual authority depends on the principal's manifestations to the agent.",
-        "Apparent authority depends on the principal's manifestations to the third party.",
+        "Actual authority = principal's manifestations to the agent.",
+        "Apparent authority = principal's manifestations to the third party.",
         "For partnership, profit sharing creates a presumption but exceptions may apply.",
         "Separate entity liability from personal liability.",
-        "For corporations, separate director, officer, and shareholder capacities.",
-        "For fiduciary duties, separate duty of care from duty of loyalty.",
+        "Separate director, officer, and shareholder capacities.",
+        "Separate duty of care from duty of loyalty.",
     ],
     "agency": [
         "Do not confuse actual authority with apparent authority.",
@@ -34,29 +34,26 @@ SUBJECT_TRAPS = {
     "civil procedure": [
         "Do not confuse subject-matter jurisdiction with personal jurisdiction.",
         "Diversity is measured at filing.",
-        "Citizenship is domicile for individuals; incorporation and principal place of business for corporations.",
+        "Citizenship is domicile for individuals; corporations have dual citizenship.",
         "Supplemental jurisdiction has special plaintiff restrictions in diversity cases.",
         "Summary judgment requires no genuine dispute of material fact.",
-        "Final judgment and appeal posture matter.",
-        "Erie means federal procedural law and state substantive law.",
+        "Erie: federal procedural law, state substantive law.",
     ],
     "constitutional law": [
-        "Always identify state action first if private conduct is involved.",
+        "Identify state action first if private conduct is involved.",
         "For speech, identify the forum before choosing the test.",
         "Do not confuse content-based with content-neutral regulation.",
-        "Government purpose language does not automatically make a law content-neutral.",
-        "Strict scrutiny applies to content-based speech regulations unless unprotected speech is involved.",
-        "For Equal Protection, identify the classification and level of scrutiny.",
-        "For Due Process, separate procedural from substantive due process.",
-        "For Commerce Clause, separate congressional power from dormant commerce clause.",
+        "Government safety purpose does not automatically make speech regulation content-neutral.",
+        "Strict scrutiny applies to content-based speech regulations unless unprotected speech.",
+        "Separate Equal Protection, procedural due process, and substantive due process.",
     ],
     "contracts": [
         "Start with governing law: UCC goods versus common law services.",
         "Do not analyze breach before formation.",
-        "Statute of Frauds does not mean no contract; it means unenforceability unless an exception applies.",
-        "Under the UCC, watch merchant confirmatory memo, specially manufactured goods, admission, and part performance.",
+        "Statute of Frauds means unenforceability unless an exception applies.",
+        "Under UCC, check merchant confirmatory memo, specially manufactured goods, admission, and part performance.",
         "Parol evidence applies only after determining integration.",
-        "Damages: expectation first, reliance if expectation is too speculative.",
+        "Common-law modifications usually require consideration.",
     ],
     "torts": [
         "Negligence per se requires protected class and protected type of harm.",
@@ -69,55 +66,49 @@ SUBJECT_TRAPS = {
     ],
     "criminal law": [
         "Separate substantive crime from constitutional procedure.",
-        "Fourth Amendment: government action, search or seizure, warrant, and exception.",
+        "Fourth Amendment: government action, search/seizure, warrant, exception.",
         "Miranda requires custody plus interrogation.",
         "Sixth Amendment right to counsel is offense-specific and attaches after formal charge.",
         "Attempt requires specific intent plus substantial step.",
-        "Conspiracy does not merge; attempt usually merges.",
     ],
     "evidence": [
         "Do not jump to hearsay before asking purpose.",
         "If not offered for truth, it is not hearsay.",
-        "If hearsay, then check exemption or exception.",
-        "Relevance is a threshold issue.",
-        "Character evidence rules depend on civil or criminal context and purpose.",
+        "If hearsay, check exemption or exception.",
+        "Relevance is the threshold issue.",
         "Impeachment is different from substantive admissibility.",
-        "Privilege can block otherwise relevant evidence.",
     ],
     "real property": [
         "Recording acts require classifying the statute: race, notice, or race-notice.",
         "Do not confuse notice with recording.",
         "Easement appurtenant versus in gross matters.",
-        "Covenant and equitable servitude have different requirements.",
-        "Landlord-tenant questions often turn on assignment versus sublease.",
-        "Mortgage priority and foreclosure require timeline discipline.",
+        "Assignment versus sublease matters.",
         "Adverse possession requires every element for the statutory period.",
     ],
     "family law": [
         "Best interests of the child controls custody.",
-        "Premarital agreement enforceability is separate from child custody and support provisions.",
-        "Marital property and separate property must be classified before division.",
+        "Premarital agreement enforceability is separate from child custody/support.",
+        "Classify marital vs separate property before division.",
         "Fault usually does not control custody unless it affects the child.",
     ],
     "trusts": [
         "Separate will validity, trust validity, and distribution.",
         "Capacity and undue influence are different issues.",
-        "Revocation requires compliance with required formalities.",
-        "Trustee duties are fiduciary duties; separate loyalty, care, and impartiality.",
-        "Lapse and anti-lapse issues require beneficiary relationship and survival.",
+        "Revocation requires compliance with formalities.",
+        "Separate trustee duty of loyalty, care, and impartiality.",
+        "Anti-lapse requires beneficiary relationship and survival.",
     ],
     "secured transactions": [
-        "Attachment, perfection, and priority are separate steps.",
+        "Attachment, perfection, and priority are separate.",
         "A financing statement alone does not create attachment.",
         "PMSI priority has strict timing rules.",
-        "Buyer in ordinary course rules require inventory and a seller in the business of selling that kind of goods.",
+        "Buyer in ordinary course rules require seller in business of selling goods of that kind.",
         "Proceeds and after-acquired collateral require separate analysis.",
     ],
     "conflict": [
         "Ask which law applies before deciding who wins.",
         "In federal diversity, apply forum state choice-of-law rules under Klaxon.",
         "Do not confuse procedural and substantive issues.",
-        "For torts and contracts, identify the choice-of-law approach given in the facts.",
     ],
 }
 
@@ -199,7 +190,7 @@ def generate_traps(subject, call_of_question, tested_issues, rules, trigger_fact
 
     if any(word in model_l for word in ["however", "although", "on the other hand"]):
         add_unique(traps, "Watch the counterargument; the model analysis signals a fact or doctrine that cuts the other way.")
-    if any(word in model_l for word in ["threshold", "must first"]) or re.search(r"\bfirst\b", model_l):
+    if any(word in f"{issue_l} {model_l}" for word in ["threshold", "must first"]) or re.search(r"\bfirst\b", model_l):
         add_unique(traps, "Identify the threshold issue before applying downstream rules.")
     if "notwithstanding" in model_l or "unless" in model_l:
         add_unique(traps, "Look for the exception; the rule may change when the exception is triggered.")

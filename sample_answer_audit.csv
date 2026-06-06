@@ -1,0 +1,230 @@
+question_id,exam_name,question_number,subject,source,subquestion_count,point_count,detected_points,model_points_length,status,notes,missing_specific_points,display_answer_coverage
+484,February 1997,4,Agency & Partnership,MEE Question Bank (my import),3,5,"1,2,1,1,3",4299,OK,,,YES_EXACT_POINTS
+485,July 1997,1,Agency & Partnership,MEE Question Bank (my import),1,4,"1,2,3,4",6430,OK,,,YES_EXACT_POINTS
+486,February 1998,1,Agency & Partnership,MEE Question Bank (my import),3,3,"1,2,3",5414,OK,,,YES_EXACT_POINTS
+487,July 1998,2,Agency & Partnership,MEE Question Bank (my import),2,2,"1,2",3595,OK,,,YES_EXACT_POINTS
+488,February 1999,2,Agency & Partnership,MEE Question Bank (my import),4,5,"1,3,2,3,4",6730,OK,,,YES_EXACT_POINTS
+489,July 1999,2,Agency & Partnership,MEE Question Bank (my import),3,3,"1,2,3",4423,OK,,,YES_EXACT_POINTS
+490,February 2000,2,Agency & Partnership,MEE Question Bank (my import),3,4,"1,2,1,2",8101,OK,,3,YES_EXACT_POINTS
+491,February 2001,2,Agency & Partnership,MEE Question Bank (my import),4,4,"1,2,3,4",5971,OK,,,YES_EXACT_POINTS
+492,July 2001,1,Agency & Partnership,MEE Question Bank (my import),3,3,"1,2,3",4921,OK,,,YES_EXACT_POINTS
+493,February 2002,3,Agency & Partnership,MEE Question Bank (my import),3,3,"1,2,3",5487,OK,,,YES_EXACT_POINTS
+494,July 2002,6,Agency & Partnership,MEE Question Bank (my import),3,4,"1,1,2,3",5292,OK,,,YES_EXACT_POINTS
+495,February 2003,4,Agency & Partnership,MEE Question Bank (my import),1,3,"1,1,2",6667,OK,,,YES_EXACT_POINTS
+496,July 2003,5,Agency & Partnership,MEE Question Bank (my import),2,2,"1,2",4382,OK,,,YES_EXACT_POINTS
+497,February 2004,6,Agency & Partnership,MEE Question Bank (my import),3,4,"1,2,1,3",4124,OK,,,YES_EXACT_POINTS
+498,July 2004,5,Agency & Partnership,MEE Question Bank (my import),3,3,"1,2,3",4801,OK,,,YES_EXACT_POINTS
+499,February 2005,7,Agency & Partnership,MEE Question Bank (my import),2,4,"1,2,3,4",4896,OK,,,YES_EXACT_POINTS
+500,February 2006,2,Agency & Partnership,MEE Question Bank (my import),2,6,"1,1,1,2,1,1",4391,OK,,,YES_EXACT_POINTS
+501,July 2006,2,Agency & Partnership,MEE Question Bank (my import),3,5,"1,1,2,3,2",5410,OK,,,YES_EXACT_POINTS
+502,February 2007,6,Agency & Partnership,MEE Question Bank (my import),3,3,"1,2,3",7356,OK,,,YES_EXACT_POINTS
+503,July 2007,4,Agency & Partnership,MEE Question Bank (my import),3,4,"1,2,2,3",7079,OK,,,YES_EXACT_POINTS
+504,July 2008,3,Agency & Partnership,MEE Question Bank (my import),4,5,"1,2,3,4,3",5834,OK,,,YES_EXACT_POINTS
+505,February 2009,1,Agency & Partnership,MEE Question Bank (my import),4,3,"1,2,3",4098,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,4,YES_FULL_FALLBACK
+506,July 2009,8,Agency & Partnership,MEE Question Bank (my import),3,9,"1,2,3,2,1,2,2,1,2",4887,OK,,,YES_EXACT_POINTS
+507,July 2010,1,Agency & Partnership,MEE Question Bank (my import),4,18,"1,2,1,1,3,2,2,2,4,1,2,1,1,3,2,2,2,4",11637,OK,,,YES_EXACT_POINTS
+508,July 2011,9,Agency & Partnership,MEE Question Bank (my import),3,12,"1,1,1,2,2,3,1,1,1,2,2,3",15771,OK,,,YES_EXACT_POINTS
+509,February 2012,6,Agency & Partnership,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",10422,OK,,,YES_EXACT_POINTS
+510,February 2013,6,Agency & Partnership,MEE Question Bank (my import),6,10,"1,2,1,1,3,1,2,1,1,3",11333,OK,,"4,5,6",YES_EXACT_POINTS
+511,July 2013,2,Agency & Partnership,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",10793,OK,,,YES_EXACT_POINTS
+512,February 2014,6,Agency & Partnership,MEE Question Bank (my import),2,6,"1,2,3,1,2,3",12116,OK,,,YES_EXACT_POINTS
+513,February 2015,1,Agency & Partnership,MEE Question Bank (my import),1,0,,2798,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+514,February 2016,3,Agency & Partnership,MEE Question Bank (my import),2,1,3,2314,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,2",YES_FULL_FALLBACK
+515,February 2017,5,Agency & Partnership,MEE Question Bank (my import),3,0,,2789,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+516,February 2018,6,Agency & Partnership,MEE Question Bank (my import),3,0,,2496,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+517,February 2019,3,Agency & Partnership,MEE Question Bank (my import),4,0,,710,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3,4",YES_FULL_FALLBACK
+518,February 2020,5,Agency & Partnership,MEE Question Bank (my import),1,0,,2337,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+519,February 2021,1,Agency & Partnership,MEE Question Bank (my import),1,0,,2149,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+520,February 2022,4,Agency & Partnership,MEE Question Bank (my import),1,1,1,2275,OK,,,YES_EXACT_POINTS
+521,February 2024,1,Agency & Partnership,MEE Question Bank (my import),1,0,,645,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+522,February 2025,1,Agency & Partnership,MEE Question Bank (my import),3,2,"2,3",3047,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+523,July 1997,6,Corporations & LLCs,MEE Question Bank (my import),2,3,"1,2,3",4730,OK,,,YES_EXACT_POINTS
+524,February 1998,6,Corporations & LLCs,MEE Question Bank (my import),2,4,"1,2,2,2",6223,OK,,,YES_EXACT_POINTS
+525,July 1998,6,Corporations & LLCs,MEE Question Bank (my import),2,3,"1,1,2",4283,OK,,,YES_EXACT_POINTS
+526,February 1999,6,Corporations & LLCs,MEE Question Bank (my import),3,3,"1,2,3",4737,OK,,,YES_EXACT_POINTS
+527,July 1999,7,Corporations & LLCs,MEE Question Bank (my import),3,3,"1,2,3",4973,OK,,,YES_EXACT_POINTS
+528,February 2000,7,Corporations & LLCs,MEE Question Bank (my import),23,18,"1,1,1,2,3,4,1,2,3,1,1,1,2,3,4,1,2,3",20659,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23",YES_FULL_FALLBACK
+529,July 2000,4,Corporations & LLCs,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",11538,OK,,,YES_EXACT_POINTS
+530,February 2001,7,Corporations & LLCs,MEE Question Bank (my import),21,5,"1,2,3,1,2",6268,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21",YES_FULL_FALLBACK
+531,February 2002,7,Corporations & LLCs,MEE Question Bank (my import),13,10,"1,2,2,3,1,2,1,1,1,2",9742,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"4,5,6,7,8,9,10,11,12,13",YES_FULL_FALLBACK
+532,February 2003,7,Corporations & LLCs,MEE Question Bank (my import),1,2,"1,2",4473,OK,,,YES_EXACT_POINTS
+533,July 2003,1,Corporations & LLCs,MEE Question Bank (my import),2,4,"1,1,1,2",5514,OK,,,YES_EXACT_POINTS
+534,July 2004,2,Corporations & LLCs,MEE Question Bank (my import),1,3,"1,2,3",4366,OK,,,YES_EXACT_POINTS
+535,February 2005,1,Corporations & LLCs,MEE Question Bank (my import),3,5,"1,2,1,1,3",4350,OK,,,YES_EXACT_POINTS
+536,July 2005,2,Corporations & LLCs,MEE Question Bank (my import),2,3,"1,2,2",3527,OK,,,YES_EXACT_POINTS
+537,February 2006,5,Corporations & LLCs,MEE Question Bank (my import),2,5,"1,2,2,3,4",5639,OK,,,YES_EXACT_POINTS
+538,July 2006,5,Corporations & LLCs,MEE Question Bank (my import),3,3,"1,2,3",3299,OK,,,YES_EXACT_POINTS
+539,July 2007,9,Corporations & LLCs,MEE Question Bank (my import),3,6,"1,1,2,2,2,3",5266,OK,,,YES_EXACT_POINTS
+540,February 2008,5,Corporations & LLCs,MEE Question Bank (my import),3,3,"1,2,3",4305,OK,,,YES_EXACT_POINTS
+541,February 2009,9,Corporations & LLCs,MEE Question Bank (my import),5,5,"1,2,3,4,5",7155,OK,,,YES_EXACT_POINTS
+542,February 2010,5,Corporations & LLCs,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",13988,OK,,,YES_EXACT_POINTS
+543,July 2010,9,Corporations & LLCs,MEE Question Bank (my import),1,10,"1,2,3,4,5,1,2,3,4,5",11682,OK,,,YES_EXACT_POINTS
+544,February 2011,7,Corporations & LLCs,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",12424,OK,,,YES_EXACT_POINTS
+545,February 2012,9,Corporations & LLCs,MEE Question Bank (my import),1,16,"1,1,1,1,2,3,3,2,1,1,1,1,2,3,3,2",12241,OK,,,YES_EXACT_POINTS
+546,July 2012,8,Corporations & LLCs,MEE Question Bank (my import),4,8,"1,2,3,4,1,2,3,4",11054,OK,,,YES_EXACT_POINTS
+547,July 2013,6,Corporations & LLCs,MEE Question Bank (my import),2,6,"1,2,2,1,2,2",11984,OK,,,YES_EXACT_POINTS
+548,July 2014,6,Corporations & LLCs,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",15481,OK,,,YES_EXACT_POINTS
+549,July 2015,4,Corporations & LLCs,MEE Question Bank (my import),1,4,"1,2,3,4",8414,OK,,,YES_EXACT_POINTS
+550,July 2016,1,Corporations & LLCs,MEE Question Bank (my import),3,1,2,2666,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,3",YES_FULL_FALLBACK
+551,February 2017,4,Corporations & LLCs,MEE Question Bank (my import),1,1,1,2429,OK,,,YES_EXACT_POINTS
+552,July 2018,6,Corporations & LLCs,MEE Question Bank (my import),3,1,2,2534,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,3",YES_FULL_FALLBACK
+553,July 2019,3,Corporations & LLCs,MEE Question Bank (my import),3,0,,2930,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+554,July 2020,2,Corporations & LLCs,MEE Question Bank (my import),3,1,3,1715,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,2",YES_FULL_FALLBACK
+555,July 2021,2,Corporations & LLCs,MEE Question Bank (my import),3,0,,2874,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+556,February 2022,3,Corporations & LLCs,MEE Question Bank (my import),1,1,1,3220,OK,,,YES_EXACT_POINTS
+557,July 2022,3,Corporations & LLCs,MEE Question Bank (my import),3,0,,2681,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+558,July 2023,2,Corporations & LLCs,MEE Question Bank (my import),3,1,1,2426,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"2,3",YES_FULL_FALLBACK
+559,July 2024,2,Corporations & LLCs,MEE Question Bank (my import),1,2,"2,3",2545,OK,,1,YES_EXACT_POINTS
+560,February 1997,5,Civil Procedure,MEE Question Bank (my import),2,3,"1,2,3",5587,OK,,,YES_EXACT_POINTS
+561,July 1997,5,Civil Procedure,MEE Question Bank (my import),2,2,"1,2",3991,OK,,,YES_EXACT_POINTS
+562,February 1998,4,Civil Procedure,MEE Question Bank (my import),1,3,"1,2,3",3806,OK,,,YES_EXACT_POINTS
+563,July 1998,3,Civil Procedure,MEE Question Bank (my import),2,2,"1,2",4266,OK,,,YES_EXACT_POINTS
+564,February 1999,4,Civil Procedure,MEE Question Bank (my import),3,3,"1,2,3",7062,OK,,,YES_EXACT_POINTS
+565,July 1999,3,Civil Procedure,MEE Question Bank (my import),2,2,"1,2",4333,OK,,,YES_EXACT_POINTS
+566,February 2000,3,Civil Procedure,MEE Question Bank (my import),1,6,"1,2,3,1,2,3",8976,OK,,,YES_EXACT_POINTS
+567,July 2000,3,Civil Procedure,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",7273,OK,,,YES_EXACT_POINTS
+568,February 2001,5,Civil Procedure,MEE Question Bank (my import),2,3,"1,2,2",4303,OK,,,YES_EXACT_POINTS
+569,July 2001,7,Civil Procedure,MEE Question Bank (my import),2,3,"1,2,2",4701,OK,,,YES_EXACT_POINTS
+570,February 2002,1,Civil Procedure,MEE Question Bank (my import),3,3,"1,2,3",4601,OK,,,YES_EXACT_POINTS
+571,July 2002,3,Civil Procedure,MEE Question Bank (my import),2,4,"1,1,1,2",6018,OK,,,YES_EXACT_POINTS
+572,February 2003,5,Civil Procedure,MEE Question Bank (my import),1,3,"1,2,2",5585,OK,,,YES_EXACT_POINTS
+573,July 2003,4,Civil Procedure,MEE Question Bank (my import),2,2,"1,2",3853,OK,,,YES_EXACT_POINTS
+574,February 2004,4,Civil Procedure,MEE Question Bank (my import),3,3,"1,2,3",4742,OK,,,YES_EXACT_POINTS
+575,July 2004,6,Civil Procedure,MEE Question Bank (my import),2,4,"1,1,1,2",4226,OK,,,YES_EXACT_POINTS
+576,February 2005,3,Civil Procedure,MEE Question Bank (my import),2,3,"1,1,2",4550,OK,,,YES_EXACT_POINTS
+577,July 2005,6,Civil Procedure,MEE Question Bank (my import),1,3,"1,2,3",4768,OK,,,YES_EXACT_POINTS
+578,February 2006,3,Civil Procedure,MEE Question Bank (my import),2,3,"1,1,2",5185,OK,,,YES_EXACT_POINTS
+579,July 2006,6,Civil Procedure,MEE Question Bank (my import),3,3,"1,2,3",3876,OK,,,YES_EXACT_POINTS
+580,February 2007,3,Civil Procedure,MEE Question Bank (my import),1,2,"1,2",3658,OK,,,YES_EXACT_POINTS
+581,July 2007,2,Civil Procedure,MEE Question Bank (my import),2,4,"1,1,2,2",5077,OK,,,YES_EXACT_POINTS
+582,February 2008,6,Civil Procedure,MEE Question Bank (my import),4,4,"1,2,3,4",6731,OK,,,YES_EXACT_POINTS
+583,July 2008,5,Civil Procedure,MEE Question Bank (my import),3,2,"2,3",4192,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+584,February 2009,5,Civil Procedure,MEE Question Bank (my import),2,4,"1,1,2,2",5876,OK,,,YES_EXACT_POINTS
+585,July 2009,6,Civil Procedure,MEE Question Bank (my import),3,3,"1,2,3",5002,OK,,,YES_EXACT_POINTS
+586,February 2010,6,Civil Procedure,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",8334,OK,,,YES_EXACT_POINTS
+587,July 2010,7,Civil Procedure,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",9844,OK,,,YES_EXACT_POINTS
+588,February 2011,8,Civil Procedure,MEE Question Bank (my import),3,12,"1,2,3,3,1,1,1,2,3,3,1,1",14048,OK,,,YES_EXACT_POINTS
+589,July 2011,5,Civil Procedure,MEE Question Bank (my import),2,8,"1,2,3,4,1,2,3,4",11226,OK,,,YES_EXACT_POINTS
+590,February 2012,7,Civil Procedure,MEE Question Bank (my import),3,8,"1,2,1,3,1,2,1,3",14307,OK,,,YES_EXACT_POINTS
+591,July 2012,7,Civil Procedure,MEE Question Bank (my import),1,4,"1,2,1,2",9686,OK,,,YES_EXACT_POINTS
+592,February 2013,5,Civil Procedure,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",12966,OK,,,YES_EXACT_POINTS
+593,July 2013,1,Civil Procedure,MEE Question Bank (my import),2,12,"1,1,1,1,1,2,1,1,1,1,1,2",14177,OK,,,YES_EXACT_POINTS
+594,February 2014,4,Civil Procedure,MEE Question Bank (my import),2,6,"1,2,2,1,2,2",8940,OK,,,YES_EXACT_POINTS
+595,July 2014,4,Civil Procedure,MEE Question Bank (my import),2,6,"1,2,2,1,2,2",10351,OK,,,YES_EXACT_POINTS
+596,February 2015,5,Civil Procedure,MEE Question Bank (my import),1,0,,1995,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+597,July 2015,2,Civil Procedure,MEE Question Bank (my import),2,4,"1,1,2,2",7443,OK,,,YES_EXACT_POINTS
+598,July 2016,6,Civil Procedure,MEE Question Bank (my import),1,1,3,2528,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+599,July 2017,6,Civil Procedure,MEE Question Bank (my import),4,1,2,5611,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,3,4",YES_FULL_FALLBACK
+600,February 2018,5,Civil Procedure,MEE Question Bank (my import),2,1,1,2758,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,2,YES_FULL_FALLBACK
+601,February 2019,4,Civil Procedure,MEE Question Bank (my import),1,0,,2141,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+602,July 2019,6,Civil Procedure,MEE Question Bank (my import),1,0,,2265,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+603,February 2020,3,Civil Procedure,MEE Question Bank (my import),2,0,,2351,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2",YES_FULL_FALLBACK
+604,February 2021,3,Civil Procedure,MEE Question Bank (my import),1,0,,2596,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+605,July 2021,6,Civil Procedure,MEE Question Bank (my import),2,2,"1,2",2763,OK,,,YES_EXACT_POINTS
+606,July 2022,5,Civil Procedure,MEE Question Bank (my import),3,1,2,2359,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,3",YES_FULL_FALLBACK
+607,February 2023,3,Civil Procedure,MEE Question Bank (my import),1,1,1,3338,OK,,,YES_EXACT_POINTS
+608,July 2023,4,Civil Procedure,MEE Question Bank (my import),3,1,1,2132,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"2,3",YES_FULL_FALLBACK
+609,July 2024,6,Civil Procedure,MEE Question Bank (my import),1,2,"1,3",2798,OK,,,YES_EXACT_POINTS
+610,February 2025,4,Civil Procedure,MEE Question Bank (my import),1,0,,2149,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+611,July 2008,2,Constitutional Law,MEE Question Bank (my import),3,1,1,2400,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"2,3",YES_FULL_FALLBACK
+612,July 2009,2,Constitutional Law,MEE Question Bank (my import),2,2,"1,2",3262,OK,,,YES_EXACT_POINTS
+613,July 2010,4,Constitutional Law,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",8930,OK,,,YES_EXACT_POINTS
+614,July 2011,8,Constitutional Law,MEE Question Bank (my import),2,6,"1,2,2,1,2,2",11010,OK,,,YES_EXACT_POINTS
+615,July 2012,3,Constitutional Law,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",8707,OK,,,YES_EXACT_POINTS
+616,February 2013,3,Constitutional Law,MEE Question Bank (my import),2,10,"1,2,1,3,1,1,2,1,3,1",7355,OK,,,YES_EXACT_POINTS
+617,February 2014,1,Constitutional Law,MEE Question Bank (my import),2,4,"1,2,1,2",7455,OK,,,YES_EXACT_POINTS
+618,February 2015,2,Constitutional Law,MEE Question Bank (my import),1,0,,2709,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+619,February 2016,4,Constitutional Law,MEE Question Bank (my import),1,2,"1,3",4439,OK,,,YES_EXACT_POINTS
+620,July 2017,2,Constitutional Law,MEE Question Bank (my import),3,1,1,2232,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"2,3",YES_FULL_FALLBACK
+621,July 2018,1,Constitutional Law,MEE Question Bank (my import),1,1,1,2208,OK,,,YES_EXACT_POINTS
+622,July 2024,3,Constitutional Law,MEE Question Bank (my import),3,1,3,2405,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,2",YES_FULL_FALLBACK
+623,February 2025,2,Constitutional Law,MEE Question Bank (my import),4,0,,2293,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3,4",YES_FULL_FALLBACK
+624,July 2007,1,Contracts / Sales,MEE Question Bank (my import),1,4,"1,1,2,3",5532,OK,,,YES_EXACT_POINTS
+625,July 2008,8,Contracts / Sales,MEE Question Bank (my import),2,5,"1,2,3,4,5",5514,OK,,,YES_EXACT_POINTS
+626,July 2009,5,Contracts / Sales,MEE Question Bank (my import),1,3,"1,2,3",5112,OK,,,YES_EXACT_POINTS
+627,July 2010,2,Contracts / Sales,MEE Question Bank (my import),2,10,"1,2,3,4,4,1,2,3,4,4",15937,OK,,,YES_EXACT_POINTS
+628,February 2011,6,Contracts / Sales,MEE Question Bank (my import),3,8,"1,1,2,3,1,1,2,3",9385,OK,,,YES_EXACT_POINTS
+629,February 2012,3,Contracts / Sales,MEE Question Bank (my import),1,6,"1,2,3,1,2,3",9644,OK,,,YES_EXACT_POINTS
+630,February 2013,2,Contracts / Sales,MEE Question Bank (my import),3,12,"1,2,1,1,1,2,1,2,1,1,1,2",9292,OK,,3,YES_EXACT_POINTS
+631,July 2013,7,Contracts / Sales,MEE Question Bank (my import),1,10,"1,2,3,4,5,1,2,3,4,5",18308,OK,,,YES_EXACT_POINTS
+632,July 2014,2,Contracts / Sales,MEE Question Bank (my import),2,6,"1,2,3,1,2,3",11904,OK,,,YES_EXACT_POINTS
+633,July 2015,3,Contracts / Sales,MEE Question Bank (my import),3,2,"2,3",4140,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+634,July 2016,5,Contracts / Sales,MEE Question Bank (my import),1,1,1,2963,OK,,,YES_EXACT_POINTS
+635,February 2017,1,Contracts / Sales,MEE Question Bank (my import),1,1,2,2372,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+636,February 2018,3,Contracts / Sales,MEE Question Bank (my import),1,0,,801,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+637,July 2018,2,Contracts / Sales,MEE Question Bank (my import),2,1,2,2455,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+638,July 2019,4,Contracts / Sales,MEE Question Bank (my import),1,0,,3141,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+639,February 2020,1,Contracts / Sales,MEE Question Bank (my import),2,0,,2779,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2",YES_FULL_FALLBACK
+640,February 2021,6,Contracts / Sales,MEE Question Bank (my import),1,0,,2782,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+641,February 2022,6,Contracts / Sales,MEE Question Bank (my import),3,1,1,2514,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"2,3",YES_FULL_FALLBACK
+642,July 2022,2,Contracts / Sales,MEE Question Bank (my import),3,0,,2771,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+643,February 2024,2,Contracts / Sales,MEE Question Bank (my import),2,1,1,2429,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,2,YES_FULL_FALLBACK
+644,July 2024,4,Contracts / Sales,MEE Question Bank (my import),3,0,,754,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+645,July 2007,5,Criminal Law & Procedure,MEE Question Bank (my import),1,3,"1,2,1",3479,OK,,,YES_EXACT_POINTS
+646,February 2008,8,Criminal Law & Procedure,MEE Question Bank (my import),1,3,"1,2,3",4589,OK,,,YES_EXACT_POINTS
+647,July 2009,7,Criminal Law & Procedure,MEE Question Bank (my import),3,3,"1,2,3",4222,OK,,,YES_EXACT_POINTS
+648,July 2010,8,Criminal Law & Procedure,MEE Question Bank (my import),1,6,"1,2,3,1,2,3",7705,OK,,,YES_EXACT_POINTS
+649,July 2011,2,Criminal Law & Procedure,MEE Question Bank (my import),4,10,"1,2,3,4,4,1,2,3,4,4",11662,OK,,,YES_EXACT_POINTS
+650,July 2012,2,Criminal Law & Procedure,MEE Question Bank (my import),2,8,"1,1,1,2,1,1,1,2",12113,OK,,,YES_EXACT_POINTS
+651,February 2014,5,Criminal Law & Procedure,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",14378,OK,,,YES_EXACT_POINTS
+652,July 2014,1,Criminal Law & Procedure,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",10980,OK,,,YES_EXACT_POINTS
+653,July 2015,5,Criminal Law & Procedure,MEE Question Bank (my import),3,3,"1,2,3",5375,OK,,,YES_EXACT_POINTS
+654,February 2018,2,Criminal Law & Procedure,MEE Question Bank (my import),2,0,,2896,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2",YES_FULL_FALLBACK
+655,February 2019,6,Criminal Law & Procedure,MEE Question Bank (my import),1,0,,1694,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+656,July 2019,2,Criminal Law & Procedure,MEE Question Bank (my import),1,3,"2,3,3",3239,OK,,1,YES_EXACT_POINTS
+657,July 2021,4,Criminal Law & Procedure,MEE Question Bank (my import),2,2,"1,1",4541,OK,,2,YES_EXACT_POINTS
+658,February 2022,2,Criminal Law & Procedure,MEE Question Bank (my import),3,0,,2247,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+659,February 2023,2,Criminal Law & Procedure,MEE Question Bank (my import),2,1,1,2449,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,2,YES_FULL_FALLBACK
+660,July 2023,6,Criminal Law & Procedure,MEE Question Bank (my import),4,2,"2,2",4262,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,3,4",YES_FULL_FALLBACK
+661,February 2024,5,Criminal Law & Procedure,MEE Question Bank (my import),4,2,"2,4",2152,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"1,3",YES_FULL_FALLBACK
+662,February 2008,4,Evidence,MEE Question Bank (my import),3,7,"1,1,1,1,1,2,3",6381,OK,,,YES_EXACT_POINTS
+663,February 2009,2,Evidence,MEE Question Bank (my import),4,5,"1,2,2,3,4",6162,OK,,,YES_EXACT_POINTS
+664,February 2010,7,Evidence,MEE Question Bank (my import),2,10,"1,2,3,4,4,1,2,3,4,4",12878,OK,,,YES_EXACT_POINTS
+665,February 2011,2,Evidence,MEE Question Bank (my import),3,8,"1,2,3,4,1,2,3,4",11457,OK,,,YES_EXACT_POINTS
+666,February 2012,1,Evidence,MEE Question Bank (my import),3,12,"1,2,3,3,3,4,1,2,3,3,3,4",14956,OK,,,YES_EXACT_POINTS
+667,February 2013,7,Evidence,MEE Question Bank (my import),3,14,"1,1,2,3,3,3,3,1,1,2,3,3,3,3",13556,OK,,,YES_EXACT_POINTS
+668,July 2013,4,Evidence,MEE Question Bank (my import),1,8,"1,2,3,4,1,2,3,4",16535,OK,,,YES_EXACT_POINTS
+669,July 2014,5,Evidence,MEE Question Bank (my import),2,14,"1,1,1,1,1,2,2,1,1,1,1,1,2,2",17069,OK,,,YES_EXACT_POINTS
+670,February 2016,2,Evidence,MEE Question Bank (my import),1,3,"1,2,3",4144,OK,,,YES_EXACT_POINTS
+671,July 2016,2,Evidence,MEE Question Bank (my import),5,1,4,2530,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"1,2,3,5",YES_FULL_FALLBACK
+672,July 2017,5,Evidence,MEE Question Bank (my import),3,0,,2539,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+673,July 2018,5,Evidence,MEE Question Bank (my import),1,2,"3,4",2471,OK,,1,YES_EXACT_POINTS
+674,February 2020,6,Evidence,MEE Question Bank (my import),3,0,,2529,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+675,July 2020,1,Evidence,MEE Question Bank (my import),3,1,1,3392,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"2,3",YES_FULL_FALLBACK
+676,July 2022,1,Evidence,MEE Question Bank (my import),3,3,"1,2,3",2835,OK,,,YES_EXACT_POINTS
+677,February 2023,6,Evidence,MEE Question Bank (my import),1,1,1,2371,OK,,,YES_EXACT_POINTS
+678,February 2024,3,Evidence,MEE Question Bank (my import),1,0,,2319,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+679,February 2025,5,Evidence,MEE Question Bank (my import),1,2,"1,1",2775,OK,,,YES_EXACT_POINTS
+680,July 2007,6,Real Property,MEE Question Bank (my import),2,6,"1,2,2,2,3,2",5884,OK,,,YES_EXACT_POINTS
+681,July 2008,4,Real Property,MEE Question Bank (my import),3,3,"1,2,3",4095,OK,,,YES_EXACT_POINTS
+682,February 2009,4,Real Property,MEE Question Bank (my import),3,4,"1,2,3,4",7501,OK,,,YES_EXACT_POINTS
+683,February 2010,2,Real Property,MEE Question Bank (my import),3,8,"1,2,3,1,1,2,3,1",9193,OK,,,YES_EXACT_POINTS
+684,July 2010,5,Real Property,MEE Question Bank (my import),2,8,"1,2,3,4,1,2,3,4",14138,OK,,,YES_EXACT_POINTS
+685,July 2011,4,Real Property,MEE Question Bank (my import),1,12,"1,3,2,3,4,3,1,3,2,3,4,3",13360,OK,,,YES_EXACT_POINTS
+686,February 2012,8,Real Property,MEE Question Bank (my import),3,6,"1,2,3,1,2,3",12419,OK,,,YES_EXACT_POINTS
+687,February 2013,1,Real Property,MEE Question Bank (my import),1,6,"1,2,3,1,2,3",11676,OK,,,YES_EXACT_POINTS
+688,July 2013,8,Real Property,MEE Question Bank (my import),3,12,"1,1,2,3,2,2,1,1,2,3,2,2",15351,OK,,,YES_EXACT_POINTS
+689,February 2015,4,Real Property,MEE Question Bank (my import),1,3,"1,2,3",3735,OK,,,YES_EXACT_POINTS
+690,February 2017,6,Real Property,MEE Question Bank (my import),1,4,"1,1,1,2",3228,OK,,,YES_EXACT_POINTS
+691,February 2018,4,Real Property,MEE Question Bank (my import),4,0,,2415,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3,4",YES_FULL_FALLBACK
+692,July 2018,3,Real Property,MEE Question Bank (my import),3,1,1,2809,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"2,3",YES_FULL_FALLBACK
+693,February 2020,2,Real Property,MEE Question Bank (my import),3,0,,2131,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3",YES_FULL_FALLBACK
+694,July 2020,6,Real Property,MEE Question Bank (my import),2,0,,3610,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2",YES_FULL_FALLBACK
+695,February 2021,5,Real Property,MEE Question Bank (my import),1,1,1,1514,OK,,,YES_EXACT_POINTS
+696,July 2022,6,Real Property,MEE Question Bank (my import),1,0,,2201,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+697,February 2023,5,Real Property,MEE Question Bank (my import),2,0,,2444,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2",YES_FULL_FALLBACK
+698,February 2024,4,Real Property,MEE Question Bank (my import),3,1,2,2377,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,3",YES_FULL_FALLBACK
+699,July 2024,1,Real Property,MEE Question Bank (my import),4,0,,2716,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3,4",YES_FULL_FALLBACK
+700,February 2008,2,Torts,MEE Question Bank (my import),3,4,"1,2,2,3",4144,OK,,,YES_EXACT_POINTS
+701,February 2009,7,Torts,MEE Question Bank (my import),2,5,"1,2,3,4,5",8742,OK,,,YES_EXACT_POINTS
+702,February 2010,4,Torts,MEE Question Bank (my import),2,10,"1,2,3,4,5,1,2,3,4,5",11461,OK,,,YES_EXACT_POINTS
+703,February 2011,4,Torts,MEE Question Bank (my import),4,10,"1,1,2,3,4,1,1,2,3,4",10899,OK,,,YES_EXACT_POINTS
+704,February 2012,4,Torts,MEE Question Bank (my import),3,8,"1,2,1,3,1,2,1,3",10603,OK,,,YES_EXACT_POINTS
+705,July 2012,6,Torts,MEE Question Bank (my import),3,8,"1,1,1,2,1,1,1,2",11045,OK,,3,YES_EXACT_POINTS
+706,July 2015,1,Torts,MEE Question Bank (my import),3,4,"1,2,3,4",7477,OK,,,YES_EXACT_POINTS
+707,July 2016,3,Torts,MEE Question Bank (my import),3,1,2,2273,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,3",YES_FULL_FALLBACK
+708,July 2017,1,Torts,MEE Question Bank (my import),4,1,1,2332,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,"2,3,4",YES_FULL_FALLBACK
+709,February 2019,1,Torts,MEE Question Bank (my import),1,1,3,3079,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+710,July 2021,1,Torts,MEE Question Bank (my import),4,0,,2004,NO_POINT_SPLIT,Multiple calls but model answer has no Point headings. App will show full available model analysis for each call.,"1,2,3,4",YES_FULL_FALLBACK
+711,July 2023,1,Torts,MEE Question Bank (my import),1,0,,696,POSSIBLY_INCOMPLETE,Fewer model answer points than subquestions. App will show full available model analysis for missing calls.,1,YES_FULL_FALLBACK
+712,February 2025,3,Torts,MEE Question Bank (my import),3,1,3,1931,PARTIAL_MODEL,Only later point detected; likely split/import issue. App will show full available model analysis for missing calls.,"1,2",YES_FULL_FALLBACK

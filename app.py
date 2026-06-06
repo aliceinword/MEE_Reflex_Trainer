@@ -2155,6 +2155,24 @@ div[data-baseweb="select"] {
     line-height: 1.35;
 }
 
+.trigger-mini-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+    gap: 0.45rem;
+    margin: 0.4rem 0 0.25rem;
+}
+
+.trigger-mini-chip {
+    background: #F8FBFF;
+    border: 1px solid #DBEAFE;
+    border-left: 4px solid #60A5FA;
+    border-radius: 10px;
+    color: #1E293B;
+    font-size: 0.84rem;
+    line-height: 1.32;
+    padding: 0.45rem 0.55rem;
+}
+
 .dashboard-wrap {
     max-width: 1450px;
     margin: 0 auto;
@@ -2581,8 +2599,11 @@ def extract_trap_items(traps_text):
     if not text:
         return []
 
+    text = re.sub(r"\bTrap\s*:\s*", "\nTrap: ", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?:^|\n)\s*[-â€¢]?\s*Trap\s*:\s*", "\nTrap: ", text, flags=re.IGNORECASE)
+
     raw_parts = re.split(
-        r"(?:\n+|(?:^|\s)-\s+|(?:^|\s)\d+[.)]\s+)",
+        r"(?:\n+|(?:^|\s)-\s+|(?:^|\s)\d+[.)]\s+|(?=\bTrap\s*:))",
         text,
     )
 
@@ -2590,7 +2611,7 @@ def extract_trap_items(traps_text):
 
     for part in raw_parts:
         part = part.strip(" -â€¢\t")
-        part = re.sub(r"^Trap:\s*", "", part, flags=re.IGNORECASE).strip()
+        part = re.sub(r"^(?:Trap\s*:\s*)+", "", part, flags=re.IGNORECASE).strip()
         part = re.sub(r"^\d+[.)]?\s*", "", part).strip()
         part = re.sub(r"\s+", " ", part).strip()
 
@@ -2600,6 +2621,8 @@ def extract_trap_items(traps_text):
         subparts = re.split(r"\s+Trap:\s+", part, flags=re.IGNORECASE)
         for sp in subparts:
             sp = sp.strip(" -â€¢\t")
+            sp = re.sub(r"^(?:Trap\s*:\s*)+", "", sp, flags=re.IGNORECASE).strip()
+            sp = re.sub(r"\bTrap\s*:\s*", "", sp, flags=re.IGNORECASE).strip()
             sp = re.sub(r"\s+", " ", sp).strip()
 
             if len(sp) >= 8:
@@ -3775,6 +3798,13 @@ def extract_fact_pattern_only(question_text, call_text=None):
         r"\.\s+(Could\s+a\s+court\b)",
         r"\.\s+(Is\s+the\b)",
         r"\.\s+(Was\s+[A-Z][A-Za-z]+\b)",
+        r"\.\s+(Should\s+the\b)",
+        r"\.\s+(Should\s+[A-Z][A-Za-z]+\b)",
+        r"\.\s+(Would\s+the\b)",
+        r"\.\s+(Will\s+the\b)",
+        r"\.\s+(Does\s+the\b)",
+        r"\.\s+(Did\s+the\b)",
+        r"\.\s+(May\s+the\b)",
     ]
 
     for pat in inline_call_patterns:
@@ -3792,6 +3822,14 @@ def extract_fact_pattern_only(question_text, call_text=None):
         for one in prior_ones:
             if one.start() > len(text) * 0.35 and one.start() < two_match.start():
                 cut_positions.append(one.start())
+        if not prior_ones:
+            late_intro_pattern = (
+                r"\.\s+(If|Assuming|What|Can|Could|Is|Are|Was|Were|Will|Would|"
+                r"Should|May|Does|Did|Do)\b"
+            )
+            for m in re.finditer(late_intro_pattern, text[:two_match.start()], flags=re.IGNORECASE):
+                if m.start() > len(text) * 0.45:
+                    cut_positions.append(m.start() + 1)
 
     if cut_positions:
         cutoff = min(cut_positions)
@@ -4438,8 +4476,24 @@ def render_trigger_candidate_diagnostics(qd):
     with st.expander("Detected trigger facts for highlighting", expanded=False):
         candidates = get_universal_trigger_candidates(qd)
         if candidates:
-            for candidate in candidates:
-                st.write("- " + candidate)
+            st.caption(f"{len(candidates)} candidate trigger facts detected. Showing the shortest useful preview.")
+
+            preview_items = candidates[:6]
+            preview_html = ""
+            for candidate in preview_items:
+                short = re.sub(r"\s+", " ", str(candidate)).strip()
+                if len(short) > 150:
+                    short = short[:150].rsplit(" ", 1)[0] + "..."
+                preview_html += f'<div class="trigger-mini-chip">{escape_display_text(short)}</div>'
+
+            st.markdown(f'<div class="trigger-mini-grid">{preview_html}</div>', unsafe_allow_html=True)
+
+            if len(candidates) > len(preview_items):
+                st.caption(f"{len(candidates) - len(preview_items)} more hidden to keep the page compact.")
+
+            with st.expander("Show full detected trigger list", expanded=False):
+                for candidate in candidates:
+                    st.write("- " + candidate)
         else:
             st.info("No trigger facts detected yet.")
 
@@ -5635,7 +5689,7 @@ def split_model_answer_points(model_text):
         "ten": 10,
     }
     pattern = re.compile(
-        r"(?i)(Point\s+(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)|Point\s+(\d+))(?:\s*\([^)]*\))?"
+        r"(?i)(Point\s+(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)|Point\s+(\d+))\s*(\([a-z]\))?\s*(?:\([^)]*%\))?"
     )
     matches = list(pattern.finditer(text))
     sections = []
@@ -5643,6 +5697,7 @@ def split_model_answer_points(model_text):
     for idx, match in enumerate(matches):
         word_num = match.group(2)
         digit_num = match.group(3)
+        raw_subpart = match.group(4)
 
         if word_num:
             num = number_words.get(word_num.lower())
@@ -5659,9 +5714,15 @@ def split_model_answer_points(model_text):
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
         heading = match.group(0).strip()
         section_text = text[start:end].strip()
+        subpart = (
+            raw_subpart.replace("(", "").replace(")", "").strip().lower()
+            if raw_subpart
+            else None
+        )
 
         sections.append({
             "num": num,
+            "subpart": subpart,
             "heading": heading,
             "text": section_text,
         })
@@ -5669,59 +5730,88 @@ def split_model_answer_points(model_text):
     return sections
 
 
-def get_model_section_for_subquestion(qd, subq_index):
-    model_text = qd.get("model_points", "") or ""
+def flatten_subquestions_for_answer_mapping(qd):
+    subquestions = extract_subquestions(qd.get("call_of_question", ""))
+    flat = []
 
-    if not model_text:
-        model_text = qd.get("rules", "") or ""
+    for q in subquestions:
+        label = q.get("label", "Question")
+        text = q.get("text", "")
+        label_match = re.search(r"(\d+)", label)
+        num = int(label_match.group(1)) if label_match else len(flat) + 1
 
+        if q.get("subparts"):
+            for sp in q["subparts"]:
+                raw_sp_label = sp.get("label", "")
+                subpart = raw_sp_label.replace(".", "").replace("(", "").replace(")", "").strip().lower()
+                flat.append({
+                    "label": f"{label}({subpart})" if subpart else label,
+                    "num": num,
+                    "subpart": subpart or None,
+                    "text": f"{text} {sp.get('text', '')}".strip(),
+                    "subparts": [],
+                })
+        else:
+            flat.append({
+                "label": label,
+                "num": num,
+                "subpart": None,
+                "text": text,
+                "subparts": [],
+            })
+
+    return flat
+
+
+def get_model_section_for_subquestion(qd, subq_index, subpart=None):
+    model_text = qd.get("model_points", "") or qd.get("rules", "") or ""
     points = split_model_answer_points(model_text)
+    wanted_subpart = (subpart or None)
 
     for p in points:
-        if p["num"] == subq_index:
+        if p["num"] == subq_index and (p.get("subpart") or None) == wanted_subpart:
             return p["heading"], p["text"]
 
-    subquestions = extract_subquestions(qd.get("call_of_question", ""))
-    if subq_index - 1 < len(subquestions):
-        call = subquestions[subq_index - 1].get("text", "").lower()
+    if wanted_subpart is None:
+        matching = [p for p in points if p["num"] == subq_index]
+        if matching:
+            combined = "\n\n".join([p["text"] for p in matching])
+            heading = f"Point {subq_index} - Combined"
+            return heading, combined
 
-        if "lowering the price" in call or "lower the price" in call or "modification" in call:
-            for p in points:
-                text_l = p["text"].lower()
-                if "consideration" in text_l and "lower" in text_l:
-                    return p["heading"], p["text"]
-
-    if subq_index == 1 and model_text:
-        return "Full Model Analysis", model_text
+    if model_text and len(model_text.strip()) >= 100:
+        heading = f"Full Available Model Analysis - Question {subq_index}"
+        fallback = (
+            "No separate Point section was detected for this call in the imported answer material.\n\n"
+            "Use the full available model analysis below to compare your answer against the entire MEE answer path.\n\n"
+            f"{model_text.strip()}"
+        )
+        return heading, fallback
 
     return None, ""
 
 
-def render_sample_answer_for_subquestion(qd, display_index, label=None):
-    title = label or f"Question {display_index}"
-    section_heading = ""
-    model_text = ""
+def render_sample_answer_for_subquestion(qd, subq_index, label, subpart=None):
+    title = label or f"Question {subq_index}"
 
     try:
-        section_heading, model_text = get_model_section_for_subquestion(qd, display_index)
+        section_heading, model_text = get_model_section_for_subquestion(qd, subq_index, subpart)
     except Exception:
         section_heading, model_text = "", ""
 
     if not model_text:
-        model_text = qd.get("model_points", "") or qd.get("rules", "")
-        section_heading = "Full Model Analysis"
-
-    if not model_text:
-        st.info(f"No sample answer/model analysis available for {title} yet.")
+        st.info(f"No sample answer/model analysis is available for {title} yet.")
         return
 
     with st.expander(f"Compare With Sample Answer - {title}", expanded=False):
-        st.warning("Open this only after you attempted the issue/rule. No passive reading.")
-        render_sample_answer_text(section_heading or "Sample Answer / Model Analysis", model_text)
+        st.warning("Open only after you attempted this call.")
+        render_readable_text(section_heading or f"Sample Answer - {title}", model_text)
 
 
 def render_single_mini_question_workflow(qd, subq, display_index, hints_used=0):
     label = subq.get("label", f"Question {display_index}")
+    answer_num = subq.get("num", display_index)
+    answer_subpart = subq.get("subpart")
     answer_piece = render_subquestion_card(qd, subq, display_index, hints_used)
 
     st.markdown("### Step 2: Check this question")
@@ -5766,7 +5856,7 @@ def render_single_mini_question_workflow(qd, subq, display_index, hints_used=0):
         except Exception:
             st.warning("Rule breakdown unavailable for this call.")
 
-        render_sample_answer_for_subquestion(qd, display_index, label)
+        render_sample_answer_for_subquestion(qd, answer_num, label, subpart=answer_subpart)
 
         st.markdown("### Step 3: Score this question")
 
@@ -5827,7 +5917,7 @@ def render_single_mini_question_workflow(qd, subq, display_index, hints_used=0):
             st.session_state[f"mini_missed_piece_{qd['id']}_{display_index}"] = missed
             st.session_state[f"mini_fix_piece_{qd['id']}_{display_index}"] = fix_note
 
-            total = len(extract_subquestions(qd.get("call_of_question", "")))
+            total = len(flatten_subquestions_for_answer_mapping(qd))
             if display_index < total:
                 st.session_state[active_key] = display_index
             else:
@@ -6814,7 +6904,7 @@ elif menu == "MEE Muscle Ladder":
         Fact without rule = story. Rule without fact = flashcard. We need both.
         """)
 
-    question_id = question_picker(active_default=True)
+    question_id = question_picker(active_default=True, compact=True)
 
     if question_id:
         q = get_question_by_id(question_id)
@@ -6825,82 +6915,90 @@ elif menu == "MEE Muscle Ladder":
             qd = unpack_question(q)
 
             render_question_strip(qd)
-            render_stopwatch(f"ladder_{qd['id']}")
 
-            level = st.selectbox(
-                "Choose training level",
-                [
-                    "Level 1 - Issue + Rule Mini Run - 7 min",
-                    "Level 2 - Trigger Fact Hunt - 10 min",
-                    "Level 3 - Mini IRAC - 15 min",
-                    "Level 4 - Skeleton Essay - 20 min",
-                    "Level 5 - Full MEE - 30 min"
-                ]
-            )
+            ladder_main, ladder_side = st.columns([2.15, 1], gap="large")
 
-            if level.startswith("Level 1"):
-                target_minutes = 7
-                st.success("Goal: spot the issues and write the rules from memory. No full essay.")
-            elif level.startswith("Level 2"):
-                target_minutes = 10
-                st.success("Goal: connect each issue/rule to trigger facts.")
-            elif level.startswith("Level 3"):
-                target_minutes = 15
-                st.success("Goal: write one strong IRAC paragraph.")
-            elif level.startswith("Level 4"):
-                target_minutes = 20
-                st.success("Goal: outline the entire essay.")
-            else:
-                target_minutes = 30
-                st.success("Goal: full timed MEE simulation.")
+            with ladder_side:
+                st.markdown("### Training Controls")
+                render_stopwatch(f"ladder_{qd['id']}")
 
-            study_tip(f"Set a timer for {target_minutes} minutes and complete the attempt before polishing.")
-            reveal_gate_box("Write your answer first. The reveal button will appear below.")
-
-            with st.expander("Call of the Question", expanded=True):
-                render_call_text("Call of the Question", qd["call_of_question"])
-
-            show_ladder_highlights = st.checkbox("Show trigger fact highlights", value=False)
-
-            with st.expander("Fact Pattern", expanded=True):
-                fact_only = (
-                    extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
-                    if "extract_fact_pattern_only" in globals()
-                    else qd["question_text"]
+                level = st.selectbox(
+                    "Choose training level",
+                    [
+                        "Level 1 - Issue + Rule Mini Run - 7 min",
+                        "Level 2 - Trigger Fact Hunt - 10 min",
+                        "Level 3 - Mini IRAC - 15 min",
+                        "Level 4 - Skeleton Essay - 20 min",
+                        "Level 5 - Full MEE - 30 min"
+                    ]
                 )
-                if show_ladder_highlights:
-                    render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd, text=fact_only)
+
+                if level.startswith("Level 1"):
+                    target_minutes = 7
+                    goal_text = "Spot issues and write rules from memory."
+                elif level.startswith("Level 2"):
+                    target_minutes = 10
+                    goal_text = "Connect each issue/rule to trigger facts."
+                elif level.startswith("Level 3"):
+                    target_minutes = 15
+                    goal_text = "Write one strong IRAC paragraph."
+                elif level.startswith("Level 4"):
+                    target_minutes = 20
+                    goal_text = "Outline the entire essay."
                 else:
-                    render_fact_pattern_text("Fact Pattern", fact_only)
+                    target_minutes = 30
+                    goal_text = "Full timed MEE simulation."
 
-            render_trigger_candidate_diagnostics(qd)
+                st.info(f"{target_minutes} min target. {goal_text}")
+                show_ladder_highlights = st.checkbox("Show trigger fact highlights", value=False)
 
-            hints_used = render_progressive_hints(qd)
+                hints_used = render_progressive_hints(qd)
+                render_trigger_candidate_diagnostics(qd)
 
-            st.divider()
+                reveal_gate_box("Reveal only after writing your answer.")
 
-            if level.startswith("Level 1"):
-                st.markdown("## Level 1: Issue + Rule Mini Run")
+            with ladder_main:
+                top_left, top_right = st.columns([1, 1], gap="medium")
 
-                user_issues = st.text_area(
-                    "Step A - What issues do you see?",
-                    placeholder="Example: list each legal issue raised by this call.",
-                    height=120
-                )
+                with top_left:
+                    with st.expander("Call of the Question", expanded=True):
+                        render_call_text("Call of the Question", qd["call_of_question"])
 
-                user_rules = st.text_area(
-                    "Step B - Write the rules from memory",
-                    placeholder="Example: write the governing test, elements, or standard from memory.",
-                    height=160
-                )
+                with top_right:
+                    with st.expander("Fact Pattern", expanded=True):
+                        fact_only = (
+                            extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
+                            if "extract_fact_pattern_only" in globals()
+                            else qd["question_text"]
+                        )
+                        if show_ladder_highlights:
+                            render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd, text=fact_only)
+                        else:
+                            render_fact_pattern_text("Fact Pattern", fact_only)
 
-                user_facts = st.text_area(
-                    "Optional - Which facts triggered those issues?",
-                    placeholder="Example: quote or summarize the facts that connect to each rule element.",
-                    height=100
-                )
+                st.markdown(f"### {level.split(' - ')[0]} Work")
 
-                combined_answer = f"""
+                if level.startswith("Level 1"):
+                    col_a, col_b = st.columns([1, 1], gap="medium")
+                    with col_a:
+                        user_issues = st.text_area(
+                            "Step A - What issues do you see?",
+                            placeholder="List each legal issue raised by this call.",
+                            height=150
+                        )
+                    with col_b:
+                        user_rules = st.text_area(
+                            "Step B - Write the rules from memory",
+                            placeholder="Write the governing test, elements, or standard.",
+                            height=150
+                        )
+                    user_facts = st.text_area(
+                        "Optional - Which facts triggered those issues?",
+                        placeholder="Quote or summarize the facts that connect to each rule element.",
+                        height=90
+                    )
+
+                    combined_answer = f"""
 ISSUES:
 {user_issues}
 
@@ -6911,176 +7009,151 @@ TRIGGER FACTS:
 {user_facts}
 """
 
-            elif level.startswith("Level 2"):
-                st.markdown("## Level 2: Trigger Fact Hunt")
+                elif level.startswith("Level 2"):
+                    combined_answer = st.text_area(
+                        "For each issue, write: Issue -> Rule -> Trigger Facts",
+                        placeholder=(
+                            "Issue 1: ___\nRule: ___\nTrigger facts: ___\n\n"
+                            "Issue 2: ___\nRule: ___\nTrigger facts: ___"
+                        ),
+                        height=220
+                    )
 
-                combined_answer = st.text_area(
-                    "For each issue, write: Issue -> Rule -> Trigger Facts",
-                    placeholder=(
-                        "Issue 1: ___\n"
-                        "Rule: ___\n"
-                        "Trigger facts: ___\n\n"
-                        "Issue 2: ___\n"
-                        "Rule: ___\n"
-                        "Trigger facts: ___"
-                    ),
-                    height=260
-                )
+                elif level.startswith("Level 3"):
+                    combined_answer = st.text_area(
+                        "Write ONE strong IRAC paragraph",
+                        placeholder=(
+                            "Issue: Whether ___\nRule: Under ___\nApplication: Here, ___ because ___\n"
+                            "Counterargument: However, ___\nConclusion: Therefore, ___"
+                        ),
+                        height=240
+                    )
 
-            elif level.startswith("Level 3"):
-                st.markdown("## Level 3: Mini IRAC")
+                elif level.startswith("Level 4"):
+                    combined_answer = st.text_area(
+                        "Outline the full essay. Short bullets only.",
+                        placeholder=(
+                            "Call 1:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:\n\n"
+                            "Call 2:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:"
+                        ),
+                        height=260
+                    )
 
-                combined_answer = st.text_area(
-                    "Write ONE strong IRAC paragraph",
-                    placeholder=(
-                        "Issue: Whether ___\n"
-                        "Rule: Under ___\n"
-                        "Application: Here, ___ because ___\n"
-                        "Counterargument: However, ___\n"
-                        "Conclusion: Therefore, ___"
-                    ),
-                    height=280
-                )
-
-            elif level.startswith("Level 4"):
-                st.markdown("## Level 4: Skeleton Essay")
-
-                combined_answer = st.text_area(
-                    "Outline the full essay. Short bullets only.",
-                    placeholder=(
-                        "Call 1:\n"
-                        "- Issue:\n"
-                        "- Rule:\n"
-                        "- Facts:\n"
-                        "- Conclusion:\n\n"
-                        "Call 2:\n"
-                        "- Issue:\n"
-                        "- Rule:\n"
-                        "- Facts:\n"
-                        "- Conclusion:"
-                    ),
-                    height=320
-                )
-
-            else:
-                st.markdown("## Level 5: Full MEE")
-
-                combined_answer = st.text_area(
-                    "Write the full timed essay",
-                    height=420
-                )
+                else:
+                    combined_answer = st.text_area("Write the full timed essay", height=320)
 
             st.divider()
 
-            reveal_gate_box("Reveal only after writing your answer.")
+            reveal_col, score_col = st.columns([1.45, 1], gap="large")
 
-            if st.button("Reveal Answer Bank"):
-                render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                render_raw_tested_issues_expander(qd)
-                with st.expander("Debug: rule sources", expanded=False):
-                    st.write("Subject:", qd.get("subject"))
-                    st.write("Tested issues length:", len(qd.get("tested_issues", "") or ""))
-                    st.write("Rules length:", len(qd.get("rules", "") or ""))
-                    st.write("Trigger facts length:", len(qd.get("trigger_facts", "") or ""))
+            with reveal_col:
+                reveal_gate_box("Reveal only after writing your answer.")
+
+                if st.button("Reveal Answer Bank", use_container_width=True):
+                    st.session_state[f"ladder_reveal_{qd['id']}"] = True
+
+                if st.session_state.get(f"ladder_reveal_{qd['id']}", False):
+                    render_tested_issues_text("Tested Issues", qd["tested_issues"])
+                    render_raw_tested_issues_expander(qd)
+                    with st.expander("Debug: rule sources", expanded=False):
+                        st.write("Subject:", qd.get("subject"))
+                        st.write("Tested issues length:", len(qd.get("tested_issues", "") or ""))
+                        st.write("Rules length:", len(qd.get("rules", "") or ""))
+                        st.write("Trigger facts length:", len(qd.get("trigger_facts", "") or ""))
+
+                        try:
+                            st.write(
+                                "Flashcard matches:",
+                                search_rule_flashcards(
+                                    build_rule_search_query(qd),
+                                    subject=qd.get("subject"),
+                                    limit=3,
+                                ),
+                            )
+                        except Exception as e:
+                            st.write("Flashcard search error:", str(e))
+
+                        try:
+                            st.write(
+                                "Attack outline matches:",
+                                search_outline_rules(
+                                    build_rule_search_query(qd),
+                                    subject=qd.get("subject"),
+                                    limit=3,
+                                ),
+                            )
+                        except Exception as e:
+                            st.write("Attack outline search error:", str(e))
+
+                        try:
+                            st.write(
+                                "Plug Play matches:",
+                                search_plug_play_templates(
+                                    build_rule_search_query(qd),
+                                    subject=qd.get("subject"),
+                                    limit=3,
+                                ),
+                            )
+                        except Exception as e:
+                            st.write("Plug Play search error:", str(e))
 
                     try:
-                        st.write(
-                            "Flashcard matches:",
-                            search_rule_flashcards(
-                                build_rule_search_query(qd),
-                                subject=qd.get("subject"),
-                                limit=3,
-                            ),
-                        )
-                    except Exception as e:
-                        st.write("Flashcard search error:", str(e))
+                        if not get_rule_flashcards():
+                            st.warning("Rule Flashcards are not imported yet. Run: python import_flashcards2025.py Flashcards2025.rtf")
+                    except Exception:
+                        pass
 
-                    try:
-                        st.write(
-                            "Attack outline matches:",
-                            search_outline_rules(
-                                build_rule_search_query(qd),
-                                subject=qd.get("subject"),
-                                limit=3,
-                            ),
-                        )
-                    except Exception as e:
-                        st.write("Attack outline search error:", str(e))
+                    render_rule_skeletons_for_calls(qd)
+                    with st.expander("Raw Model Rule / Analysis - open only after self-grading", expanded=False):
+                        render_readable_text("Model Rule / Analysis", qd["rules"], READING_FONT_SIZE)
+                    render_trigger_facts("Trigger Facts", qd)
+                    render_raw_trigger_facts_expander(qd)
+                    render_trap_warnings("Trap Warnings", qd["traps"])
+                    with st.expander("Raw trap text", expanded=False):
+                        st.text(qd.get("traps", "") or "")
+                    render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
+                    render_trigger_candidate_diagnostics(qd)
+                    render_sample_answer_section(qd, expanded=False)
 
-                    try:
-                        st.write(
-                            "Plug Play matches:",
-                            search_plug_play_templates(
-                                build_rule_search_query(qd),
-                                subject=qd.get("subject"),
-                                limit=3,
-                            ),
-                        )
-                    except Exception as e:
-                        st.write("Plug Play search error:", str(e))
-
-                try:
-                    if not get_rule_flashcards():
-                        st.warning("Rule Flashcards are not imported yet. Run: python import_flashcards2025.py Flashcards2025.rtf")
-                except Exception:
-                    pass
-
-                render_rule_skeletons_for_calls(qd)
-                with st.expander("Raw Model Rule / Analysis - open only after self-grading", expanded=False):
-                    render_readable_text("Model Rule / Analysis", qd["rules"], READING_FONT_SIZE)
-                render_trigger_facts("Trigger Facts", qd)
-                render_raw_trigger_facts_expander(qd)
-                render_trap_warnings("Trap Warnings", qd["traps"])
-                with st.expander("Raw trap text", expanded=False):
-                    st.text(qd.get("traps", "") or "")
-                render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
-                render_trigger_candidate_diagnostics(qd)
-                render_sample_answer_section(qd, expanded=False)
-
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
+            with score_col:
+                st.markdown("### Score and Save")
                 issue_score = st.slider("Issue score", 0, 5, 0)
-
-            with col2:
                 rule_score = st.slider("Rule score", 0, 5, 0)
-
-            with col3:
                 fact_score = st.slider("Fact connection score", 0, 5, 0)
 
-            average_score = round((issue_score + rule_score + fact_score) / 3)
-            adjusted_score = max(0, average_score - (1 if hints_used >= 3 else 0))
+                average_score = round((issue_score + rule_score + fact_score) / 3)
+                adjusted_score = max(0, average_score - (1 if hints_used >= 3 else 0))
 
-            score_col1, score_col2 = st.columns(2)
-            score_col1.metric("Raw self-score", f"{average_score}/5")
-            score_col2.metric("Adjusted training score", f"{adjusted_score}/5")
+                score_col1, score_col2 = st.columns(2)
+                score_col1.metric("Raw", f"{average_score}/5")
+                score_col2.metric("Adjusted", f"{adjusted_score}/5")
 
-            missed = st.text_area(
-                "What did you miss?",
-                placeholder="Example: I spotted the broad issue but missed one required element.",
-                height=100
-            )
-
-            notes = st.text_area(
-                "Fix note for future you",
-                placeholder="Example: Next time ask which rule element each fact proves.",
-                height=100
-            )
-
-            notes_with_hints = f"Hints used: {hints_used}/5\n\n{notes}"
-
-            if st.button("Save Muscle Ladder Attempt"):
-                save_attempt(
-                    qd["id"],
-                    level,
-                    combined_answer,
-                    adjusted_score,
-                    missed,
-                    notes_with_hints,
-                    minutes_spent=target_minutes
+                missed = st.text_area(
+                    "What did you miss?",
+                    placeholder="Missed issue, element, or trigger fact.",
+                    height=90
                 )
 
-                st.success("Saved. This question is now scheduled for review based on your score.")
+                notes = st.text_area(
+                    "Fix note for future you",
+                    placeholder="One useful instruction for next time.",
+                    height=90
+                )
+
+                notes_with_hints = f"Hints used: {hints_used}/5\n\n{notes}"
+
+                if st.button("Save Muscle Ladder Attempt", use_container_width=True):
+                    save_attempt(
+                        qd["id"],
+                        level,
+                        combined_answer,
+                        adjusted_score,
+                        missed,
+                        notes_with_hints,
+                        minutes_spent=target_minutes
+                    )
+
+                    st.success("Saved. This question is now scheduled for review based on your score.")
 
 
 elif menu == "Mini Essay Drill":
@@ -7102,18 +7175,19 @@ elif menu == "Mini Essay Drill":
             st.error("Question not found.")
         else:
             qd = unpack_question(q)
-            subquestions = extract_subquestions(qd["call_of_question"])
+            subquestions = flatten_subquestions_for_answer_mapping(qd)
             reveal_key = f"mini_reveal_{qd['id']}"
 
             render_meta_strip(qd)
 
-            with st.expander("Debug: detected sample answer sections", expanded=False):
+            with st.expander("Debug: detected model answer sections", expanded=False):
                 points = split_model_answer_points(qd.get("model_points", ""))
                 if not points and qd.get("rules", ""):
                     points = split_model_answer_points(qd.get("rules", ""))
                 if points:
                     for p in points:
-                        st.write(f"Question {p['num']}: {p['heading']} - {len(p['text'])} chars")
+                        suffix = p.get("subpart") or ""
+                        st.write(f"Point {p['num']}{suffix}: {p['heading']} - {len(p['text'])} chars")
                 else:
                     st.info("No Point One / Point Two / Point Three sections detected.")
 
@@ -7869,13 +7943,6 @@ elif menu == "Timed IRAC Drill":
             qd = unpack_question(q)
 
             render_data_health_warning(qd)
-
-            # Thin 4-column metadata strip
-            _mc1, _mc2, _mc3, _mc4 = st.columns(4)
-            _mc1.metric("Exam", f"{qd['exam_name']} Q{qd['question_number']}")
-            _mc2.metric("Subject", qd["subject"])
-            _mc3.metric("Status", qd["july_2026_status"] or "â€”")
-            _mc4.metric("Priority", qd["priority"] or "â€”")
 
             # Persist hints_used across renders via session state
             _hints_key = f"timed_irac_hints_{question_id}"
