@@ -2577,7 +2577,7 @@ def clean_trap_text(text):
         r"\bFEBRUARY\s+\d{4}\s+MEE\b",
         r"\bJULY\s+\d{4}\s+MEE\b",
         r"Â©\s*\d{4}.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"National Conference of Bar Examiners.*",
     ]
 
@@ -3100,7 +3100,7 @@ def clean_question_text(question_text):
         r"Ã‚Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"These materials are copyrighted.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"www\..*",
     ]
 
@@ -3258,7 +3258,7 @@ def clean_fact_pattern_text(text):
         r"Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"These materials are copyrighted.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"www\..*",
     ]
 
@@ -3362,7 +3362,7 @@ def clean_trigger_facts_text(text):
         r"\bMEE\s+QUESTION\s+\d+\b",
         r"Ã‚Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"www\..*",
     ]
 
@@ -3748,7 +3748,7 @@ def extract_fact_pattern_only(question_text, call_text=None):
         r"\bMEE\s+QUESTION\s+\d+\b",
         r"\bQUESTION\s+\d+\s*[-–—].*",
         r"©\s*\d{4}.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"National Conference of Bar Examiners.*",
     ]
 
@@ -4543,7 +4543,7 @@ def clean_call_text(call_text):
         r"Ã‚Â©\s*\d{4}.*",
         r"Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
     ]
 
     for pattern in junk_patterns:
@@ -4571,9 +4571,9 @@ def clean_outline_text(text):
     text = text.replace("ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©", "Â©").replace("Ãƒâ€šÃ‚Â©", "Â©").replace("Ã‚Â©", "Â©")
 
     junk_patterns = [
-        r"Ãƒâ€šÃ‚Â©\s*\d{4}\s+Studicata.*",
-        r"Ã‚Â©\s*\d{4}\s+Studicata.*",
-        r"Studicata\.com.*",
+        r"Ãƒâ€šÃ‚Â©\s*\d{4}\s+LegacySource.*",
+        r"Ã‚Â©\s*\d{4}\s+LegacySource.*",
+        r".*\.com.*",
         r"Business Associations\s*\|.*",
         r"Civil Procedure\s*\d+",
         r"Constitutional Law\s*\d+",
@@ -5394,7 +5394,7 @@ def clean_call_text(call_text):
         r"Ã‚Â©\s*\d{4}.*",
         r"National Conference of Bar Examiners.*",
         r"These materials are copyrighted.*",
-        r"Studicata.*",
+        r".*Question Bank.*",
         r"www\..*",
     ]
 

@@ -1,4 +1,4 @@
-import re
+﻿import re
 import sys
 from pathlib import Path
 
@@ -87,8 +87,6 @@ def is_noise_line(line):
     if "copyright" in lowered or "all rights reserved" in lowered:
         return True
 
-    if "studicata" in lowered:
-        return True
 
     if "plug and play essay templates" in lowered:
         return True
