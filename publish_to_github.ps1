@@ -1,6 +1,6 @@
-# Publishes code-only changes from this folder to the public GitHub repo.
-# It copies ONLY source files (never PDFs, databases, or personal data)
-# into the clean repo folder, commits, and pushes.
+# Publishes app files from this folder to the public GitHub repo.
+# It copies source files plus the explicitly approved local database and
+# user-owned condensed sample-answer PDF.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File publish_to_github.ps1 "your commit message"
@@ -41,6 +41,11 @@ $codeFiles = @(
     ".streamlit\secrets.toml.example"
 )
 
+$approvedDataFiles = @(
+    "mee_reflex.db",
+    "MEE_Condensed_Sample_Answers_By_Subject.pdf"
+)
+
 if (-not (Test-Path $dst)) {
     Write-Host "Public repo folder not found: $dst" -ForegroundColor Red
     exit 1
@@ -60,16 +65,36 @@ foreach ($f in $codeFiles) {
     }
 }
 
+Write-Host "Copying approved data files..." -ForegroundColor Cyan
+foreach ($f in $approvedDataFiles) {
+    $from = Join-Path $src $f
+    $to   = Join-Path $dst $f
+    if (Test-Path $from) {
+        Copy-Item $from $to -Force
+        Write-Host "  $f"
+    } else {
+        Write-Host "  (skipped, missing) $f" -ForegroundColor Yellow
+    }
+}
+
 Set-Location $dst
 
-# Safety net: refuse to push if any copyrighted/data file ever got staged.
 git add -A
-$bad = git status --porcelain | Select-String -Pattern '\.(pdf|db|sqlite|sqlite3|csv)(\s|$)'
+$approvedRegex = ($approvedDataFiles | ForEach-Object { [regex]::Escape($_) }) -join "|"
+$bad = git status --porcelain |
+    Select-String -Pattern '\.(pdf|db|sqlite|sqlite3|csv)(\s|$)' |
+    Where-Object { $_.Line -notmatch $approvedRegex }
 if ($bad) {
-    Write-Host "ABORTING: data/copyrighted files detected in the publish folder:" -ForegroundColor Red
+    Write-Host "ABORTING: unapproved data/copyrighted files detected in the publish folder:" -ForegroundColor Red
     $bad | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
     Write-Host "Remove them from $dst before publishing." -ForegroundColor Red
     exit 1
+}
+
+foreach ($f in $approvedDataFiles) {
+    if (Test-Path (Join-Path $dst $f)) {
+        git add -f -- $f
+    }
 }
 
 $changes = git status --porcelain
