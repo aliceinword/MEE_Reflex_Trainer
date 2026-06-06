@@ -26,6 +26,8 @@ $codeFiles = @(
     "import_studicata_bank.py",
     "import_master_rules.py",
     "import_questions_bank.py",
+    "import_questions_docx.py",
+    "import_plug_play_docx.py",
     "reset_studicata_import.py",
     ".streamlit\config.toml"
 )

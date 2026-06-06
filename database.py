@@ -370,9 +370,9 @@ def add_plug_play_template(
         WHERE source_file = ?
         AND subject = ?
         AND module_title = ?
-        AND pdf_page = ?
+        AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
         LIMIT 1
-    """, (source_file, subject, module_title, pdf_page))
+    """, (source_file, subject, module_title, pdf_page, pdf_page))
 
     existing = c.fetchone()
 
