@@ -856,6 +856,41 @@ hr {
     margin: 0.8rem 0 0.3rem;
     text-transform: uppercase;
 }
+
+/* Fact pattern boxes (readable narrative paragraphs) */
+.fact-box {
+    background: rgba(255, 255, 255, 0.97);
+    border: 1.5px solid #C7D2FE;
+    border-radius: 18px;
+    padding: 1.05rem 1.25rem;
+    margin: 0.85rem 0 1.1rem 0;
+    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.08);
+    max-width: 920px;
+}
+
+.fact-title {
+    color: #4338CA;
+    font-weight: 700;
+    font-size: 1.05rem;
+    margin-bottom: 0.65rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid #E0E7FF;
+}
+
+.fact-text {
+    color: #1E293B;
+    font-size: 17px;
+    line-height: 1.65;
+    letter-spacing: 0.05px;
+}
+
+.fact-text p {
+    margin: 0 0 0.85rem 0;
+}
+
+.fact-text p:last-child {
+    margin-bottom: 0;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1120,6 +1155,144 @@ def render_prompt(text):
     )
 
 
+def _normalize_quote_spacing(text):
+    """Pair straight double-quotes by order so opening/closing spacing is correct.
+
+    PDF extraction glues quotes to neighboring words (gym,"Comet, a"going).
+    A plain regex cannot tell an opening quote from a closing one, but walking
+    the text and toggling an in-quote flag pairs them deterministically:
+    opening quotes get a space before (none after), closing quotes get a space
+    after (none before).
+    """
+    out = []
+    in_quote = False
+    chars = list(text)
+    n = len(chars)
+
+    for i, ch in enumerate(chars):
+        if ch == '"':
+            while out and out[-1] == " ":
+                out.pop()
+            if not in_quote:
+                if out and out[-1] not in "([{":
+                    out.append(" ")
+                out.append('"')
+                in_quote = True
+            else:
+                out.append('"')
+                in_quote = False
+                if i + 1 < n and chars[i + 1].isalpha():
+                    out.append(" ")
+        else:
+            out.append(ch)
+
+    return "".join(out)
+
+
+def clean_fact_pattern_text(text):
+    if not text:
+        return "No fact pattern available."
+
+    text = str(text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace(" ", " ")
+
+    # Remove exam/copyright/footer junk
+    junk_patterns = [
+        r"\bFEBRUARY\s+\d{4}\s+MEE\b",
+        r"\bJULY\s+\d{4}\s+MEE\b",
+        r"\bMEE\s+QUESTION\s+\d+\b",
+        r"\bQUESTION\s+\d+\s*[-–—].*",
+        r"©\s*\d{4}.*",
+        r"National Conference of Bar Examiners.*",
+        r"These materials are copyrighted.*",
+        r"Studicata.*",
+        r"www\..*",
+    ]
+
+    for pattern in junk_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+
+    # Fix broken hyphenated line breaks: going-\nout-of-business -> going-out-of-business
+    text = re.sub(r"(\w)-\s*\n+\s*(\w)", r"\1-\2", text)
+
+    # Quote spacing is normalized after line-collapse (see _normalize_quote_spacing).
+
+    # Collapse all line breaks to spaces -- PDF extraction creates fake paragraphs
+    lines = []
+    for line in text.splitlines():
+        line = re.sub(r"[ \t]+", " ", line).strip()
+        if line:
+            lines.append(line)
+
+    text = " ".join(lines)
+    text = re.sub(r"\s+", " ", text)
+
+    # Fix spacing around punctuation
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    text = re.sub(r"([.!?])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"([,;:])([A-Za-z])", r"\1 \2", text)
+
+    # Pair and space straight double-quotes correctly
+    text = _normalize_quote_spacing(text)
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip()
+
+
+def split_fact_pattern_paragraphs(text, max_sentences_per_paragraph=4):
+    cleaned = clean_fact_pattern_text(text)
+
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z\"'])", cleaned)
+
+    paragraphs = []
+    current = []
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+
+        current.append(sentence)
+
+        if len(current) >= max_sentences_per_paragraph:
+            paragraphs.append(" ".join(current))
+            current = []
+
+    if current:
+        paragraphs.append(" ".join(current))
+
+    return paragraphs
+
+
+def render_fact_pattern_text(title, text, max_chars=None):
+    paragraphs = split_fact_pattern_paragraphs(text)
+
+    if max_chars:
+        joined = "\n\n".join(paragraphs)
+
+        if len(joined) > max_chars:
+            joined = (
+                joined[:max_chars].rsplit(" ", 1)[0]
+                + "... [mini packet ends - open full question if needed]"
+            )
+
+        paragraphs = [p.strip() for p in joined.split("\n\n") if p.strip()]
+
+    safe_title = escape_display_text(title)
+    paragraph_html = "".join(f"<p>{escape_display_text(p)}</p>" for p in paragraphs)
+
+    st.markdown(
+        (
+            '<div class="fact-box">'
+            f'<div class="fact-title">{safe_title}</div>'
+            f'<div class="fact-text">{paragraph_html}</div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+
 def clean_trigger_facts_text(text):
     if not text:
         return "No trigger facts available."
@@ -1188,49 +1361,31 @@ def extract_fact_pattern_only(question_text, call_text=None):
         return "No fact pattern available."
 
     text = str(question_text)
-    text = re.sub(r"(?mi)^\s*(?:FEBRUARY|JULY)\s+\d{4}\s+MEE\s*$", "", text)
-    text = re.sub(r"(?mi)^\s*MEE\s+QUESTION\s+\d+\s*$", "", text)
-    text = re.sub(r"(?mi)^\s*QUESTION\s+\d+\s*[-\u2012\u2013\u2014\u2212:].*$", "", text)
-    text = re.sub(r"(?mi)^\s*Studicata.*$", "", text)
-    text = re.sub(r"(?mi)^\s*www\..*$", "", text)
 
+    # Remove exam junk first
+    text = re.sub(r"\bFEBRUARY\s+\d{4}\s+MEE\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bJULY\s+\d{4}\s+MEE\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\u00a9\s*\d{4}.*", "", text, flags=re.IGNORECASE)
+
+    # If the call text appears inside the question, cut everything from it onward.
     if call_text:
-        cleaned_call = clean_call_text(call_text)
-        direct_call = str(call_text).strip()
+        clean_call = clean_call_text(call_text)
+        if clean_call and clean_call in text:
+            text = text.split(clean_call)[0]
 
-        for candidate in [direct_call, cleaned_call]:
-            if candidate and candidate in text:
-                text = text.replace(candidate, "")
+    # Otherwise find the first numbered call, but only cut if it appears
+    # after at least 40% of the text (so we don't truncate the fact pattern).
+    matches = list(re.finditer(r"(?m)^\s*1\.\s+", text))
+    if matches:
+        cutoff = None
+        for match in matches:
+            if match.start() > len(text) * 0.40:
+                cutoff = match.start()
                 break
+        if cutoff:
+            text = text[:cutoff]
 
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    first_call_index = None
-
-    for index in range(max(0, len(lines) - 30), len(lines)):
-        if re.match(r"^1\.\s+", lines[index]):
-            tail = "\n".join(lines[index:])
-            if re.search(r"\b(Explain|Discuss|Analyze|Determine|Should|Would|What|Is|Can|May)\b", tail, re.IGNORECASE):
-                first_call_index = index
-                break
-
-    if first_call_index is not None:
-        lines = lines[:first_call_index]
-
-    question_marker_index = None
-    marker_pattern = re.compile(
-        r"^(?:MEE\s+)?(?:QUESTION|Q)\s*\d+\s*(?:[-\u2012\u2013\u2014\u2212:].*)?$",
-        re.IGNORECASE,
-    )
-
-    for index, line in enumerate(lines[1:], start=1):
-        if marker_pattern.match(line):
-            question_marker_index = index
-            break
-
-    if question_marker_index is not None:
-        lines = lines[:question_marker_index]
-
-    return "\n".join(lines).strip() or "No fact pattern available."
+    return clean_fact_pattern_text(text)
 
 
 def question_looks_suspicious(qd):
@@ -1769,39 +1924,17 @@ def make_mini_fact_packet(question_text, max_chars=1800):
     if not question_text:
         return "No question text available."
 
-    paragraphs = [
-        paragraph.strip()
-        for paragraph in str(question_text).splitlines()
-        if len(paragraph.strip()) >= 25
-    ]
+    fact_text = (
+        extract_fact_pattern_only(question_text)
+        if "extract_fact_pattern_only" in globals()
+        else question_text
+    )
+    cleaned = clean_fact_pattern_text(fact_text)
 
-    if not paragraphs:
-        return "No question text available."
+    if len(cleaned) <= max_chars:
+        return cleaned
 
-    packet = []
-    current_length = 0
-    truncated = False
-
-    for paragraph in paragraphs:
-        next_length = current_length + len(paragraph) + (2 if packet else 0)
-
-        if next_length > max_chars:
-            truncated = True
-            break
-
-        packet.append(paragraph)
-        current_length = next_length
-
-    if not packet:
-        packet.append(paragraphs[0][:max_chars].strip())
-        truncated = len(paragraphs[0]) > max_chars
-
-    result = "\n\n".join(packet)
-
-    if truncated:
-        result += "\n\n... [mini packet ends - open full question if needed]"
-
-    return result
+    return cleaned[:max_chars].rsplit(" ", 1)[0] + "... [mini packet ends - open full question if needed]"
 
 
 def extract_subquestions(call_text):
@@ -2987,8 +3120,13 @@ elif menu == "MEE Muscle Ladder":
             with st.expander("Call of the Question", expanded=True):
                 render_call_text("Call of the Question", qd["call_of_question"])
 
-            with st.expander("Question Text", expanded=True):
-                render_prompt(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
+            with st.expander("Fact Pattern", expanded=True):
+                fact_only = (
+                    extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
+                    if "extract_fact_pattern_only" in globals()
+                    else qd["question_text"]
+                )
+                render_fact_pattern_text("Fact Pattern", fact_only)
 
             hints_used = render_progressive_hints(qd)
 
@@ -3167,10 +3305,15 @@ elif menu == "Mini Essay Drill":
                 render_call_text("Call of the Question", qd["call_of_question"])
 
             st.markdown("### Mini Fact Packet")
-            render_prompt(make_mini_fact_packet(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])))
+            render_fact_pattern_text("Mini Fact Packet", make_mini_fact_packet(qd["question_text"]), max_chars=None)
 
-            with st.expander("Open full question if needed", expanded=False):
-                render_prompt(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
+            with st.expander("Open full fact pattern if needed", expanded=False):
+                fact_only = (
+                    extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
+                    if "extract_fact_pattern_only" in globals()
+                    else qd["question_text"]
+                )
+                render_fact_pattern_text("Full Fact Pattern", fact_only)
 
             try:
                 hints_used = render_progressive_hints(qd)
@@ -3294,8 +3437,13 @@ elif menu == "Issue Spotting Drill":
             with st.expander("Call of the Question", expanded=True):
                 render_call_text("Call of the Question", qd["call_of_question"])
 
-            with st.expander("Question Text", expanded=True):
-                render_prompt(extract_fact_pattern_only(qd["question_text"], qd["call_of_question"]))
+            with st.expander("Fact Pattern", expanded=True):
+                fact_only = (
+                    extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
+                    if "extract_fact_pattern_only" in globals()
+                    else qd["question_text"]
+                )
+                render_fact_pattern_text("Fact Pattern", fact_only)
 
             hints_used = render_progressive_hints(qd)
 
@@ -3443,9 +3591,7 @@ elif menu == "Timed IRAC Drill":
                 _prompt_text = extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
 
                 if _prompt_text:
-                    _fmt = str(_prompt_text).replace("\r\n", "\n").replace("\r", "\n").replace(" ", " ")
-                    _fmt = re.sub(r"(?<=[a-z0-9][.!?])\s*(?=[A-Z])", "\n\n", _fmt)
-                    _paras = [p.strip() for p in re.split(r"\n+", _fmt) if p.strip()]
+                    _paras = split_fact_pattern_paragraphs(_prompt_text)
                     _inner = "".join(
                         f'<p style="margin-bottom:1.2em">{escape_display_text(p)}</p>'
                         for p in _paras
