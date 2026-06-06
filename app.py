@@ -1587,7 +1587,7 @@ def render_plug_play_template(template):
     ) = template
 
     safe_title = escape_display_text(module_title or "Plug & Play Template")
-    safe_meta = escape_display_text(f"{subject or 'n/a'} | Source page: {pdf_page or 'n/a'}")
+    safe_meta = escape_display_text(f"{subject or 'n/a'}")
     sections = [
         render_plug_section("Scenario Trigger", scenario_trigger),
         render_plug_section("Issue Statement", issue_statement),
@@ -3938,7 +3938,7 @@ elif menu == "Plug & Play Templates":
     st.caption(f"{len(plug_results)} result(s)")
 
     for template in plug_results:
-        with st.expander(f"{template[2]} - {template[1]} - page {template[9] or 'n/a'}", expanded=False):
+        with st.expander(f"{template[2]} - {template[1]}", expanded=False):
             render_plug_play_template(template)
 
 
