@@ -79,6 +79,34 @@ def init_db():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS rule_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject TEXT,
+            rule_title TEXT,
+            source_type TEXT,
+            prompt TEXT,
+            memory_rule TEXT,
+            final_rule TEXT,
+            score INTEGER,
+            missed_elements TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS rule_flashcards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject TEXT,
+            rule_title TEXT,
+            rule_text TEXT,
+            source_file TEXT,
+            tags TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     # Add new question columns safely if the old database already exists.
     question_extra_columns = {
         "exam_year": "INTEGER",
@@ -239,6 +267,143 @@ def search_outline_rules(query, subject=None, limit=5):
         LIMIT ?
     """
     params.extend([subject, subject, limit])
+
+    c.execute(sql, params)
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def add_rule_flashcard(subject, rule_title, rule_text, source_file, tags=""):
+    conn = get_connection()
+    c = conn.cursor()
+
+    c.execute("""
+        SELECT id
+        FROM rule_flashcards
+        WHERE source_file = ?
+        AND rule_title = ?
+        LIMIT 1
+    """, (source_file, rule_title))
+
+    existing = c.fetchone()
+
+    if existing:
+        conn.close()
+        return False
+
+    c.execute("""
+        INSERT INTO rule_flashcards (
+            subject,
+            rule_title,
+            rule_text,
+            source_file,
+            tags,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        subject,
+        rule_title,
+        rule_text,
+        source_file,
+        tags,
+        now(),
+    ))
+
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_rule_flashcards(subject=None):
+    conn = get_connection()
+    c = conn.cursor()
+
+    query = """
+        SELECT
+            id,
+            subject,
+            rule_title,
+            rule_text,
+            source_file,
+            tags
+        FROM rule_flashcards
+        WHERE 1=1
+    """
+    params = []
+
+    if subject and subject != "All":
+        query += " AND subject = ?"
+        params.append(subject)
+
+    query += " ORDER BY subject, rule_title"
+
+    c.execute(query, params)
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def search_rule_flashcards(query, subject=None, limit=30):
+    conn = get_connection()
+    c = conn.cursor()
+
+    search_terms = [
+        term.strip()
+        for term in str(query or "").replace(";", " ").replace(",", " ").split()
+        if len(term.strip()) >= 2
+    ]
+
+    sql = """
+        SELECT
+            id,
+            subject,
+            rule_title,
+            rule_text,
+            source_file,
+            tags
+        FROM rule_flashcards
+        WHERE 1=1
+    """
+    params = []
+
+    if subject and subject != "All":
+        sql += " AND subject = ?"
+        params.append(subject)
+
+    if search_terms:
+        sql += " AND ("
+        clauses = []
+
+        for term in search_terms:
+            clauses.append("(rule_title LIKE ? OR rule_text LIKE ? OR tags LIKE ?)")
+            like = f"%{term}%"
+            params.extend([like, like, like])
+
+        sql += " OR ".join(clauses)
+        sql += ")"
+
+    query_clean = str(query or "").strip()
+    full_like = f"%{query_clean}%"
+    starts_like = f"{query_clean} %"
+
+    sql += """
+        ORDER BY
+            CASE
+                WHEN LOWER(rule_title) = LOWER(?) THEN 0
+                WHEN LOWER(rule_title) LIKE LOWER(?) THEN 1
+                WHEN rule_title LIKE ? THEN 2
+                WHEN tags LIKE ? THEN 3
+                WHEN rule_text LIKE ? THEN 4
+                ELSE 5
+            END,
+            CASE WHEN ? IS NOT NULL AND subject = ? THEN 0 ELSE 1 END,
+            subject,
+            rule_title
+        LIMIT ?
+    """
+    params.extend([query_clean, starts_like, full_like, full_like, full_like, subject, subject, limit])
 
     c.execute(sql, params)
     rows = c.fetchall()
@@ -915,6 +1080,7 @@ def get_attempts(limit=100):
     c.execute("""
         SELECT
             attempts.id,
+            attempts.question_id,
             questions.subject,
             questions.exam_name,
             questions.question_number,
@@ -928,6 +1094,78 @@ def get_attempts(limit=100):
         FROM attempts
         JOIN questions ON attempts.question_id = questions.id
         ORDER BY attempts.created_at DESC
+        LIMIT ?
+    """, (limit,))
+
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def save_rule_attempt(
+    subject,
+    rule_title,
+    source_type,
+    prompt,
+    memory_rule,
+    final_rule,
+    score,
+    missed_elements,
+    notes,
+):
+    conn = get_connection()
+    c = conn.cursor()
+
+    c.execute("""
+        INSERT INTO rule_attempts (
+            subject,
+            rule_title,
+            source_type,
+            prompt,
+            memory_rule,
+            final_rule,
+            score,
+            missed_elements,
+            notes,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        subject,
+        rule_title,
+        source_type,
+        prompt,
+        memory_rule,
+        final_rule,
+        score,
+        missed_elements,
+        notes,
+        now(),
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_rule_attempts(limit=50):
+    conn = get_connection()
+    c = conn.cursor()
+
+    c.execute("""
+        SELECT
+            id,
+            subject,
+            rule_title,
+            source_type,
+            prompt,
+            memory_rule,
+            final_rule,
+            score,
+            missed_elements,
+            notes,
+            created_at
+        FROM rule_attempts
+        ORDER BY created_at DESC
         LIMIT ?
     """, (limit,))
 
