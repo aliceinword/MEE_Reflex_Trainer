@@ -78,7 +78,7 @@ def split_model_answer_points_simple(model_text):
     return points
 
 
-def audit_status(subquestion_count, points, model_points_length):
+def audit_status(subquestion_count, points, model_points_length, has_structured_bank=False):
     point_count = len(points)
     unique_points = sorted(set(points))
     missing_specific_points = [
@@ -87,6 +87,13 @@ def audit_status(subquestion_count, points, model_points_length):
     ]
 
     if model_points_length < 100:
+        if has_structured_bank:
+            return (
+                "STRUCTURED_FALLBACK",
+                "No usable model_points, but issue/rule/fact fields can render structured model analysis.",
+                missing_specific_points,
+                "YES_STRUCTURED_FALLBACK",
+            )
         return "MISSING_MODEL", "No usable model_points.", missing_specific_points, "NO"
 
     if subquestion_count > 1 and point_count == 0:
@@ -130,6 +137,9 @@ def load_questions(db_path):
                 call_of_question,
                 model_points,
                 rules,
+                tested_issues,
+                trigger_facts,
+                traps,
                 source
             FROM questions
             ORDER BY id
@@ -149,6 +159,7 @@ def main():
     counts = {
         "OK": 0,
         "MISSING_MODEL": 0,
+        "STRUCTURED_FALLBACK": 0,
         "NO_POINT_SPLIT": 0,
         "POSSIBLY_INCOMPLETE": 0,
         "PARTIAL_MODEL": 0,
@@ -163,10 +174,18 @@ def main():
             call_of_question,
             model_points,
             rules,
+            tested_issues,
+            trigger_facts,
+            traps,
             source,
         ) = row
 
         model_points = model_points or ""
+        structured_text = " ".join(
+            str(value or "")
+            for value in (tested_issues, rules, trigger_facts, traps)
+        )
+        has_structured_bank = bool(structured_text.strip())
         subquestion_count = extract_subquestions_simple(call_of_question)
         points = split_model_answer_points_simple(model_points)
         model_points_length = len(model_points.strip())
@@ -174,6 +193,7 @@ def main():
             subquestion_count,
             points,
             model_points_length,
+            has_structured_bank=has_structured_bank,
         )
         counts[status] = counts.get(status, 0) + 1
 
@@ -223,6 +243,7 @@ def main():
     for status in [
         "OK",
         "MISSING_MODEL",
+        "STRUCTURED_FALLBACK",
         "NO_POINT_SPLIT",
         "POSSIBLY_INCOMPLETE",
         "PARTIAL_MODEL",
