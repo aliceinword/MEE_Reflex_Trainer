@@ -41,6 +41,35 @@ def compact_lines(text):
     return "\n".join(lines).strip()
 
 
+SUBJECT_TAILS = [
+    "Agency & Partnership",
+    "Agency and Partnership",
+    "Corporations & LLCs",
+    "Civil Procedure",
+    "Constitutional Law",
+    "Contracts / Sales",
+    "Contracts",
+    "Criminal Law & Procedure",
+    "Evidence",
+    "Real Property",
+    "Torts",
+]
+
+
+POINT_WORDS = {
+    "1": "One",
+    "2": "Two",
+    "3": "Three",
+    "4": "Four",
+    "5": "Five",
+    "6": "Six",
+    "7": "Seven",
+    "8": "Eight",
+    "9": "Nine",
+    "10": "Ten",
+}
+
+
 def read_pdf_text(pdf_path):
     doc = fitz.open(pdf_path)
     return "\n".join(page.get_text("text") for page in doc)
@@ -65,13 +94,150 @@ def normalize_exam(month, year):
     return f"{month} {year}"
 
 
-def extract_answer_path(body):
-    question_summary = extract_between(
-        body,
-        "Question summary:",
-        ["Issues tested:"],
+def normalize_answer_text(text):
+    text = clean_text(text)
+    text = text.replace("Full Model Answer / Analysis", "")
+    text = re.sub(r"(?i)Condensed sample-answer path:\s*", "", text)
+    text = re.sub(r"(?i)\bcontentbased\b", "content-based", text)
+    text = re.sub(r"(?i)\bcontentneutral\b", "content-neutral", text)
+    text = re.sub(r"(?i)\bover-\s+inclusive\b", "over-inclusive", text)
+    text = re.sub(r"(?i)\be\.\s*g\.\s*,", "e.g.,", text)
+    text = re.sub(r"(?i)\bFact-based\s+analysis\s*:", "Fact-based analysis:", text)
+    text = re.sub(r"(?i)\bRule\s*\(\s*s\s*\)\s*:", "Rules:", text)
+    text = re.sub(r"(?i)\bShort\s+answer\s*:", "Short answer:", text)
+    text = re.sub(r"(?i)\bConclusion\s*:", "Conclusion:", text)
+    text = re.sub(r"(?i)\bShort answer:\s*Summary\s+", "Short answer: ", text)
+
+    # Repair words split by a PDF line break after a hyphen.
+    text = re.sub(r"([A-Za-z])-\n([A-Za-z])", r"\1-\2", text)
+
+    # Normalize point headings.
+    text = re.sub(
+        r"(?im)^\s*(\d+)\.\s+Point\s+(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)"
+        r"(\([a-z]\))?\s*(?:\([^)]*\))?\s*",
+        lambda m: f"Point {m.group(2)}{m.group(3) or ''}: ",
+        text,
+    )
+    text = re.sub(
+        r"(?im)^\s*(\d+)\.\s+Point\s+(\d+)(\([a-z]\))?\s*(?:\([^)]*\))?\s*",
+        lambda m: f"Point {POINT_WORDS.get(m.group(2), m.group(2))}{m.group(3) or ''}: ",
+        text,
+    )
+    text = re.sub(
+        r"(?im)^\s*(\d+)\.\s+Condensed\s+Analysis\s*",
+        lambda m: f"Point {POINT_WORDS.get(m.group(1), m.group(1))}: Condensed Analysis\n",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\bPoint\s+(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)"
+        r"(\([a-z]\))?\s*(?:\([^)]*\))?\s+(?!:)",
+        lambda m: f"\n\nPoint {m.group(1)}{m.group(2) or ''}: ",
+        text,
+    )
+    text = re.sub(
+        r"(?i)^Condensed\s+Analysis\s+",
+        "Point One: Condensed Analysis\n",
+        text,
     )
 
+    # Put section labels and point headings on their own paragraph boundary.
+    text = re.sub(
+        r"(?i)\s+(Short answer:|Rules:|Fact-based analysis:|Conclusion:)",
+        r"\n\1",
+        text,
+    )
+    text = re.sub(r"(?i)\s+(Point\s+(?:One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)(?:\([a-z]\))?:)", r"\n\n\1", text)
+
+    # Drop subject-name bleed at the end.
+    for subject in SUBJECT_TAILS:
+        text = re.sub(rf"\s+{re.escape(subject)}\s*$", "", text, flags=re.IGNORECASE)
+
+    return text.strip()
+
+
+def is_section_line(line):
+    return bool(
+        re.match(r"^Point\s+(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)(\([a-z]\))?:", line, re.I)
+        or re.match(r"^(Short answer:|Rules:|Fact-based analysis:|Conclusion:)$", line, re.I)
+        or re.match(r"^(Short answer:|Rules:|Fact-based analysis:|Conclusion:)\s+", line, re.I)
+    )
+
+
+def format_answer_path(answer_path):
+    text = normalize_answer_text(answer_path)
+
+    output = []
+    pending_bullet = False
+    current_section = None
+
+    for raw_line in text.splitlines():
+        line = re.sub(r"[ \t]+", " ", raw_line).strip()
+        if not line:
+            continue
+
+        if line in {"-", "•", "â€¢"}:
+            pending_bullet = True
+            continue
+
+        line = re.sub(r"^[-•â€¢]\s*", "", line).strip()
+        line = re.sub(r"\s+([,.;:!?])", r"\1", line)
+        line = re.sub(r"\(\s+", "(", line)
+        line = re.sub(r"\s+\)", ")", line)
+        line = re.sub(r"(?i)^Summary\s+", "", line)
+
+        section_match = re.match(r"^(Short answer:|Rules:|Fact-based analysis:|Conclusion:)\s*(.*)$", line, flags=re.I)
+        point_match = re.match(r"^(Point\s+(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)(\([a-z]\))?:)\s*(.*)$", line, flags=re.I)
+
+        if point_match:
+            if output:
+                output.append("")
+                output.append("---")
+                output.append("")
+            output.append(f"{point_match.group(1)} {point_match.group(4).strip()}".strip())
+            current_section = "point"
+            pending_bullet = False
+            continue
+
+        if section_match:
+            label = section_match.group(1)
+            body = section_match.group(2).strip()
+            canonical = {
+                "short answer:": "Short answer:",
+                "rules:": "Rules:",
+                "fact-based analysis:": "Fact-based analysis:",
+                "conclusion:": "Conclusion:",
+            }[label.lower()]
+            output.append("")
+            output.append(canonical)
+            current_section = canonical.lower().rstrip(":")
+            pending_bullet = False
+            if body:
+                if current_section in {"rules", "fact-based analysis"}:
+                    output.append(f"- {body}")
+                else:
+                    output.append(body)
+            continue
+
+        if pending_bullet or current_section in {"rules", "fact-based analysis"}:
+            if output and output[-1].startswith("- ") and not pending_bullet:
+                output[-1] = f"{output[-1]} {line}".strip()
+            else:
+                output.append(f"- {line}")
+            pending_bullet = False
+            continue
+
+        if output and output[-1] and not is_section_line(output[-1]) and output[-1] != "---":
+            output[-1] = f"{output[-1]} {line}".strip()
+        else:
+            output.append(line)
+
+    cleaned = "\n".join(output)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = re.sub(r"(?m)^Rules:\n(?!- )", "Rules:\n", cleaned)
+    return cleaned.strip()
+
+
+def extract_answer_path(body):
     answer_path = extract_between(
         body,
         "Condensed sample-answer path:",
@@ -81,13 +247,7 @@ def extract_answer_path(body):
     if not answer_path:
         return ""
 
-    if question_summary:
-        return (
-            f"Question summary:\n{question_summary}\n\n"
-            f"Condensed sample-answer path:\n{answer_path}"
-        ).strip()
-
-    return f"Condensed sample-answer path:\n{answer_path}".strip()
+    return format_answer_path(answer_path)
 
 
 def parse_entries(raw_text):
@@ -167,6 +327,9 @@ def update_database(entries, apply=False, overwrite=False):
         if len(model_points) < 100:
             empty_entries.append((entry["exam_name"], entry["question_number"]))
             stats["empty_or_short"] += 1
+            if apply and overwrite:
+                question_id, _existing_model_points = target
+                cur.execute("UPDATE questions SET model_points = '' WHERE id = ?", (question_id,))
             continue
 
         question_id, existing_model_points = target
