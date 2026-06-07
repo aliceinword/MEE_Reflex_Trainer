@@ -813,10 +813,11 @@ header *,
     background: rgba(255, 255, 255, 0.97);
     border: 1.5px solid #CDEBFF;
     border-radius: 14px;
-    padding: 0.95rem 1.05rem;
-    margin: 0.55rem 0 0.8rem 0;
+    padding: 1.05rem 1.25rem;
+    margin: 0.75rem auto 1rem auto;
     box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
     width: 100%;
+    max-width: 980px;
 }
 
 .sample-answer-title {
@@ -2626,10 +2627,10 @@ def model_answer_quality(qd):
         return "missing"
 
     damaged_patterns = [
-        r"\bAssuming\s+t\s+Short answer:",
+        r"\bAssuming\s+t\b",
+        r"Point\s+Two\s*\(a\).*?\bAssuming\s+t\b",
         r"\bs\s+Short answer:",
         r"\bking\s+to\s+recover\b",
-        r"\b03\.\s+There\b",
         r"\bCondensed Analysis\b",
         r"Condensed sample-answer path:\s*$",
     ]
@@ -2729,22 +2730,18 @@ def render_structured_model_analysis(qd, call_text=None, title="Structured Model
 
 
 def render_sample_answer_section(qd, expanded=False):
-    model_points = (qd.get("model_points", "") or "").strip() if isinstance(qd, dict) else ""
-    rules = (qd.get("rules", "") or "").strip() if isinstance(qd, dict) else ""
+    model_points = qd.get("model_points", "") if isinstance(qd, dict) else ""
     quality = model_answer_quality(qd) if isinstance(qd, dict) else "missing"
 
-    if not model_points and not rules and not (
-        qd.get("tested_issues") or qd.get("trigger_facts")
+    if not model_points and quality == "missing" and not (
+        qd.get("tested_issues") or qd.get("rules") or qd.get("trigger_facts")
     ):
         st.info("No sample answer/model analysis available for this question yet.")
         return
 
     with st.expander("Compare With Sample Answer - open after self-grading", expanded=expanded):
         st.warning("Open this only after you attempted the issue/rule. No passive reading.")
-        # Priority: show the structured model_points whenever it is present and not
-        # detectably corrupt. Only fall back to the rules-based structured view when
-        # model_points is empty/None or known-damaged.
-        if model_points and quality != "damaged":
+        if quality == "usable":
             render_sample_answer_text("Sample Answer / Model Analysis", model_points)
         else:
             render_structured_model_analysis(qd, title="Structured Model Analysis")
@@ -5954,9 +5951,7 @@ def flatten_subquestions_for_answer_mapping(qd):
 
 
 def get_model_section_for_subquestion(qd, subq_index, subpart=None):
-    # Priority: split from model_points. Rules is only used as the structured
-    # fallback below (when model_points has no usable per-call breakdown).
-    model_text = qd.get("model_points", "") or ""
+    model_text = qd.get("model_points", "") or qd.get("rules", "") or ""
     points = split_model_answer_points(model_text)
     wanted_subpart = (subpart or None)
     quality = model_answer_quality(qd)
@@ -7277,7 +7272,6 @@ TRIGGER FACTS:
                     render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
                     render_trigger_facts("Trigger Facts", qd)
                     render_trap_warnings("Trap Warnings", qd["traps"])
-                    render_sample_answer_section(qd, expanded=False)
 
 
 elif menu == "Mini Essay Drill":
@@ -7373,25 +7367,6 @@ elif menu == "Mini Essay Drill":
 
                 if st.button("Reveal Issues + Rules"):
                     st.session_state[reveal_key] = True
-
-                if st.session_state.get(reveal_key, False):
-                    render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                    render_raw_tested_issues_expander(qd)
-                    render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                    render_trigger_facts("Trigger Facts", qd)
-                    render_raw_trigger_facts_expander(qd)
-                    render_trap_warnings("Trap Warnings", qd["traps"])
-                    with st.expander("Raw trap text", expanded=False):
-                        st.text(qd.get("traps", "") or "")
-                    model_points = (qd.get("model_points", "") or "").strip()
-                    if model_points and model_answer_quality(qd) != "damaged":
-                        with st.expander("Full Model Answer / Analysis", expanded=False):
-                            render_sample_answer_text("Full Model Answer / Analysis", model_points)
-                    elif qd.get("rules") or qd.get("tested_issues") or qd.get("trigger_facts"):
-                        with st.expander("Full Model Answer / Analysis", expanded=False):
-                            render_structured_model_analysis(qd, title="Structured Model Analysis")
-                    else:
-                        st.info("No full model answer/model analysis available for this question yet.")
 
             with main_col:
                 with st.expander("1. Call of the Question - read this first", expanded=True):
@@ -7497,6 +7472,18 @@ elif menu == "Mini Essay Drill":
                     "the full essay becomes much easier."
                 )
 
+            if st.session_state.get(reveal_key, False):
+                st.divider()
+                render_tested_issues_text("Tested Issues", qd["tested_issues"])
+                render_raw_tested_issues_expander(qd)
+                render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
+                render_trigger_facts("Trigger Facts", qd)
+                render_raw_trigger_facts_expander(qd)
+                render_trap_warnings("Trap Warnings", qd["traps"])
+                with st.expander("Raw trap text", expanded=False):
+                    st.text(qd.get("traps", "") or "")
+                render_sample_answer_section(qd, expanded=False)
+
 
 elif menu == "Issue Spotting Drill":
     render_page_title(
@@ -7513,6 +7500,7 @@ elif menu == "Issue Spotting Drill":
             st.error("Question not found.")
         else:
             qd = unpack_question(q)
+            reveal_key = f"issue_reveal_{qd['id']}"
 
             render_meta_strip(qd)
 
@@ -7542,31 +7530,7 @@ elif menu == "Issue Spotting Drill":
                 reveal_gate_box("Reveal only after writing your answer.")
 
                 if st.button("Reveal Tested Issues"):
-                    render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                    render_raw_tested_issues_expander(qd)
-                    render_trigger_facts("Trigger Facts", qd)
-                    render_raw_trigger_facts_expander(qd)
-                    render_trap_warnings("Trap Warnings", qd["traps"])
-                    with st.expander("Raw trap text", expanded=False):
-                        st.text(qd.get("traps", "") or "")
-                    render_question_highlights_with_fallback(
-                        "Fact Pattern with Trigger Facts Highlighted by Question",
-                        qd,
-                        show_explanations=show_explanations,
-                    )
-                    render_trigger_candidate_diagnostics(qd)
-                    flashcard_matches = find_relevant_rule_flashcards(
-                        qd.get("tested_issues", ""),
-                        subject=qd.get("subject", ""),
-                        limit=3,
-                    )
-                    if flashcard_matches:
-                        st.markdown("### Relevant Flashcard Rules")
-                        for card in flashcard_matches:
-                            render_rule_flashcard_box(card)
-                    else:
-                        st.info("No relevant flashcard rules matched this issue yet.")
-                    render_sample_answer_section(qd, expanded=False)
+                    st.session_state[reveal_key] = True
 
             with issue_main_col:
                 with st.expander("Call of the Question", expanded=True):
@@ -7593,6 +7557,34 @@ elif menu == "Issue Spotting Drill":
                     placeholder="List each issue in short phrases.",
                     height=180
                 )
+
+            if st.session_state.get(reveal_key, False):
+                st.divider()
+                render_tested_issues_text("Tested Issues", qd["tested_issues"])
+                render_raw_tested_issues_expander(qd)
+                render_trigger_facts("Trigger Facts", qd)
+                render_raw_trigger_facts_expander(qd)
+                render_trap_warnings("Trap Warnings", qd["traps"])
+                with st.expander("Raw trap text", expanded=False):
+                    st.text(qd.get("traps", "") or "")
+                render_question_highlights_with_fallback(
+                    "Fact Pattern with Trigger Facts Highlighted by Question",
+                    qd,
+                    show_explanations=show_explanations,
+                )
+                render_trigger_candidate_diagnostics(qd)
+                flashcard_matches = find_relevant_rule_flashcards(
+                    qd.get("tested_issues", ""),
+                    subject=qd.get("subject", ""),
+                    limit=3,
+                )
+                if flashcard_matches:
+                    st.markdown("### Relevant Flashcard Rules")
+                    for card in flashcard_matches:
+                        render_rule_flashcard_box(card)
+                else:
+                    st.info("No relevant flashcard rules matched this issue yet.")
+                render_sample_answer_section(qd, expanded=False)
 
             confidence = st.slider("Confidence", 1, 5, 3)
 
