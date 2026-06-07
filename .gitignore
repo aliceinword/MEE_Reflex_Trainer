@@ -26,6 +26,7 @@ env/
 # Local imports / generated exports
 data/imports/
 data/processed/
+*.docx
 
 # OS
 .DS_Store

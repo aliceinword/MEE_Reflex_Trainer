@@ -6,14 +6,18 @@ import pandas as pd
 import os
 import random
 import re
+import tempfile
 import time
 from html import escape
 from io import StringIO
+from pathlib import Path
 
 from database import (
+    DB_NAME,
     init_db,
     add_question,
     get_questions,
+    get_question_bank_rows,
     get_question_by_id,
     save_attempt,
     get_attempts,
@@ -24,6 +28,7 @@ from database import (
     get_subjects,
     get_statuses,
     get_dashboard_stats,
+    get_exam_years,
     get_outline_rules,
     add_outline_rule,
     search_outline_rules,
@@ -39,6 +44,52 @@ from database import (
     set_user_password,
 )
 from text_cleanup import normalize_extracted_text
+from text_rendering import (
+    clean_sample_answer_text as shared_clean_sample_answer_text,
+    escape_display_text as shared_escape_display_text,
+    make_readable_legal_text as shared_make_readable_legal_text,
+    render_prompt as shared_render_prompt,
+    render_readable_text as shared_render_readable_text,
+    render_sample_answer_text as shared_render_sample_answer_text,
+)
+
+
+def run_mee_pq_docx_import(uploaded_file, apply=False, overwrite=False):
+    """Parse/import a user-owned MEE_PQ_Bank.docx upload through the shared importer."""
+    from import_mee_pq_bank_docx import (
+        backup_db as backup_mee_pq_db,
+        parse_docx as parse_mee_pq_docx,
+        upsert_database as upsert_mee_pq_database,
+    )
+
+    suffix = Path(uploaded_file.name or "upload.docx").suffix or ".docx"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(uploaded_file.getvalue())
+        tmp_path = Path(tmp.name)
+
+    try:
+        entries = parse_mee_pq_docx(tmp_path)
+        backup_path = backup_mee_pq_db(Path(DB_NAME)) if apply else None
+        result = upsert_mee_pq_database(entries, apply=apply, overwrite=overwrite)
+    finally:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+
+    return entries, result, backup_path
+
+
+def run_markdown_text_import(markdown_text, apply=False, allow_truncated=False):
+    """Parse/import a pasted Markdown/text MEE bank through the shared importer."""
+    from import_markdown_mee_qa_bank import (
+        import_records as import_markdown_records,
+        parse_records as parse_markdown_records,
+    )
+
+    records = parse_markdown_records(markdown_text or "")
+    report = import_markdown_records(records, apply=apply, allow_truncated=allow_truncated)
+    return records, report
 
 
 def _hash_password(plain):
@@ -152,15 +203,19 @@ QUESTION_HIGHLIGHT_LABELS = [
 
 
 def render_app_header():
-    st.markdown(
-        """
-        <div class="app-top-header">
-            <div>
-                <div class="app-title">MEE Reflex Trainer</div>
-                <div class="app-subtitle">Focused MEE training: issue spotting -> rule flash -> IRAC under pressure.</div>
-            </div>
-        </div>
-        """,
+    # The logo now lives at the top of the sidebar (see render_sidebar_logo).
+    return
+
+
+def render_sidebar_logo():
+    _logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.svg")
+    try:
+        with open(_logo_path, "r", encoding="utf-8") as _lf:
+            _logo_svg = _lf.read()
+    except Exception:
+        return
+    st.sidebar.markdown(
+        "<div style='max-width:185px;margin:0 0 0.5rem'>" + _logo_svg + "</div>",
         unsafe_allow_html=True,
     )
 
@@ -2383,19 +2438,117 @@ def parse_bool(value):
     return True
 
 
+def extract_question_sentences_for_call(text):
+    if not text:
+        return []
+
+    text = normalize_extracted_text(str(text))
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"\s+", " ", text)
+    questions = []
+
+    for match in re.finditer(r"([^?]+?\?)", text):
+        question = re.sub(r"\s+", " ", match.group(1)).strip()
+        question = re.sub(r"^\d+\s*[\).\s-]*", "", question).strip()
+        question = re.sub(r"^\(?[a-z]\)?[.)-]\s*", "", question).strip()
+        if question and question[0].islower():
+            question = question[0].upper() + question[1:]
+
+        if len(question) >= 18 and question not in questions:
+            questions.append(question)
+
+    return questions
+
+
+def extract_model_legal_problem_questions(model_text):
+    if not model_text:
+        return []
+
+    text = normalize_extracted_text(str(model_text))
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    match = re.search(
+        r"Legal\s+Problems\s*:\s*(.*?)(?=\n\s*(?:Summary\b|Discussion\b|Point\s+One\b|ANALYSIS\b)|\Z)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    if not match:
+        return []
+
+    return extract_question_sentences_for_call(match.group(1))
+
+
+def model_point_labels(model_text, limit):
+    number_words = {
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+    }
+    labels = []
+    pattern = re.compile(
+        r"Point\s+(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|\d+)\s*(?:\(([a-z])\))?",
+        flags=re.IGNORECASE,
+    )
+
+    for match in pattern.finditer(str(model_text or "")):
+        raw_num = match.group(1)
+        num = int(raw_num) if raw_num.isdigit() else number_words.get(raw_num.lower())
+
+        if not num:
+            continue
+
+        subpart = match.group(2)
+        label = f"{num}({subpart.lower()})." if subpart else f"{num}."
+
+        if label not in labels:
+            labels.append(label)
+
+        if len(labels) >= limit:
+            break
+
+    if len(labels) < limit:
+        labels = [f"{index}." for index in range(1, limit + 1)]
+
+    return labels[:limit]
+
+
+def recover_call_text_from_model(call_text, model_text):
+    stored_call = normalize_extracted_text(call_text)
+    stored_questions = extract_question_sentences_for_call(stored_call)
+    model_questions = extract_model_legal_problem_questions(model_text)
+
+    if len(model_questions) <= len(stored_questions):
+        return stored_call
+
+    labels = model_point_labels(model_text, len(model_questions))
+    return "\n".join(
+        f"{label} {question}" for label, question in zip(labels, model_questions)
+    )
+
+
 def unpack_question(q):
+    model_points = normalize_extracted_text(q[10])
+    call_of_question = recover_call_text_from_model(q[5], model_points)
+
     return {
         "id": q[0],
         "exam_name": q[1],
         "question_number": q[2],
         "subject": q[3],
         "question_text": normalize_extracted_text(q[4]),
-        "call_of_question": normalize_extracted_text(q[5]),
+        "call_of_question": call_of_question,
         "tested_issues": normalize_extracted_text(q[6]),
         "rules": normalize_extracted_text(q[7]),
         "trigger_facts": normalize_extracted_text(q[8]),
         "traps": normalize_extracted_text(q[9]),
-        "model_points": normalize_extracted_text(q[10]),
+        "model_points": model_points,
         "active_for_july_2026": q[11],
         "created_at": q[12],
         "exam_year": q[13],
@@ -2410,196 +2563,27 @@ def unpack_question(q):
 
 
 def escape_display_text(value):
-    return escape(str(value)).replace("$", "&#36;")
+    return shared_escape_display_text(value)
 
 
 def make_readable_legal_text(text):
-    if not text:
-        return "No text available."
-
-    text = str(text)
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = text.replace("\u00a0", " ")
-
-    # Fix PDF quote squashing: serve."Agency -> serve.\n\n"Agency
-    text = re.sub(r'\.["â€](?=[A-Z])', '.\n\n"', text)
-
-    # through"written -> through "written
-    text = re.sub(r'([a-zA-Z])["â€]([a-zA-Z])', r'\1 "\2', text)
-
-    # Fix section-symbol spacing.
-    text = re.sub(r"Â§\s+(\d+)\.\s+(\d+)", r"Â§ \1.\2", text)
-    text = re.sub(r"Ã‚Â§\s+(\d+)\.\s+(\d+)", r"Â§ \1.\2", text)
-    text = re.sub(r"\bId\.\s+Â§\s+(\d+)\.\s+(\d+)", r"Id. Â§ \1.\2", text)
-    text = re.sub(r"\bId\.\s+Ã‚Â§\s+(\d+)\.\s+(\d+)", r"Id. Â§ \1.\2", text)
-
-    # Normalize spaces but preserve newlines.
-    text = re.sub(r"[ \t]+", " ", text)
-
-    text = re.sub(
-        r"\b(Point One|Point Two|Point Three|Point Four|Point Five|Point Six)\s*(\([^)]*\))",
-        r"\n\n\1 \2\n",
-        text,
-        flags=re.IGNORECASE,
-    )
-
-    text = re.sub(
-        r"\b(Legal Problems:|DISCUSSION|ANALYSIS)\b",
-        r"\n\n\1\n",
-        text,
-        flags=re.IGNORECASE,
-    )
-
-    text = re.sub(r"\s+(\(\d+\))\s+", r"\n\n\1 ", text)
-    text = re.sub(r"\s+(\d+\.)\s+", r"\n\n\1 ", text)
-    text = re.sub(r"\s+([a-z]\.)\s+", r"\n\n\1 ", text)
-
-    transition_words = [
-        "Here,",
-        "However,",
-        "Therefore,",
-        "Thus,",
-        "Because",
-        "On the other hand,",
-        "By contrast,",
-        "Moreover,",
-        "In addition,",
-        "Nevertheless,",
-        "But ",
-        "The issue is",
-        "The rule is",
-    ]
-
-    for word in transition_words:
-        text = re.sub(rf"\s+({re.escape(word)})", r"\n\n\1", text)
-
-    text = re.sub(r"\n{3,}", "\n\n", text)
-
-    return text.strip()
+    return shared_make_readable_legal_text(text)
 
 
 def render_readable_text(title, text, font_size=None):
-    formatted = make_readable_legal_text(text)
-    safe_title = escape_display_text(title)
-    safe_text = escape_display_text(formatted)
-    compact_class = " compact" if globals().get("COMPACT_MODE", False) else ""
-
-    st.markdown(
-        (
-            f'<div class="readable-box{compact_class}">'
-            f'<div class="readable-title">{safe_title}</div>'
-            f'<div class="readable-text">'
-            f'{safe_text}'
-            f'</div></div>'
-        ),
-        unsafe_allow_html=True,
+    shared_render_readable_text(
+        title,
+        text,
+        compact=globals().get("COMPACT_MODE", False),
     )
 
 
 def clean_sample_answer_text(text):
-    if not text:
-        return ""
-
-    text = normalize_extracted_text(str(text))
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = text.replace("\u00a0", " ").replace("Ãƒâ€šÃ‚Â ", " ")
-    text = re.sub(r"[ \t]+", " ", text)
-
-    # The imported condensed-answer summaries are often synthetic and can read
-    # awkwardly. Keep the actual answer analysis as the comparison material.
-    text = re.sub(
-        r"(?is)^Question summary:\s*.*?(?=Condensed sample-answer path:|Point\s+(?:One|Two|Three|Four|Five|Six)|\d+\.\s+Point|\Z)",
-        "",
-        text,
-    )
-    text = re.sub(r"(?i)Condensed sample-answer path:\s*", "Sample Answer:\n", text)
-
-    # Repair common PDF/import label damage.
-    text = re.sub(r"(?i)\bFact-based\s*\n*\s*analysis\s*\n*\s*:", "Fact-based analysis:", text)
-    text = re.sub(r"(?i)\bRule\s*\(\s*s\s*\)\s*:", "Rule(s):", text)
-    text = re.sub(r"(?i)\bShort\s+answer\s*:", "Short answer:", text)
-    text = re.sub(r"(?i)\bConclusion\s*:", "Conclusion:", text)
-    text = re.sub(r"\b([a-z])\s+Short answer:", "Short answer:", text)
-    text = re.sub(r"\b([a-z])\s+Rule\(s\):", "Rule(s):", text)
-
-    # Turn point headers and labels into predictable paragraph breaks.
-    text = re.sub(
-        r"(?i)(?:^|\s)(\d+\.\s*)?(Point\s+(?:One|Two|Three|Four|Five|Six)(?:\s*\([^)]*\))?)\s+",
-        r"\n\n\2\n",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\s+(Short answer:|Rule\(s\):|Fact-based analysis:|Conclusion:)",
-        r"\n\n\1",
-        text,
-    )
-
-    lines = []
-    for raw_line in text.splitlines():
-        line = re.sub(r"[ \t]+", " ", raw_line).strip()
-        if not line:
-            lines.append("")
-            continue
-
-        if line in {"-", "â€¢"}:
-            continue
-
-        line = re.sub(r"^[-â€¢]\s*", "", line).strip()
-        line = re.sub(r"\s+([,.;:!?])", r"\1", line)
-        line = re.sub(r"([.!?])([A-Z])", r"\1 \2", line)
-        line = re.sub(r"\s+", " ", line)
-
-        if line:
-            lines.append(line)
-
-    text = "\n".join(lines)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
+    return shared_clean_sample_answer_text(text)
 
 
 def render_sample_answer_text(title, text):
-    formatted = clean_sample_answer_text(text)
-    if not formatted:
-        st.info("No sample answer/model analysis available for this question yet.")
-        return
-
-    safe_title = escape_display_text(title)
-    blocks = []
-    label_classes = {
-        "Sample Answer:": "sample-label-main",
-        "Short answer:": "sample-label",
-        "Rule(s):": "sample-label",
-        "Fact-based analysis:": "sample-label",
-        "Conclusion:": "sample-label",
-    }
-
-    for paragraph in [p.strip() for p in formatted.split("\n\n") if p.strip()]:
-        if re.fullmatch(r"Point\s+(One|Two|Three|Four|Five|Six)(\s*\([^)]*\))?", paragraph, flags=re.IGNORECASE):
-            blocks.append(f'<div class="sample-point">{escape_display_text(paragraph)}</div>')
-            continue
-
-        label_match = re.match(r"^(Sample Answer:|Short answer:|Rule\(s\):|Fact-based analysis:|Conclusion:)\s*(.*)$", paragraph, flags=re.IGNORECASE | re.DOTALL)
-        if label_match:
-            label = label_match.group(1)
-            body = label_match.group(2).strip()
-            canonical_label = next((known for known in label_classes if known.lower() == label.lower()), label)
-            blocks.append(f'<div class="{label_classes.get(canonical_label, "sample-label")}">{escape_display_text(canonical_label)}</div>')
-            if body:
-                body_html = "<br>".join(escape_display_text(line) for line in body.splitlines() if line.strip())
-                blocks.append(f"<p>{body_html}</p>")
-        else:
-            paragraph_html = "<br>".join(escape_display_text(line) for line in paragraph.splitlines() if line.strip())
-            blocks.append(f"<p>{paragraph_html}</p>")
-
-    st.markdown(
-        (
-            '<div class="sample-answer-box">'
-            f'<div class="sample-answer-title">{safe_title}</div>'
-            f'<div class="sample-answer-text">{"".join(blocks)}</div>'
-            '</div>'
-        ),
-        unsafe_allow_html=True,
-    )
+    shared_render_sample_answer_text(title, text)
 
 
 def count_question_calls(qd):
@@ -2729,7 +2713,11 @@ def render_structured_model_analysis(qd, call_text=None, title="Structured Model
     )
 
 
-def render_sample_answer_section(qd, expanded=False):
+def render_sample_answer_body(qd):
+    if not isinstance(qd, dict):
+        st.info("No sample answer/model analysis available for this question yet.")
+        return
+
     model_points = qd.get("model_points", "") if isinstance(qd, dict) else ""
     quality = model_answer_quality(qd) if isinstance(qd, dict) else "missing"
 
@@ -2739,12 +2727,87 @@ def render_sample_answer_section(qd, expanded=False):
         st.info("No sample answer/model analysis available for this question yet.")
         return
 
+    st.warning("Open this only after you attempted the issue/rule. No passive reading.")
+    if quality == "usable":
+        render_sample_answer_text("Sample Answer / Model Analysis", model_points)
+    else:
+        render_structured_model_analysis(qd, title="Structured Model Analysis")
+
+
+def render_sample_answer_section(qd, expanded=False):
     with st.expander("Compare With Sample Answer - open after self-grading", expanded=expanded):
-        st.warning("Open this only after you attempted the issue/rule. No passive reading.")
-        if quality == "usable":
-            render_sample_answer_text("Sample Answer / Model Analysis", model_points)
-        else:
-            render_structured_model_analysis(qd, title="Structured Model Analysis")
+        render_sample_answer_body(qd)
+
+
+def render_answer_bank_tabs(
+    qd,
+    expanded=False,
+    title="Answer Bank - open after retrieval",
+    include_rule_support=True,
+    include_highlights=True,
+):
+    """Render the shared post-retrieval answer bank for every practice surface."""
+    with st.expander(title, expanded=expanded):
+        tab_names = ["Sample Answer", "Rules + Issues", "Trigger Facts", "Traps"]
+        if include_rule_support:
+            tab_names.append("Rule Support")
+
+        tabs = st.tabs(tab_names)
+
+        with tabs[0]:
+            render_sample_answer_body(qd)
+
+        with tabs[1]:
+            render_tested_issues_text("Tested Issues", qd.get("tested_issues", ""))
+            render_readable_text("Rules", qd.get("rules", ""), globals().get("READING_FONT_SIZE"))
+
+        with tabs[2]:
+            render_trigger_facts("Trigger Facts", qd)
+            if include_highlights and "render_question_highlights_with_fallback" in globals():
+                fact_only = (
+                    extract_fact_pattern_only(qd.get("question_text", ""), qd.get("call_of_question", ""))
+                    if "extract_fact_pattern_only" in globals()
+                    else qd.get("question_text", "")
+                )
+                render_question_highlights_with_fallback(
+                    "Fact Pattern with Trigger Facts Highlighted",
+                    qd,
+                    text=fact_only,
+                    show_explanations=True,
+                )
+
+        with tabs[3]:
+            render_trap_warnings("Trap Warnings", qd.get("traps", ""))
+
+        if include_rule_support:
+            with tabs[4]:
+                outline_matches = find_best_outline_rules_for_question(
+                    qd.get("subject", ""),
+                    qd.get("tested_issues", ""),
+                    qd.get("rules", ""),
+                    qd.get("traps", ""),
+                    limit=3,
+                )
+                plug_matches = find_best_plug_play_for_call(
+                    qd.get("subject", ""),
+                    qd.get("call_of_question", ""),
+                    qd.get("question_text", ""),
+                    qd.get("tested_issues", ""),
+                    limit=2,
+                )
+
+                if outline_matches:
+                    st.markdown("#### Attack Outline Rules")
+                    for rule in outline_matches:
+                        render_attack_rule_box(rule)
+
+                if plug_matches:
+                    st.markdown("#### Plug & Play Templates")
+                    for template in plug_matches:
+                        render_plug_play_template(template)
+
+                if not outline_matches and not plug_matches:
+                    st.info("No extra rule support matched this question yet.")
 
 
 def clean_trap_text(text):
@@ -3117,10 +3180,10 @@ def render_rule_skeleton(title, rule_support):
     rule_text = rule_support.get("rule_text", "")
 
     if not rule_text:
-        st.info("No rule skeleton found yet. Import Flashcards2025 or search the Rule Flashcards page.")
+        st.info("No rule skeleton found yet. Import Flashcards or search the Rule Flashcards page.")
         try:
             if not get_rule_flashcards():
-                st.warning("Rule Flashcards are not imported yet. Run: python import_flashcards2025.py Flashcards2025.rtf")
+                st.warning("Rule Flashcards are not imported yet. Run the flashcard import script with your RTF file.")
         except Exception:
             pass
         st.code("python import_flashcards2025.py Flashcards2025.rtf")
@@ -3359,39 +3422,7 @@ def render_question_text(title, question_text):
 
 
 def render_prompt(text):
-    if not text:
-        paragraphs = ["No prompt available."]
-    else:
-        formatted = str(text).replace("\r\n", "\n").replace("\r", "\n").replace("\u00a0", " ")
-        formatted = re.sub(r"(?<=[a-z0-9][.!?])\s*(?=[A-Z])", "\n\n", formatted)
-        paragraphs = [
-            paragraph.strip()
-            for paragraph in re.split(r"\n+", formatted)
-            if paragraph.strip()
-        ]
-
-    paragraph_html = "".join(
-        f'<p style="margin-bottom:1.2em">{escape_display_text(paragraph)}</p>'
-        for paragraph in paragraphs
-    )
-
-    st.markdown(
-        (
-            '<div style="'
-            'font-size: 1.05rem;'
-            'line-height: 1.9;'
-            'color: #1a1a2e;'
-            'background: #f8f9fa;'
-            'padding: 1.2rem 1.5rem;'
-            'border-radius: 8px;'
-            'border-left: 4px solid #4a90d9;'
-            'white-space: pre-wrap;'
-            '">'
-            f'{paragraph_html}'
-            '</div>'
-        ),
-        unsafe_allow_html=True,
-    )
+    shared_render_prompt(text)
 
 
 def _normalize_quote_spacing(text):
@@ -4714,39 +4745,6 @@ def render_data_health_warning(qd):
         st.error("Possible import problem: this question may contain multiple MEE questions. Reimport needed.")
 
 
-def clean_call_text(call_text):
-    if not call_text:
-        return "No call of the question available."
-
-    text = str(call_text)
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = text.replace("\u00a0", " ")
-
-    junk_patterns = [
-        r"FEBRUARY\s+\d{4}\s+MEE",
-        r"JULY\s+\d{4}\s+MEE",
-        r"MEE\s+QUESTION\s+\d+",
-        r"QUESTION\s+\d+\s*[-\u2013\u2014].*",
-        r"Ã‚Â©\s*\d{4}.*",
-        r"Â©\s*\d{4}.*",
-        r"National Conference of Bar Examiners.*",
-        r".*Question Bank.*",
-    ]
-
-    for pattern in junk_patterns:
-        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
-
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\s+(\d+\([a-z]\)\.)\s+", r"\n\1 ", text, flags=re.IGNORECASE)
-    text = re.sub(r"\s+(\d+\.)\s+", r"\n\1 ", text)
-    text = re.sub(r"\s+([a-z]\.)\s+", r"\n   \1 ", text)
-
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    text = "\n".join(lines)
-
-    return text.strip()
-
-
 def clean_outline_text(text):
     if not text:
         return "No outline text available."
@@ -5469,102 +5467,6 @@ def make_mini_fact_packet(question_text, max_chars=1800):
     return cleaned[:max_chars].rsplit(" ", 1)[0] + "... [mini packet ends - open full question if needed]"
 
 
-def extract_subquestions(call_text):
-    text = clean_call_text(call_text)
-
-    if not text:
-        return [{"label": "Question", "text": "No call of the question available.", "subparts": []}]
-
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-
-    subquestions = []
-    current = None
-
-    top_level_pattern = re.compile(r"^(\d+)\.\s*(.*)")
-    numbered_subpart_pattern = re.compile(r"^(\d+)\(([a-z])\)\.\s*(.*)", re.IGNORECASE)
-    subpart_pattern = re.compile(r"^([a-z]\.)\s*(.*)", re.IGNORECASE)
-
-    for line in lines:
-        numbered_subpart = numbered_subpart_pattern.match(line)
-        top = top_level_pattern.match(line)
-        sub = subpart_pattern.match(line)
-
-        if numbered_subpart:
-            question_number = numbered_subpart.group(1)
-            subpart_label = f"{numbered_subpart.group(2)}."
-            subpart_text = numbered_subpart.group(3).strip()
-            expected_label = f"Question {question_number}"
-
-            if current and current.get("label") != expected_label:
-                subquestions.append(current)
-                current = None
-
-            if not current:
-                current = {
-                    "label": expected_label,
-                    "text": "",
-                    "subparts": [],
-                }
-
-            current["subparts"].append({
-                "label": subpart_label,
-                "text": subpart_text,
-            })
-
-        elif top:
-            if current:
-                subquestions.append(current)
-
-            label = f"Question {top.group(1)}"
-            body = top.group(2).strip()
-
-            current = {
-                "label": label,
-                "text": body,
-                "subparts": [],
-            }
-
-        elif sub and current:
-            current["subparts"].append({
-                "label": sub.group(1),
-                "text": sub.group(2).strip(),
-            })
-
-        else:
-            if current:
-                if current["subparts"]:
-                    current["subparts"][-1]["text"] += " " + line
-                else:
-                    current["text"] += " " + line
-            else:
-                current = {
-                    "label": "Question",
-                    "text": line,
-                    "subparts": [],
-                }
-
-    if current:
-        subquestions.append(current)
-
-    cleaned = []
-
-    for question in subquestions:
-        question["text"] = question.get("text", "").strip()
-        question["subparts"] = [
-            subpart
-            for subpart in question.get("subparts", [])
-            if subpart.get("text", "").strip()
-        ]
-
-        if question["text"] or question["subparts"]:
-            cleaned.append(question)
-
-    if not cleaned:
-        return [{"label": "Question", "text": text, "subparts": []}]
-
-    return cleaned
-
-
 def clean_call_text(call_text):
     if not call_text:
         return "No call of the question available."
@@ -5605,6 +5507,7 @@ def clean_call_text(call_text):
         r"\n\1",
         text,
     )
+    text = re.sub(r"\s+(\d+\([a-z]\)\.)\s*", r"\n\1 ", text, flags=re.IGNORECASE)
     text = re.sub(r"\s+(\d+\.)\s+", r"\n\1 ", text)
     text = re.sub(r"\s+([a-z]\.)\s+", r"\n\1 ", text)
     text = re.sub(r"\n{2,}", "\n", text)
@@ -5627,6 +5530,7 @@ def extract_subquestions(call_text):
     current = None
     unnumbered_count = 0
 
+    numbered_subpart_pattern = re.compile(r"^(\d+)\(([a-z])\)\.\s*(.*)", re.IGNORECASE)
     top_level_pattern = re.compile(r"^(\d+)\.\s*(.*)")
     subpart_pattern = re.compile(r"^([a-z]\.)\s*(.*)", re.IGNORECASE)
     call_start_pattern = re.compile(
@@ -5640,10 +5544,33 @@ def extract_subquestions(call_text):
             lines.pop(0)
 
     for line in lines:
+        numbered_subpart = numbered_subpart_pattern.match(line)
         top = top_level_pattern.match(line)
         sub = subpart_pattern.match(line)
 
-        if top:
+        if numbered_subpart:
+            question_number = numbered_subpart.group(1)
+            subpart_label = f"{numbered_subpart.group(2).lower()}."
+            subpart_text = numbered_subpart.group(3).strip()
+            expected_label = f"Question {question_number}"
+
+            if current and current.get("label") != expected_label:
+                subquestions.append(current)
+                current = None
+
+            if not current:
+                current = {
+                    "label": expected_label,
+                    "text": "",
+                    "subparts": [],
+                }
+
+            current["subparts"].append({
+                "label": subpart_label,
+                "text": subpart_text,
+            })
+
+        elif top:
             if current:
                 subquestions.append(current)
 
@@ -5723,7 +5650,7 @@ def render_call_text(title, call_text):
             subpart_text = escape_display_text(subpart.get("text", ""))
             subparts_html += (
                 '<div class="call-subpart">'
-                f'<span class="call-subpart-label">{subpart_label}</span>'
+                f'<span class="call-subpart-label">{subpart_label} </span>'
                 f'<span>{subpart_text}</span>'
                 '</div>'
             )
@@ -6559,11 +6486,8 @@ def question_picker(active_default=True, due_only=False, compact=False):
 
 
 NAV_GROUPS = [
-    ("MEE - TRAIN",   ["Dashboard", "Mini Essay Drill", "Muscle Ladder", "Timed IRAC Drill"]),
-    ("MEE - DRILLS",  ["Issue Spotting Drill", "Rule Flashcards", "Due Review Queue"]),
-    ("MEE - LIBRARY", ["Attack Outline Rules", "Plug & Play Templates", "Review Attempts"]),
-    ("MEE - MANAGE",  ["Question Bank"]),
-    ("MBE",           ["MBE Drills"]),
+    ("MEE", ["Home", "Question Bank", "Practice Mode", "Import Questions", "Manual Entry", "Settings"]),
+    ("MBE", ["MBE Drills"]),
 ]
 
 if st.session_state.get("_is_admin"):
@@ -6571,17 +6495,36 @@ if st.session_state.get("_is_admin"):
 
 _menu_aliases = {
     "Daily Workout": "Dashboard",
-    "Muscle Ladder": "MEE Muscle Ladder",
-    "Question Bank": "Bulk Import MEE Bank",
+    "Home": "Dashboard",
+    "Muscle Ladder": "Practice Mode",
+    "MEE Muscle Ladder": "Practice Mode",
+    "Mini Essay Drill": "Practice Mode",
+    "Issue Spotting Drill": "Practice Mode",
+    "Rule Flashcards": "Practice Mode",
+    "Rule Learning Portal": "Practice Mode",
+    "Rule Flash Drill": "Practice Mode",
+    "Rule Retrieval Drill": "Practice Mode",
+    "Timed IRAC Drill": "Practice Mode",
+    "Due Review Queue": "Practice Mode",
+    "Attack Outline Rules": "Question Bank",
+    "Plug & Play Templates": "Question Bank",
+    "Review Attempts": "Settings",
+    "MBE Drills": "Settings",
+    "Import Questions": "Bulk Import MEE Bank",
+    "Manual Entry": "Add MEE Question",
 }
 
 if "current_page" not in st.session_state:
     st.session_state["current_page"] = "Dashboard"
 
+render_sidebar_logo()
+
 for _group_name, _pages in NAV_GROUPS:
     st.sidebar.markdown(f'<div class="nav-group-label">{_group_name}</div>', unsafe_allow_html=True)
     for _page in _pages:
-        _is_active = st.session_state["current_page"] == _page
+        _current_menu = _menu_aliases.get(st.session_state["current_page"], st.session_state["current_page"])
+        _page_menu = _menu_aliases.get(_page, _page)
+        _is_active = st.session_state["current_page"] == _page or _current_menu == _page_menu
         if st.sidebar.button(
             _page,
             key=f"nav_btn_{_page}",
@@ -6683,8 +6626,71 @@ textarea {{
 .stMarkdown {{
     line-height: {READING_LINE_HEIGHT};
 }}
+
+/* Reading Comfort: scale all legal body text with the size control */
+.fact-text, .fact-text p,
+.question-text,
+.trigger-facts-text,
+.call-card-text, .call-subpart,
+.outline-rule-text,
+.plug-text,
+.hint-text {{
+    font-size: {READING_FONT_SIZE}px !important;
+    line-height: {READING_LINE_HEIGHT} !important;
+}}
 </style>
 """, unsafe_allow_html=True)
+
+st.markdown(
+    """
+<style>
+/* Headings bumped one size larger */
+.page-title-text { font-size: 1.8rem !important; }
+.page-subtitle { font-size: 0.98rem !important; }
+h1, [data-testid="stHeading"] h1 { font-size: 2.15rem !important; }
+h2, [data-testid="stHeading"] h2 { font-size: 1.7rem !important; }
+h3, [data-testid="stHeading"] h3 { font-size: 1.42rem !important; }
+h4, [data-testid="stHeading"] h4 { font-size: 1.2rem !important; }
+.fact-title, .question-title, .call-title, .readable-title,
+.outline-rule-title, .plug-title, .hint-title, .structured-section-title {
+    font-size: 1.18rem !important;
+}
+
+/* Bigger expander header labels (e.g. Smart Practice Queue) */
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary div[data-testid="stMarkdownContainer"] p,
+.streamlit-expanderHeader, .streamlit-expanderHeader p {
+    font-size: 1.18rem !important;
+    font-weight: 700 !important;
+}
+
+/* Bigger tab labels (e.g. Prompt / Answer / Rule Outline / Metadata) */
+[data-testid="stTabs"] button[data-baseweb="tab"] p,
+[data-testid="stTabs"] [data-baseweb="tab"] p,
+[data-testid="stTabs"] button[data-baseweb="tab"] {
+    font-size: 1.12rem !important;
+    font-weight: 700 !important;
+}
+
+/* Bigger radio label + options (e.g. Practice format) */
+[data-testid="stRadio"] [data-testid="stWidgetLabel"] p,
+[data-testid="stRadio"] [role="radiogroup"] label p,
+[data-testid="stRadio"] [role="radiogroup"] label div {
+    font-size: 1.08rem !important;
+}
+[data-testid="stRadio"] [data-testid="stWidgetLabel"] p {
+    font-weight: 700 !important;
+}
+
+/* Slightly larger captions (e.g. the format description line) */
+[data-testid="stCaptionContainer"] p {
+    font-size: 0.95rem !important;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 if ADHD_READING_MODE:
     render_reading_mode_notice()
@@ -6692,7 +6698,7 @@ if ADHD_READING_MODE:
 
 if menu == "Dashboard":
     stats = get_dashboard_stats()
-    render_page_title("Daily Workout", "One tiny useful rep. No overwhelm.")
+    render_page_title("Home", "One tiny useful rep. No overwhelm.")
 
     st.markdown('<div class="dashboard-wrap">', unsafe_allow_html=True)
 
@@ -6729,9 +6735,9 @@ if menu == "Dashboard":
             """
             <div class="compact-card">
                 <h3>Today's Workout</h3>
-                <div class="workout-step"><strong>Mini Essay Drill</strong><span>8 min</span></div>
-                <div class="workout-step"><strong>Rule Learning</strong><span>5 min</span></div>
-                <div class="workout-step"><strong>Due Review</strong><span>5 min</span></div>
+                <div class="workout-step"><strong>Practice Mode</strong><span>8 min</span></div>
+                <div class="workout-step"><strong>Compare answer</strong><span>2 min</span></div>
+                <div class="workout-step"><strong>Fix note</strong><span>1 min</span></div>
                 <div class="workout-step"><strong>Stop or continue</strong><span>your choice</span></div>
             </div>
             """,
@@ -6739,16 +6745,16 @@ if menu == "Dashboard":
         )
         btn1, btn2, btn3 = st.columns(3)
         with btn1:
-            if st.button("Start Mini Essay", use_container_width=True):
-                st.session_state["current_page"] = "Mini Essay Drill"
+            if st.button("Issue + Rule", use_container_width=True):
+                st.session_state["current_page"] = "Practice Mode"
                 st.rerun()
         with btn2:
-            if st.button("Start Rule Learning", use_container_width=True):
-                st.session_state["current_page"] = "Rule Flashcards"
+            if st.button("Mini IRAC", use_container_width=True):
+                st.session_state["current_page"] = "Practice Mode"
                 st.rerun()
         with btn3:
-            if st.button("Due Review Queue", use_container_width=True):
-                st.session_state["current_page"] = "Due Review Queue"
+            if st.button("Review Recall", use_container_width=True):
+                st.session_state["current_page"] = "Practice Mode"
                 st.rerun()
 
     with mid_col:
@@ -6756,10 +6762,10 @@ if menu == "Dashboard":
             """
             <div class="compact-card">
                 <h3>Tiny Win</h3>
-                <div class="tiny-win">Do one Level 1 or Mini Essay question. Save it. That counts.</div>
+                <div class="tiny-win">Do one Practice Mode rep. Save it. That counts.</div>
                 <p><strong>Minimum Session:</strong></p>
                 <ul>
-                    <li>8 min Mini Essay</li>
+                    <li>8 min issue + rule</li>
                     <li>2 min compare</li>
                     <li>1 fix note</li>
                 </ul>
@@ -6804,7 +6810,7 @@ if menu == "Dashboard":
         next_action = (
             f"You have {due_reviews} due reviews. Do one before new work."
             if due_reviews > 0
-            else "No reviews due. Do one Mini Essay Drill."
+            else "No reviews due. Do one Practice Mode rep."
         )
         st.markdown(
             (
@@ -6879,86 +6885,184 @@ if menu == "Dashboard":
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+elif menu == "Question Bank":
+    render_page_title(
+        "Question Bank",
+        "Browse, filter, and inspect stored MEE questions.",
+    )
+
+    subjects = ["All"] + get_subjects()
+    statuses = ["All"] + get_statuses()
+    years = ["All"] + [str(year) for year in get_exam_years()]
+
+    filter_cols = st.columns([1.1, 1.1, 0.85, 1.35, 0.8], gap="small")
+    with filter_cols[0]:
+        selected_subject = st.selectbox("Subject", subjects, key="bank_subject")
+    with filter_cols[1]:
+        selected_status = st.selectbox("Status", statuses, key="bank_status")
+    with filter_cols[2]:
+        selected_year = st.selectbox("Exam year", years, key="bank_year")
+    with filter_cols[3]:
+        topic_query = st.text_input("Tested topic / keyword", placeholder="personal jurisdiction, hearsay, agency")
+    with filter_cols[4]:
+        active_only = st.checkbox("Active only", value=False)
+
+    rows = get_question_bank_rows(
+        subject=selected_subject,
+        status=selected_status,
+        topic=topic_query,
+        exam_year=None if selected_year == "All" else selected_year,
+        active_only=active_only,
+    )
+
+    st.caption(f"{len(rows)} matching questions")
+
+    if not rows:
+        st.info("No questions match those filters.")
+    else:
+        bank_df = pd.DataFrame(
+            rows,
+            columns=[
+                "ID",
+                "Exam",
+                "Q",
+                "Subject",
+                "Year",
+                "Season",
+                "Status",
+                "Priority",
+                "Source",
+                "Next Review",
+                "Tested Issues",
+            ],
+        )
+        bank_df["Tested Issues"] = bank_df["Tested Issues"].fillna("").astype(str).str.replace(r"\s+", " ", regex=True).str.slice(0, 180)
+        st.dataframe(
+            bank_df,
+            use_container_width=True,
+            hide_index=True,
+            height=min(420, 80 + (len(bank_df) * 32)),
+        )
+
+        labels = [
+            f"{row[0]} - {row[1]} Q{row[2]} - {row[3]} - Priority {row[7] or '-'}"
+            for row in rows
+        ]
+        selected_label = st.selectbox("Open question details", labels, key="bank_selected_question")
+        selected_question_id = rows[labels.index(selected_label)][0]
+        q = get_question_by_id(selected_question_id)
+
+        if q:
+            qd = unpack_question(q)
+            st.subheader(f"{qd['exam_name']} Q{qd['question_number']} - {qd['subject']}")
+            st.caption(
+                f"Status: {qd['july_2026_status']} | Priority: {qd['priority'] or '-'} | Source: {qd['source'] or '-'}"
+            )
+
+            prompt_tab, answer_tab, outline_tab, metadata_tab = st.tabs(
+                ["Prompt", "Answer", "Rule Outline", "Metadata"]
+            )
+            with prompt_tab:
+                render_call_text("Call of the Question", qd["call_of_question"])
+                render_question_text("Question Text", qd["question_text"])
+            with answer_tab:
+                render_sample_answer_text("Sample Answer / Model Analysis", qd["model_points"])
+            with outline_tab:
+                render_tested_issues("Tested Issues", qd["tested_issues"])
+                render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
+                render_readable_text("Trigger Facts", qd["trigger_facts"], READING_FONT_SIZE)
+                render_trap_warnings("Trap Warnings", qd["traps"])
+            with metadata_tab:
+                st.json({
+                    "id": qd["id"],
+                    "exam_name": qd["exam_name"],
+                    "question_number": qd["question_number"],
+                    "subject": qd["subject"],
+                    "secondary_subjects": qd["secondary_subjects"],
+                    "exam_year": qd["exam_year"],
+                    "exam_season": qd["exam_season"],
+                    "next_review_at": qd["next_review_at"],
+                    "last_practiced_at": qd["last_practiced_at"],
+                })
+
+
 elif menu == "Bulk Import MEE Bank":
     render_page_title(
-        "Bulk Import MEE Bank",
-        "Import or review MEE question-bank material.",
+        "Import Questions",
+        "Import CSV batches or a user-owned MEE_PQ_Bank.docx file.",
     )
 
-    st.markdown("""
-    Use this page to import previous MEE questions from CSV.
+    csv_tab, docx_tab, text_tab = st.tabs(["CSV Import", "DOCX Import", "Text / Markdown Import"])
 
-    **Best workflow:**  
-    1. Extract or paste question data into CSV.  
-    2. Tag subject, issues, rules, trigger facts, and traps.  
-    3. Mark July 2026 relevance.  
-    4. Practice from the app.
+    with csv_tab:
+        st.caption("Use CSV for small batches or custom tagged questions.")
 
-    **Practice rule:** import 10-20 questions at a time, then return to training.
-    """)
+        template = pd.DataFrame([
+            {
+                "exam_name": "February 2021",
+                "exam_year": 2021,
+                "exam_season": "February",
+                "question_number": "1",
+                "subject": "Civil Procedure",
+                "secondary_subjects": "",
+                "question_text": "[Paste private question text here]",
+                "call_of_question": "What legal result should the court reach? Explain.",
+                "tested_issues": "Issue one; issue two; issue three",
+                "rules": "Rule one. Rule two. Rule three.",
+                "trigger_facts": "Fact that triggers issue one; fact that triggers issue two; fact that creates a trap",
+                "traps": "Common wrong turn; missing element; misleading fact",
+                "model_points": "What a passing answer must discuss.",
+                "active_for_july_2026": 1,
+                "july_2026_status": "Active standalone MEE",
+                "priority": 5,
+                "source": "My source"
+            }
+        ])
 
-    template = pd.DataFrame([
-        {
-            "exam_name": "February 2021",
-            "exam_year": 2021,
-            "exam_season": "February",
-            "question_number": "1",
-            "subject": "Civil Procedure",
-            "secondary_subjects": "",
-            "question_text": "[Paste private question text here]",
-            "call_of_question": "What legal result should the court reach? Explain.",
-            "tested_issues": "Issue one; issue two; issue three",
-            "rules": "Rule one. Rule two. Rule three.",
-            "trigger_facts": "Fact that triggers issue one; fact that triggers issue two; fact that creates a trap",
-            "traps": "Common wrong turn; missing element; misleading fact",
-            "model_points": "What a passing answer must discuss.",
-            "active_for_july_2026": 1,
-            "july_2026_status": "Active standalone MEE",
-            "priority": 5,
-            "source": "FEB2021QA.pdf"
-        }
-    ])
+        csv_buffer = StringIO()
+        template.to_csv(csv_buffer, index=False)
 
-    csv_buffer = StringIO()
-    template.to_csv(csv_buffer, index=False)
+        action_col, upload_col = st.columns([0.9, 2.4], gap="medium")
+        with action_col:
+            st.download_button(
+                "Download CSV Template",
+                data=csv_buffer.getvalue(),
+                file_name="mee_import_template.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        with upload_col:
+            uploaded_file = st.file_uploader("Upload completed CSV", type=["csv"], key="csv_import_file")
 
-    st.download_button(
-        "Download CSV Template",
-        data=csv_buffer.getvalue(),
-        file_name="mee_import_template.csv",
-        mime="text/csv"
-    )
-    st.caption("Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
+        st.caption("Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
 
-    uploaded_file = st.file_uploader("Upload completed CSV", type=["csv"])
+        required_columns = [
+            "exam_name",
+            "question_number",
+            "subject",
+            "question_text",
+            "call_of_question",
+            "tested_issues",
+            "rules",
+            "trigger_facts",
+            "traps",
+            "model_points"
+        ]
 
-    required_columns = [
-        "exam_name",
-        "question_number",
-        "subject",
-        "question_text",
-        "call_of_question",
-        "tested_issues",
-        "rules",
-        "trigger_facts",
-        "traps",
-        "model_points"
-    ]
+        if uploaded_file is not None:
+            df = pd.read_csv(uploaded_file).fillna("")
+            missing = [col for col in required_columns if col not in df.columns]
 
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file).fillna("")
+            metric_cols = st.columns(3)
+            metric_cols[0].metric("Rows", len(df))
+            metric_cols[1].metric("Columns", len(df.columns))
+            metric_cols[2].metric("Missing required", len(missing))
 
-        st.subheader("Preview")
-        st.dataframe(df.head(20), use_container_width=True)
+            st.dataframe(df.head(20), use_container_width=True, height=260)
 
-        missing = [col for col in required_columns if col not in df.columns]
-
-        if missing:
-            st.error(f"Missing required columns: {missing}")
-        else:
-            st.success(f"Ready to import {len(df)} rows.")
-
-            if st.button("Import Questions"):
+            if missing:
+                st.error(f"Missing required columns: {missing}")
+            elif st.button("Import CSV Questions", type="primary", use_container_width=True):
                 imported = 0
 
                 for _, row in df.iterrows():
@@ -6981,36 +7085,170 @@ elif menu == "Bulk Import MEE Bank":
                         priority=parse_optional_int(row.get("priority", 3), default=3),
                         source=row.get("source", "")
                     )
-
                     imported += 1
 
                 st.success(f"Imported {imported} MEE questions.")
 
+    with docx_tab:
+        st.caption("Use this for your better formatted MEE_PQ_Bank.docx. A dry run appears before any write.")
+
+        docx_file = st.file_uploader("Upload MEE_PQ_Bank.docx", type=["docx"], key="mee_pq_docx_file")
+        overwrite_existing = st.checkbox(
+            "Overwrite existing questions/answers with DOCX content",
+            value=True,
+            key="mee_pq_docx_overwrite",
+        )
+
+        if docx_file is not None:
+            with st.spinner("Parsing DOCX dry run..."):
+                entries, result, _backup_path = run_mee_pq_docx_import(
+                    docx_file,
+                    apply=False,
+                    overwrite=overwrite_existing,
+                )
+
+            stats = result["stats"]
+            usable_answers = sum(1 for entry in entries if len(entry.model_points or "") >= 500)
+            import_cols = st.columns(5)
+            import_cols[0].metric("Parsed", len(entries))
+            import_cols[1].metric("Usable answers", usable_answers)
+            import_cols[2].metric("Would update", stats.get("would_update", 0))
+            import_cols[3].metric("Would insert", stats.get("would_insert", 0))
+            import_cols[4].metric("Skipped", stats.get("skipped_existing", 0) + stats.get("skipped_short_insert", 0))
+
+            preview_rows = [
+                {
+                    "Exam": entry.exam_name,
+                    "Q": entry.question_number,
+                    "Subject": entry.subject,
+                    "Question chars": len(entry.question_text or ""),
+                    "Answer chars": len(entry.model_points or ""),
+                }
+                for entry in entries[:40]
+            ]
+            st.dataframe(pd.DataFrame(preview_rows), use_container_width=True, hide_index=True, height=280)
+
+            if st.button("Import DOCX to Database", type="primary", use_container_width=True):
+                with st.spinner("Importing DOCX and creating a database backup..."):
+                    _entries, applied_result, backup_path = run_mee_pq_docx_import(
+                        docx_file,
+                        apply=True,
+                        overwrite=overwrite_existing,
+                    )
+
+                applied_stats = applied_result["stats"]
+                st.success(
+                    f"DOCX import complete. Updated {applied_stats.get('updated', 0)} and "
+                    f"inserted {applied_stats.get('inserted', 0)} questions."
+                )
+                if backup_path:
+                    st.caption(f"Backup created: {backup_path}")
+
+    with text_tab:
+        st.caption(
+            "Paste or upload a structured Markdown/text bank. Expected sections include "
+            "Fact Pattern, Questions Asked, Key Legal Issues, Rules & Doctrine, and Full Analysis."
+        )
+
+        text_upload = st.file_uploader(
+            "Upload Markdown/text bank",
+            type=["md", "txt"],
+            key="markdown_text_import_file",
+        )
+        pasted_markdown = st.text_area(
+            "Or paste Markdown/text here",
+            height=280,
+            placeholder="### MEE-2025-FEB-Q01 - February 2025\n\n**Subject:** ...\n\n## Fact Pattern\n...",
+            key="markdown_text_import_paste",
+        )
+        allow_truncated = st.checkbox(
+            "Allow records marked as truncated",
+            value=False,
+            key="markdown_allow_truncated",
+        )
+
+        markdown_text = ""
+        if text_upload is not None:
+            markdown_text = text_upload.getvalue().decode("utf-8", errors="replace")
+        elif pasted_markdown.strip():
+            markdown_text = pasted_markdown
+
+        if markdown_text:
+            records, report = run_markdown_text_import(
+                markdown_text,
+                apply=False,
+                allow_truncated=allow_truncated,
+            )
+
+            text_cols = st.columns(5)
+            text_cols[0].metric("Parsed", report["records_parsed"])
+            text_cols[1].metric("Would update", report["records_to_update"])
+            text_cols[2].metric("Would insert", report["records_to_insert"])
+            text_cols[3].metric("Skipped truncated", report["records_skipped_truncated"])
+            text_cols[4].metric("Subjects", len({record.subject for record in records if record.subject}))
+
+            preview_rows = [
+                {
+                    "Source ID": record.source_id,
+                    "Exam": record.exam_name,
+                    "Q": record.question_number,
+                    "Subject": record.subject,
+                    "Answer chars": len(record.model_points or ""),
+                    "Truncated": record.is_truncated,
+                }
+                for record in records[:40]
+            ]
+            if preview_rows:
+                st.dataframe(pd.DataFrame(preview_rows), use_container_width=True, hide_index=True, height=280)
+            else:
+                st.info("No records were detected. Check the Markdown headings and section labels.")
+
+            if records and st.button("Import Text / Markdown to Database", type="primary", use_container_width=True):
+                _records, applied_report = run_markdown_text_import(
+                    markdown_text,
+                    apply=True,
+                    allow_truncated=allow_truncated,
+                )
+                st.success(
+                    f"Text import complete. Updated {applied_report['records_to_update']} and "
+                    f"inserted {applied_report['records_to_insert']} records."
+                )
+                if applied_report.get("backup"):
+                    st.caption(f"Backup created: {applied_report['backup']}")
+
 
 elif menu == "Add MEE Question":
     render_page_title(
-        "Add MEE Question",
+        "Manual Entry",
         "Manually add one question with its call, rule bank, and answer notes.",
     )
 
-    st.markdown("Manual entry is best for high-value questions that need custom tagging.")
+    st.caption("Manual entry is best for high-value questions that need custom tagging.")
 
     with st.form("add_question_form"):
-        col1, col2, col3 = st.columns(3)
+        meta_cols = st.columns([1.05, 0.55, 0.75, 1.1, 0.75, 1.15], gap="small")
 
-        with col1:
-            exam_name = st.text_input("Exam name", placeholder="February 2021")
-            exam_year = st.number_input("Exam year", min_value=1990, max_value=2030, value=2021)
-            exam_season = st.selectbox("Exam season", ["February", "July", "Other"])
+        with meta_cols[0]:
+            exam_name = st.text_input("Exam", placeholder="February 2021")
+        with meta_cols[1]:
+            question_number = st.text_input("Q", placeholder="1")
+        with meta_cols[2]:
+            exam_year = st.number_input("Year", min_value=1990, max_value=2035, value=2021)
+        with meta_cols[3]:
+            subject = st.text_input("Subject", placeholder="Civil Procedure")
+        with meta_cols[4]:
+            priority = st.slider("Priority", 1, 5, 3)
+        with meta_cols[5]:
+            source = st.text_input("Source", placeholder="My outline / PDF")
 
-        with col2:
-            question_number = st.text_input("Question number", placeholder="1")
-            subject = st.text_input("Primary subject", placeholder="Civil Procedure")
+        more_meta_cols = st.columns([0.8, 1.1, 1.1, 1.2], gap="small")
+        with more_meta_cols[0]:
+            exam_season = st.selectbox("Season", ["February", "July", "Other"])
+        with more_meta_cols[1]:
             secondary_subjects = st.text_input("Secondary subjects", placeholder="Evidence, Torts")
-
-        with col3:
+        with more_meta_cols[2]:
             july_2026_status = st.selectbox(
-                "July 2026 status",
+                "Status",
                 [
                     "Active standalone MEE",
                     "Retired standalone - background only",
@@ -7018,47 +7256,59 @@ elif menu == "Add MEE Question":
                     "Historical / low priority"
                 ]
             )
-            priority = st.slider("Priority", 1, 5, 3)
-            source = st.text_input("Source", placeholder="FEB2021QA.pdf")
+        with more_meta_cols[3]:
+            active_for_july_2026 = st.checkbox("Active for July 2026", value=True)
 
-        active_for_july_2026 = st.checkbox(
-            "Active for July 2026 standalone MEE",
-            value=True
-        )
+        prompt_tab, answer_tab, outline_tab = st.tabs(["Prompt", "Answer", "Rule Outline"])
 
-        question_text = st.text_area("Question text", height=250)
-        st.caption("Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
-        call_of_question = st.text_area("Call of the question", height=100)
+        with prompt_tab:
+            prompt_cols = st.columns([1.45, 1], gap="medium")
+            with prompt_cols[0]:
+                question_text = st.text_area(
+                    "Question text / prompt",
+                    height=360,
+                    placeholder="Paste the fact pattern here.",
+                )
+                st.caption("Tip: Press Enter twice between paragraphs for clean spacing when displayed.")
+            with prompt_cols[1]:
+                call_of_question = st.text_area(
+                    "Call of the question",
+                    height=360,
+                    placeholder="Paste each call or subquestion here.",
+                )
 
-        tested_issues = st.text_area(
-            "Tested issues",
-            placeholder="Issue one; issue two; issue three",
-            height=120
-        )
+        with answer_tab:
+            model_points = st.text_area(
+                "Sample answer / model analysis",
+                placeholder="Paste the complete answer or analysis here.",
+                height=420,
+            )
+            st.caption("This is what appears in the Answer Bank after retrieval.")
 
-        rules = st.text_area(
-            "Rules",
-            placeholder="Paste concise rule statements here.",
-            height=150
-        )
-
-        trigger_facts = st.text_area(
-            "Trigger facts",
-            placeholder="Fact that triggers issue one; fact that triggers issue two; fact that creates a trap",
-            height=120
-        )
-
-        traps = st.text_area(
-            "Traps",
-            placeholder="Common wrong turn; missing element; misleading fact.",
-            height=120
-        )
-
-        model_points = st.text_area(
-            "Model answer points",
-            placeholder="What a passing answer must discuss.",
-            height=150
-        )
+        with outline_tab:
+            issue_col, rule_col = st.columns([1, 1], gap="medium")
+            with issue_col:
+                tested_issues = st.text_area(
+                    "Tested issues",
+                    placeholder="Issue one; issue two; issue three",
+                    height=170,
+                )
+                trigger_facts = st.text_area(
+                    "Trigger facts",
+                    placeholder="Facts that trigger the issues/rules.",
+                    height=170,
+                )
+            with rule_col:
+                rules = st.text_area(
+                    "Rules",
+                    placeholder="Paste concise rule statements here.",
+                    height=170,
+                )
+                traps = st.text_area(
+                    "Traps",
+                    placeholder="Common wrong turn; missing element; misleading fact.",
+                    height=170,
+                )
 
         submitted = st.form_submit_button("Save Question")
 
@@ -7268,10 +7518,233 @@ TRIGGER FACTS:
                     st.session_state[f"ladder_reveal_{qd['id']}"] = True
 
                 if st.session_state.get(f"ladder_reveal_{qd['id']}", False):
-                    render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                    render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                    render_trigger_facts("Trigger Facts", qd)
-                    render_trap_warnings("Trap Warnings", qd["traps"])
+                    render_answer_bank_tabs(
+                        qd,
+                        expanded=True,
+                        title="Compact Answer Check",
+                        include_rule_support=False,
+                        include_highlights=False,
+                    )
+
+
+elif menu == "Practice Mode":
+    render_page_title(
+        "Practice Mode",
+        "One workflow: pick a question, retrieve from memory, compare, score, save.",
+    )
+
+    st.markdown(
+        '<div class="mini-drill-note">Choose the depth for today. The page stays the same; only the output changes.</div>',
+        unsafe_allow_html=True,
+    )
+
+    question_id = question_picker(active_default=True, compact=True)
+
+    if question_id:
+        q = get_question_by_id(question_id)
+
+        if q is None:
+            st.error("Question not found.")
+        else:
+            qd = unpack_question(q)
+            render_meta_strip(qd)
+
+            format_options = {
+                "Issue + Rule": {
+                    "minutes": 8,
+                    "mode": "Practice Mode - Issue + Rule",
+                    "caption": "Spot the issue, write the governing rule, name the trigger facts.",
+                    "placeholder": (
+                        "Issue:\n"
+                        "Rule:\n"
+                        "Trigger facts:\n"
+                        "Micro-conclusion:"
+                    ),
+                    "height": 260,
+                },
+                "Rule Flash": {
+                    "minutes": 7,
+                    "mode": "Practice Mode - Rule Flash",
+                    "caption": "Write the test/elements from memory before facts pull you off course.",
+                    "placeholder": (
+                        "Rule/test:\n"
+                        "- Element 1:\n"
+                        "- Element 2:\n"
+                        "- Exception/standard if applicable:"
+                    ),
+                    "height": 240,
+                },
+                "Mini IRAC": {
+                    "minutes": 15,
+                    "mode": "Practice Mode - Mini IRAC",
+                    "caption": "Write one clean IRAC paragraph for the most important call.",
+                    "placeholder": (
+                        "Issue: Whether ___\n"
+                        "Rule: Under ___\n"
+                        "Application: Here, ___ because ___\n"
+                        "Counterargument: However, ___\n"
+                        "Conclusion: Therefore, ___"
+                    ),
+                    "height": 320,
+                },
+                "Full Essay": {
+                    "minutes": 30,
+                    "mode": "Practice Mode - Full Essay",
+                    "caption": "Full timed MEE answer. Keep moving; done beats perfect.",
+                    "placeholder": "Write the full timed essay here.",
+                    "height": 430,
+                },
+                "Review Recall": {
+                    "minutes": 5,
+                    "mode": "Practice Mode - Review Recall",
+                    "caption": "Cold recall the weak rule, missed issue, and future fix note.",
+                    "placeholder": (
+                        "What I remember:\n"
+                        "Rule:\n"
+                        "Trigger facts:\n"
+                        "What I missed last time:"
+                    ),
+                    "height": 240,
+                },
+            }
+
+            format_choice = st.radio(
+                "Practice format",
+                list(format_options.keys()),
+                horizontal=True,
+                key=f"practice_format_{qd['id']}",
+            )
+            config = format_options[format_choice]
+
+            st.caption(f"{config['caption']} Target: {config['minutes']} minutes.")
+
+            context_col, work_col = st.columns([1.18, 1], gap="large")
+
+            with context_col:
+                call_tab, facts_tab, hints_tab = st.tabs(["Call", "Facts", "Hints"])
+
+                with call_tab:
+                    render_call_text("Call of the Question", qd["call_of_question"])
+
+                with facts_tab:
+                    fact_only = (
+                        extract_fact_pattern_only(qd["question_text"], qd["call_of_question"])
+                        if "extract_fact_pattern_only" in globals()
+                        else qd["question_text"]
+                    )
+                    show_highlights = st.checkbox(
+                        "Show trigger highlights after I have tried",
+                        value=False,
+                        key=f"practice_highlights_{qd['id']}",
+                    )
+                    if show_highlights and "render_question_highlights_with_fallback" in globals():
+                        render_question_highlights_with_fallback(
+                            "Fact Pattern with Trigger Facts Highlighted",
+                            qd,
+                            text=fact_only,
+                            show_explanations=False,
+                        )
+                    else:
+                        render_fact_pattern_text("Fact Pattern", fact_only, max_chars=None)
+
+                with hints_tab:
+                    hints_used = render_progressive_hints(qd)
+
+            with work_col:
+                render_stopwatch(f"practice_{qd['id']}")
+                answer = st.text_area(
+                    "Your answer",
+                    placeholder=config["placeholder"],
+                    height=config["height"],
+                    key=f"practice_answer_{qd['id']}_{format_choice}",
+                )
+
+                score_col1, score_col2, score_col3 = st.columns(3)
+                with score_col1:
+                    issue_score = st.slider(
+                        "Issue",
+                        0,
+                        5,
+                        0,
+                        key=f"practice_issue_{qd['id']}_{format_choice}",
+                    )
+                with score_col2:
+                    rule_score = st.slider(
+                        "Rule",
+                        0,
+                        5,
+                        0,
+                        key=f"practice_rule_{qd['id']}_{format_choice}",
+                    )
+                with score_col3:
+                    fact_score = st.slider(
+                        "Facts",
+                        0,
+                        5,
+                        0,
+                        key=f"practice_fact_{qd['id']}_{format_choice}",
+                    )
+
+                raw_score = round((issue_score + rule_score + fact_score) / 3)
+                adjusted_score = max(0, raw_score - (1 if hints_used >= 3 else 0))
+                metric_col1, metric_col2 = st.columns(2)
+                with metric_col1:
+                    st.metric("Raw score", f"{raw_score}/5")
+                with metric_col2:
+                    st.metric("Training score", f"{adjusted_score}/5")
+
+                _elapsed = min(90, max(0, stopwatch_minutes(f"practice_{qd['id']}")))
+                minutes_spent = st.number_input(
+                    "Minutes spent",
+                    min_value=0,
+                    max_value=90,
+                    value=_elapsed or config["minutes"],
+                    key=f"practice_minutes_{qd['id']}_{format_choice}",
+                )
+                missed = st.text_area(
+                    "What did you miss?",
+                    height=90,
+                    key=f"practice_missed_{qd['id']}_{format_choice}",
+                )
+                notes = st.text_area(
+                    "Fix note for future you",
+                    height=90,
+                    key=f"practice_notes_{qd['id']}_{format_choice}",
+                )
+
+                if st.button("Save Practice Attempt", use_container_width=True):
+                    notes_with_hints = f"Hints used: {hints_used}/5\nFormat: {format_choice}\n\n{notes}"
+                    save_attempt(
+                        qd["id"],
+                        config["mode"],
+                        answer,
+                        adjusted_score,
+                        missed,
+                        notes_with_hints,
+                        minutes_spent=minutes_spent,
+                    )
+                    st.success("Practice attempt saved.")
+
+            format_key = re.sub(r"[^A-Za-z0-9]+", "_", format_choice).strip("_").lower()
+            reveal_key = f"practice_reveal_{qd['id']}_{format_key}"
+            reveal_checkbox_key = f"{reveal_key}_checkbox"
+            if st.session_state.get(reveal_key, False) and reveal_checkbox_key not in st.session_state:
+                st.session_state[reveal_checkbox_key] = True
+
+            st.divider()
+            reveal_gate_box("Reveal only after retrieval. Compare, correct, then save a fix note.")
+            if st.button("Reveal Answer Bank", key=f"{reveal_key}_button", type="primary"):
+                st.session_state[reveal_key] = True
+                st.session_state[reveal_checkbox_key] = True
+
+            show_answer_bank = st.checkbox(
+                "Show answer bank after retrieval",
+                key=reveal_checkbox_key,
+            )
+            st.session_state[reveal_key] = bool(show_answer_bank)
+
+            st.markdown("### Compare and Clean Up")
+            render_answer_bank_tabs(qd, expanded=st.session_state.get(reveal_key, False))
 
 
 elif menu == "Mini Essay Drill":
@@ -7474,15 +7947,7 @@ elif menu == "Mini Essay Drill":
 
             if st.session_state.get(reveal_key, False):
                 st.divider()
-                render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                render_raw_tested_issues_expander(qd)
-                render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                render_trigger_facts("Trigger Facts", qd)
-                render_raw_trigger_facts_expander(qd)
-                render_trap_warnings("Trap Warnings", qd["traps"])
-                with st.expander("Raw trap text", expanded=False):
-                    st.text(qd.get("traps", "") or "")
-                render_sample_answer_section(qd, expanded=False)
+                render_answer_bank_tabs(qd, expanded=False)
 
 
 elif menu == "Issue Spotting Drill":
@@ -7560,31 +8025,8 @@ elif menu == "Issue Spotting Drill":
 
             if st.session_state.get(reveal_key, False):
                 st.divider()
-                render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                render_raw_tested_issues_expander(qd)
-                render_trigger_facts("Trigger Facts", qd)
-                render_raw_trigger_facts_expander(qd)
-                render_trap_warnings("Trap Warnings", qd["traps"])
-                with st.expander("Raw trap text", expanded=False):
-                    st.text(qd.get("traps", "") or "")
-                render_question_highlights_with_fallback(
-                    "Fact Pattern with Trigger Facts Highlighted by Question",
-                    qd,
-                    show_explanations=show_explanations,
-                )
                 render_trigger_candidate_diagnostics(qd)
-                flashcard_matches = find_relevant_rule_flashcards(
-                    qd.get("tested_issues", ""),
-                    subject=qd.get("subject", ""),
-                    limit=3,
-                )
-                if flashcard_matches:
-                    st.markdown("### Relevant Flashcard Rules")
-                    for card in flashcard_matches:
-                        render_rule_flashcard_box(card)
-                else:
-                    st.info("No relevant flashcard rules matched this issue yet.")
-                render_sample_answer_section(qd, expanded=False)
+                render_answer_bank_tabs(qd, expanded=False, include_highlights=show_explanations)
 
             confidence = st.slider("Confidence", 1, 5, 3)
 
@@ -8147,18 +8589,11 @@ elif menu == "Timed IRAC Drill":
             reveal_gate_box("Reveal only after writing your answer.")
 
             if st.button("Reveal Model Points"):
-                render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                render_raw_tested_issues_expander(qd)
-                render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                render_trigger_facts("Trigger Facts", qd)
-                render_raw_trigger_facts_expander(qd)
-                render_trap_warnings("Trap Warnings", qd["traps"])
-                with st.expander("Raw trap text", expanded=False):
-                    st.text(qd.get("traps", "") or "")
-                render_sample_answer_section(qd, expanded=False)
-                with st.expander("Fact Pattern with Trigger Facts Highlighted", expanded=False):
-                    render_universal_highlighted_fact_pattern("Fact Pattern with Trigger Facts Highlighted", qd)
+                st.session_state[f"timed_reveal_{qd['id']}"] = True
+
+            if st.session_state.get(f"timed_reveal_{qd['id']}", False):
                 render_trigger_candidate_diagnostics(qd)
+                render_answer_bank_tabs(qd, expanded=True)
 
 
 elif menu == "Due Review Queue":
@@ -8198,15 +8633,10 @@ elif menu == "Due Review Queue":
             st.warning("Reveal only after you have attempted retrieval.")
 
             if st.button("Reveal Answer Bank"):
-                render_tested_issues_text("Tested Issues", qd["tested_issues"])
-                render_raw_tested_issues_expander(qd)
-                render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
-                render_trigger_facts("Trigger Facts", qd)
-                render_raw_trigger_facts_expander(qd)
-                render_trap_warnings("Trap Warnings", qd["traps"])
-                with st.expander("Raw trap text", expanded=False):
-                    st.text(qd.get("traps", "") or "")
-                render_sample_answer_section(qd, expanded=False)
+                st.session_state[f"due_reveal_{qd['id']}"] = True
+
+            if st.session_state.get(f"due_reveal_{qd['id']}", False):
+                render_answer_bank_tabs(qd, expanded=True)
 
             score = st.slider("Review score", 0, 5, 0)
             missed = st.text_area("Still weak on:", height=100)
@@ -8488,9 +8918,41 @@ elif menu == "Review Attempts":
                 q = get_question_by_id(question_id)
                 if q is not None:
                     qd = unpack_question(q)
-                    render_sample_answer_section(qd, expanded=False)
+                    render_answer_bank_tabs(qd, expanded=False, title="Compare With Answer Bank")
                 else:
                     st.info("Original question not found for this attempt.")
+
+
+elif menu == "Settings":
+    render_page_title(
+        "Settings",
+        "Reading comfort, layout preferences, and app health.",
+    )
+
+    layout_col, data_col = st.columns([1, 1], gap="medium")
+
+    with layout_col:
+        st.markdown("### Layout")
+        st.write(f"Reading mode: {'on' if ADHD_READING_MODE else 'off'}")
+        st.write(f"Compact mode: {'on' if COMPACT_MODE else 'off'}")
+        st.write(f"Legal text size: {READING_FONT_SIZE}px")
+        st.write(f"Line height: {READING_LINE_HEIGHT}")
+        st.info("Use the sidebar Reading Comfort controls to change these values.")
+
+    with data_col:
+        stats = get_dashboard_stats()
+        st.markdown("### Data")
+        st.write(f"Questions: {stats['total_questions']}")
+        st.write(f"Attempts: {stats['total_attempts']}")
+        st.write(f"Due reviews: {stats['due_reviews']}")
+        st.write(f"Database: {DB_NAME}")
+
+    st.divider()
+    st.markdown("### Workflow")
+    st.info(
+        "Practice tools are consolidated into Practice Mode. "
+        "Use Question Bank for browsing, Import Questions for batch data, and Manual Entry for one-off questions."
+    )
 
 
 elif menu == "MBE Drills":
@@ -8506,7 +8968,7 @@ elif menu == "MBE Drills":
     try:
         with open(_mbe_path, "r", encoding="utf-8") as _f:
             _mbe_html = _f.read()
-        components.html(_mbe_html, height=2000, scrolling=True)
+        components.html(_mbe_html, height=2400, scrolling=True)
     except FileNotFoundError:
         st.error(
             "mbe_trap_trainer.html was not found next to app.py. "

@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 
-DB_PATH = Path("mee_reflex.db")
+DB_PATH = Path("mee_trainer.db")
 CSV_PATH = Path("sample_answer_audit.csv")
 
 

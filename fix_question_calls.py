@@ -12,7 +12,7 @@ Usage:
 
 import sqlite3
 
-DB = "mee_reflex.db"
+DB = "mee_trainer.db"
 SOURCE = "MEE Question Bank (my import)"
 
 FIXES = [

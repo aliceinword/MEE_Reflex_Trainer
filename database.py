@@ -1,10 +1,24 @@
 ﻿import sqlite3
+import shutil
 from datetime import datetime, timedelta
+from pathlib import Path
 
-DB_NAME = "mee_reflex.db"
+DB_NAME = "mee_trainer.db"
+LEGACY_DB_NAME = "mee_reflex.db"
+
+
+def _ensure_database_file():
+    db_path = Path(DB_NAME)
+    legacy_path = Path(LEGACY_DB_NAME)
+
+    if db_path.exists() or not legacy_path.exists():
+        return
+
+    shutil.copy2(legacy_path, db_path)
 
 
 def get_connection():
+    _ensure_database_file()
     return sqlite3.connect(DB_NAME)
 
 
@@ -977,6 +991,87 @@ def get_questions(active_only=False, subject=None, status=None, search=None, due
     rows = c.fetchall()
     conn.close()
     return rows
+
+
+def get_question_bank_rows(subject=None, status=None, topic=None, exam_year=None, active_only=False):
+    """Return rows for the browse/filter Question Bank page."""
+    conn = get_connection()
+    c = conn.cursor()
+
+    query = """
+        SELECT
+            id,
+            exam_name,
+            question_number,
+            subject,
+            exam_year,
+            exam_season,
+            july_2026_status,
+            priority,
+            source,
+            next_review_at,
+            tested_issues
+        FROM questions
+        WHERE 1=1
+    """
+    params = []
+
+    if active_only:
+        query += " AND active_for_july_2026 = 1"
+
+    if subject and subject != "All":
+        query += " AND subject = ?"
+        params.append(subject)
+
+    if status and status != "All":
+        query += " AND july_2026_status = ?"
+        params.append(status)
+
+    if exam_year and exam_year != "All":
+        query += " AND exam_year = ?"
+        params.append(int(exam_year))
+
+    if topic:
+        query += """
+            AND (
+                tested_issues LIKE ?
+                OR rules LIKE ?
+                OR trigger_facts LIKE ?
+                OR traps LIKE ?
+                OR model_points LIKE ?
+                OR question_text LIKE ?
+                OR call_of_question LIKE ?
+            )
+        """
+        like = f"%{topic}%"
+        params.extend([like, like, like, like, like, like, like])
+
+    query += """
+        ORDER BY
+            exam_year DESC,
+            CASE exam_season WHEN 'July' THEN 2 WHEN 'February' THEN 1 ELSE 0 END DESC,
+            CAST(question_number AS INTEGER) ASC,
+            question_number ASC
+    """
+
+    c.execute(query, params)
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def get_exam_years():
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT DISTINCT exam_year
+        FROM questions
+        WHERE exam_year IS NOT NULL
+        ORDER BY exam_year DESC
+    """)
+    years = [row[0] for row in c.fetchall()]
+    conn.close()
+    return years
 
 
 def get_question_by_id(question_id):

@@ -21,6 +21,7 @@ $codeFiles = @(
     "app.py",
     "database.py",
     "text_cleanup.py",
+    "text_rendering.py",
     "import_attack_outline.py",
     "import_plug_play_templates.py",
     "import_master_rules.py",
@@ -30,6 +31,8 @@ $codeFiles = @(
     "import_condensed_answers.py",
     "import_condensed_sample_answers.py",
     "import_flashcards2025.py",
+    "import_markdown_mee_qa_bank.py",
+    "import_mee_pq_bank_docx.py",
     "populate_traps.py",
     "audit_sample_answers.py",
     "make_user.py",
@@ -41,7 +44,7 @@ $codeFiles = @(
 )
 
 $approvedDataFiles = @(
-    "mee_reflex.db",
+    "mee_trainer.db",
     "MEE_Condensed_Sample_Answers_By_Subject.pdf"
 )
 

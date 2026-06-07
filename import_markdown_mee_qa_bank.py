@@ -12,7 +12,7 @@ from pathlib import Path
 from text_cleanup import normalize_extracted_text
 
 
-DB_NAME = "mee_reflex.db"
+DB_NAME = "mee_trainer.db"
 SOURCE_LABEL = "MEE Question-Answer Bank Markdown import"
 
 
@@ -166,7 +166,7 @@ def existing_question_map(conn: sqlite3.Connection) -> dict[tuple[str, str], int
 
 
 def backup_db(db_path: Path) -> Path:
-    backup = db_path.with_name(f"mee_reflex_backup_before_markdown_qa_import_{datetime.now():%Y%m%d_%H%M%S}.db")
+    backup = db_path.with_name(f"{db_path.stem}_backup_before_markdown_qa_import_{datetime.now():%Y%m%d_%H%M%S}{db_path.suffix}")
     shutil.copy2(db_path, backup)
     return backup
 
@@ -287,7 +287,7 @@ def import_records(records: list[ParsedRecord], apply: bool, allow_truncated: bo
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Import a Markdown MEE Q&A bank into mee_reflex.db.")
+    parser = argparse.ArgumentParser(description="Import a Markdown MEE Q&A bank into mee_trainer.db.")
     parser.add_argument("source", help="Path to the Markdown/text bank.")
     parser.add_argument("--apply", action="store_true", help="Write changes. Without this, runs a dry-run.")
     parser.add_argument(
