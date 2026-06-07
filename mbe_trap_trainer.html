@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trap Trainer — NY UBE July 2026</title>
+<title>Trap Trainer - MBE</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
   :root{--bg:#f5f4f0;--ink:#1a1a1a;--paper:#fff;--line:#d0cfc9;--orange:#e85d26;--green:#2a7a2a;
@@ -122,7 +122,7 @@
 <body>
 <div class="wrap">
   <div class="top"><h1>Trap Trainer</h1>
-    <div class="who">NY UBE · July 2026</div></div>
+    <div class="who">MBE practice</div></div>
   <div id="app"></div>
   <div class="footer"><span>Bar Mentor Alex</span><span>threshold first, then doctrine</span></div>
 </div>
@@ -152,6 +152,30 @@ let doneToday = loadDone();
 function saveDone(){try{localStorage.setItem(LS_DONE,JSON.stringify(doneToday));}catch(e){}}
 function markDone(id){if(doneToday.date!==todayStr())doneToday={date:todayStr(),ids:[]};if(!doneToday.ids.includes(id)){doneToday.ids.push(id);saveDone();}}
 function doneSet(){if(doneToday.date!==todayStr())doneToday={date:todayStr(),ids:[]};return new Set(doneToday.ids);}
+
+/* Persistent miss log: a question stays flagged until answered correctly. */
+const LS_MISS = 'trapTrainer.misses.v1';
+function loadMisses(){try{return JSON.parse(localStorage.getItem(LS_MISS)||'{}');}catch(e){return {};}}
+let misses = loadMisses();
+function saveMisses(){try{localStorage.setItem(LS_MISS,JSON.stringify(misses));}catch(e){}}
+function recordResult(card, correct, ruleNote){
+  const id=card.id;
+  const m=misses[id]||{wrong:0,needsReview:false,rule:'',subj:card.subj,title:(card.title||card.q)};
+  m.subj=card.subj;m.title=(card.title||card.q);m.last=todayStr();
+  if(correct){ if(m.needsReview){m.needsReview=false;m.clearedOn=todayStr();} }
+  else { m.wrong=(m.wrong||0)+1;m.needsReview=true; if(ruleNote&&ruleNote.trim())m.rule=ruleNote.trim(); }
+  misses[id]=m;saveMisses();
+}
+function reviewIds(){return Object.keys(misses).filter(id=>misses[id]&&misses[id].needsReview);}
+function reviewCards(){const want=new Set(reviewIds());return allCards().filter(c=>want.has(c.id));}
+function startMissReview(){
+  const cards=reviewCards();
+  if(!cards.length){renderStart();return;}
+  state.mode='drill';state.queue=shuffle(cards);state.i=0;state.locked=false;
+  state.correct=0;state.streak=0;state.bestStreak=0;state.dodged=0;state.missed=[];state.perSubj={};
+  state.queue.forEach(d=>{state.perSubj[d.subj]=state.perSubj[d.subj]||{c:0,t:0};});
+  renderDrill();
+}
 function allCards(){return BUILTIN.concat(userCards);}
 function subjects(){const s=BASE_SUBJECTS.slice();userCards.forEach(c=>{if(c.subj&&!s.includes(c.subj))s.push(c.subj);});return s;}
 function fullName(s){return FULL[s]||s;}
@@ -245,11 +269,14 @@ function renderStart(){
   const doneCount = totalSel - remaining;
   const n = state.mode==='drill' ? remaining : totalSel;
   const uc = userCards.length;
+  const reviewCount = reviewIds().length;
+  const missPanel = reviewCount ? `<div class="panel" style="border-left:4px solid #C9A84C"><div class="lbl" style="color:#C9A84C">Your misses</div><p>${reviewCount} flagged question${reviewCount!==1?'s':''} &mdash; they come back every day until you get them right.</p><button class="btn btn-primary btn-sm" id="missBtn" style="margin-top:8px">Drill my ${reviewCount} miss${reviewCount!==1?'es':''} &rarr;</button></div>` : '';
   app.innerHTML = `
     <div class="panel">
       <div class="lbl">The one pattern behind almost all of these</div>
       <p>You grab the first familiar doctrine — or the sympathetic outcome — before running the threshold question. This trainer makes you commit, then names the exact trap. Now it's yours to grow: add your own misses and they join the drill.</p>
     </div>
+    ${missPanel}
     <div style="font-size:12.5px;color:var(--mut);margin-bottom:4px">Pick subjects (worst first):</div>
     <div class="chips" id="chips">${chips}</div>
     <div style="display:flex;gap:8px;margin-top:8px">
@@ -285,6 +312,8 @@ function renderStart(){
   document.getElementById('myBtn').onclick=renderMyCards;
   document.getElementById('expBtn').onclick=exportCards;
   document.getElementById('impBtn').onclick=()=>document.getElementById('importFile').click();
+  const mb=document.getElementById('missBtn');
+  if(mb)mb.onclick=startMissReview;
   const rd=document.getElementById('resetDone');
   if(rd)rd.onclick=(e)=>{e.preventDefault();doneToday={date:todayStr(),ids:[]};saveDone();renderStart();};
 }
@@ -296,7 +325,8 @@ function startRun(ignoreDone){
   // In drill mode, skip questions already answered today (unless overridden).
   if(state.mode==='drill' && !ignoreDone){
     const done=doneSet();
-    const fresh=pool.filter(d=>!done.has(d.id));
+    const _review=new Set(reviewIds());
+    const fresh=pool.filter(d=>!done.has(d.id)||_review.has(d.id));
     if(fresh.length===0){renderAllDone(pool.length);return;}
     pool=fresh;
   }
@@ -358,7 +388,8 @@ function pick(opts,k,btns){
   state.perSubj[d.subj]=state.perSubj[d.subj]||{c:0,t:0};state.perSubj[d.subj].t++;
   let dodged=false;
   if(chosen.ok){state.correct++;state.streak++;state.bestStreak=Math.max(state.bestStreak,state.streak);
-    state.perSubj[d.subj].c++;if(d.options.some(o=>o.trap)){state.dodged++;dodged=true;}}
+    state.perSubj[d.subj].c++;if(d.options.some(o=>o.trap)){state.dodged++;dodged=true;}
+    recordResult(d,true,'');}
   else{state.streak=0;state.missed.push(d);}
   const rule=opts[correctIdx];const trapOpt=d.options.find(o=>o.trap);
   let fb=`<div class="fb"><div class="fb-actions" style="margin-bottom:8px"><span class="verdict ${chosen.ok?'ok':'no'}">${chosen.ok?'✓ Correct':'✗ Not quite'}</span></div>`;
@@ -366,11 +397,24 @@ function pick(opts,k,btns){
   fb+=`<div class="fb-box fb-rule"><strong>The rule</strong>${esc(rule.why)||'(the correct answer)'}</div>`;
   if(!chosen.ok){fb+=`<div class="fb-box fb-trap"><strong>Why “${esc(chosen.t)}” is wrong</strong>${esc(chosen.why)||'(not the governing rule here)'}</div>`;
     if(chosen.trap){fb+=`<div class="dodged" style="background:#fde8e8;border-left-color:#c0392b;color:#7a1f1f"><span class="big">⚠</span><span>This is the <strong>exact answer you picked on the real test.</strong> Same trap, same place — name it in the journal.</span></div>`;}}
+  if(!chosen.ok){
+    const _priorRule=(misses[d.id]&&misses[d.id].rule)?misses[d.id].rule:'';
+    fb+=`<div class="fb-box fb-ru"><strong>Lock it in &mdash; type the rule from memory to continue</strong><textarea id="ruleBox" class="ta" style="margin-top:6px;width:100%" placeholder="Write the governing rule in your own words...">${esc(_priorRule)}</textarea><div style="font-size:11px;color:var(--mut);margin-top:4px">Flagged on your dashboard and back every day until you get it right.</div></div>`;
+  }
   if(d.ru){fb+=`<div class="fb-box fb-ru"><strong>Shortcut</strong>${esc(d.ru)}</div>`;}
-  fb+=`<div class="fb-actions"><span style="font-size:11px;color:var(--mut)" class="mono">press Enter for next</span>
-    <button class="btn btn-primary" id="next">${state.i+1<state.queue.length?'Next →':'See results →'}</button></div></div>`;
+  fb+=`<div class="fb-actions"><span style="font-size:11px;color:var(--mut)" class="mono">${chosen.ok?'press Enter for next':'type the rule to unlock'}</span>
+    <button class="btn btn-primary" id="next"${chosen.ok?'':' disabled style=\"opacity:.5;cursor:not-allowed\"'}>${state.i+1<state.queue.length?'Next →':'See results →'}</button></div></div>`;
   document.getElementById('fb').innerHTML=fb;
-  document.getElementById('next').onclick=nextCard;
+  const _nextBtn=document.getElementById('next');
+  if(chosen.ok){ _nextBtn.onclick=nextCard; }
+  else {
+    const _box=document.getElementById('ruleBox');
+    const _min=8;
+    const _sync=()=>{const ok=_box&&_box.value.trim().length>=_min;_nextBtn.disabled=!ok;_nextBtn.style.opacity=ok?'1':'.5';_nextBtn.style.cursor=ok?'pointer':'not-allowed';};
+    if(_box){_box.addEventListener('input',_sync);} _sync();
+    _nextBtn.onclick=()=>{if(!_box||_box.value.trim().length<_min){if(_box)_box.focus();return;}recordResult(d,false,_box.value);nextCard();};
+    setTimeout(()=>{try{_box.focus();}catch(e){}},60);
+  }
   document.querySelector('.bar i').style.width=Math.round((state.i+1)/state.queue.length*100)+'%';
 }
 function nextCard(){state.i++;state.i>=state.queue.length?renderEnd():renderDrill();}
@@ -636,6 +680,7 @@ function renderEnd(){
 }
 
 document.addEventListener('keydown',e=>{
+  if(e.target&&(e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT'))return;
   if(state.mode!=='drill'||!state.queue.length)return;
   if(!state.locked&&window._btns){const n=parseInt(e.key);if(n>=1&&n<=window._btns.length)window._btns[n-1].click();}
   else if(state.locked&&(e.key==='Enter'||e.key==='ArrowRight')){const nx=document.getElementById('next');if(nx)nx.click();}
