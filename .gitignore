@@ -23,6 +23,10 @@ env/
 *.sqlite
 *.sqlite3
 
+# Local imports / generated exports
+data/imports/
+data/processed/
+
 # OS
 .DS_Store
 Thumbs.db

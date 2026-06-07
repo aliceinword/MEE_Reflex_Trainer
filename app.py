@@ -2626,7 +2626,8 @@ def model_answer_quality(qd):
         return "missing"
 
     damaged_patterns = [
-        r"\bAssuming\s+t\s+Short answer:",
+        r"\bAssuming\s+t\b",
+        r"Point\s+Two\s*\(a\).*?\bAssuming\s+t\b",
         r"\bs\s+Short answer:",
         r"\bking\s+to\s+recover\b",
         r"\b03\.\s+There\b",
@@ -7376,12 +7377,7 @@ elif menu == "Mini Essay Drill":
                     render_trap_warnings("Trap Warnings", qd["traps"])
                     with st.expander("Raw trap text", expanded=False):
                         st.text(qd.get("traps", "") or "")
-                    full_model = qd.get("model_points", "") or qd.get("rules", "")
-                    if full_model:
-                        with st.expander("Full Model Answer / Analysis", expanded=False):
-                            render_readable_text("Full Model Answer / Analysis", full_model)
-                    else:
-                        st.info("No full model answer/model analysis available for this question yet.")
+                    render_sample_answer_section(qd, expanded=False)
 
             with main_col:
                 with st.expander("1. Call of the Question - read this first", expanded=True):
