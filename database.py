@@ -1,9 +1,12 @@
 ﻿import sqlite3
 import shutil
+import os
+from contextlib import closing, contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
-DB_NAME = "mee_trainer.db"
+DEFAULT_DB_NAME = "mee_trainer.db"
+DB_NAME = os.environ.get("MEE_TRAINER_DB", DEFAULT_DB_NAME)
 LEGACY_DB_NAME = "mee_reflex.db"
 
 
@@ -14,6 +17,9 @@ def _ensure_database_file():
     if db_path.exists() or not legacy_path.exists():
         return
 
+    if DB_NAME != DEFAULT_DB_NAME:
+        return
+
     shutil.copy2(legacy_path, db_path)
 
 
@@ -22,174 +28,240 @@ def get_connection():
     return sqlite3.connect(DB_NAME)
 
 
+def fetch_all(query, params=()):
+    """Run a parameterized read query and return all rows."""
+    with closing(get_connection()) as conn:
+        return conn.execute(query, params).fetchall()
+
+
+def fetch_one(query, params=()):
+    """Run a parameterized read query and return one row."""
+    with closing(get_connection()) as conn:
+        return conn.execute(query, params).fetchone()
+
+
+def execute_write(query, params=()):
+    """Run a single parameterized write query and commit it."""
+    with write_transaction() as conn:
+        conn.execute(query, params)
+
+
+@contextmanager
+def write_transaction():
+    """Open a write transaction and always close the connection."""
+    conn = get_connection()
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def question_exists(exam_name, question_number, subject, source=None):
+    """Return whether a question already exists for the identifying fields."""
+    if source is None:
+        return fetch_one(
+            """
+            SELECT 1
+            FROM questions
+            WHERE exam_name = ? AND question_number = ? AND subject = ?
+            LIMIT 1
+            """,
+            (exam_name, str(question_number), subject),
+        ) is not None
+
+    return fetch_one(
+        """
+        SELECT 1
+        FROM questions
+        WHERE exam_name = ? AND question_number = ? AND subject = ? AND source = ?
+        LIMIT 1
+        """,
+        (exam_name, str(question_number), subject, source),
+    ) is not None
+
+
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _add_missing_columns(cursor, table_name, column_definitions):
+    """Add allowlisted columns for legacy databases without repeating migration code."""
+    if table_name not in {"questions", "attempts"}:
+        raise ValueError(f"Unsupported migration table: {table_name}")
+
+    for column_name in column_definitions:
+        if not column_name.replace("_", "").isalnum():
+            raise ValueError(f"Unsafe migration column: {column_name}")
+
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+
+    for column_name, ddl in column_definitions.items():
+        if column_name not in existing_columns:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl}")
+
+
 def init_db():
-    conn = get_connection()
-    c = conn.cursor()
+    with write_transaction() as conn:
+        c = conn.cursor()
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS questions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            exam_name TEXT NOT NULL,
-            question_number TEXT NOT NULL,
-            subject TEXT NOT NULL,
-            question_text TEXT,
-            call_of_question TEXT,
-            tested_issues TEXT,
-            rules TEXT,
-            trigger_facts TEXT,
-            traps TEXT,
-            model_points TEXT,
-            active_for_july_2026 INTEGER DEFAULT 1,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exam_name TEXT NOT NULL,
+                question_number TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                question_text TEXT,
+                call_of_question TEXT,
+                tested_issues TEXT,
+                rules TEXT,
+                trigger_facts TEXT,
+                traps TEXT,
+                model_points TEXT,
+                active_for_july_2026 INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS attempts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            question_id INTEGER NOT NULL,
-            mode TEXT NOT NULL,
-            response_text TEXT,
-            self_score INTEGER,
-            missed_issues TEXT,
-            notes TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(question_id) REFERENCES questions(id)
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question_id INTEGER NOT NULL,
+                mode TEXT NOT NULL,
+                response_text TEXT,
+                self_score INTEGER,
+                missed_issues TEXT,
+                notes TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(question_id) REFERENCES questions(id)
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS outline_rules (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject TEXT,
-            rule_title TEXT,
-            appearance_rate TEXT,
-            rule_text TEXT,
-            pdf_page INTEGER,
-            printed_page TEXT,
-            source_file TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS outline_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT,
+                rule_title TEXT,
+                appearance_rate TEXT,
+                rule_text TEXT,
+                pdf_page INTEGER,
+                printed_page TEXT,
+                source_file TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS plug_play_templates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject TEXT,
-            module_title TEXT,
-            scenario_trigger TEXT,
-            issue_statement TEXT,
-            rule_text TEXT,
-            analysis_template TEXT,
-            conclusion_template TEXT,
-            testing_notes TEXT,
-            pdf_page INTEGER,
-            source_file TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS plug_play_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT,
+                module_title TEXT,
+                scenario_trigger TEXT,
+                issue_statement TEXT,
+                rule_text TEXT,
+                analysis_template TEXT,
+                conclusion_template TEXT,
+                testing_notes TEXT,
+                pdf_page INTEGER,
+                source_file TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS app_users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT,
-            name TEXT,
-            password_hash TEXT NOT NULL,
-            is_admin INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS app_users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT,
+                name TEXT,
+                password_hash TEXT NOT NULL,
+                is_admin INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS rule_attempts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject TEXT,
-            rule_title TEXT,
-            source_type TEXT,
-            prompt TEXT,
-            memory_rule TEXT,
-            final_rule TEXT,
-            score INTEGER,
-            missed_elements TEXT,
-            notes TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS rule_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT,
+                rule_title TEXT,
+                source_type TEXT,
+                prompt TEXT,
+                memory_rule TEXT,
+                final_rule TEXT,
+                score INTEGER,
+                missed_elements TEXT,
+                notes TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS rule_flashcards (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject TEXT,
-            rule_title TEXT,
-            rule_text TEXT,
-            source_file TEXT,
-            tags TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS rule_flashcards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT,
+                rule_title TEXT,
+                rule_text TEXT,
+                source_file TEXT,
+                tags TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    # Add new question columns safely if the old database already exists.
-    question_extra_columns = {
-        "exam_year": "INTEGER",
-        "exam_season": "TEXT DEFAULT ''",
-        "secondary_subjects": "TEXT DEFAULT ''",
-        "july_2026_status": "TEXT DEFAULT 'Active standalone MEE'",
-        "priority": "INTEGER DEFAULT 3",
-        "source": "TEXT DEFAULT ''",
-        "last_practiced_at": "TEXT",
-        "next_review_at": "TEXT"
-    }
+        # Add new question columns safely if the old database already exists.
+        question_extra_columns = {
+            "exam_year": "INTEGER",
+            "exam_season": "TEXT DEFAULT ''",
+            "secondary_subjects": "TEXT DEFAULT ''",
+            "july_2026_status": "TEXT DEFAULT 'Active standalone MEE'",
+            "priority": "INTEGER DEFAULT 3",
+            "source": "TEXT DEFAULT ''",
+            "last_practiced_at": "TEXT",
+            "next_review_at": "TEXT"
+        }
 
-    c.execute("PRAGMA table_info(questions)")
-    existing_question_columns = {row[1] for row in c.fetchall()}
+        _add_missing_columns(c, "questions", question_extra_columns)
 
-    for column_name, ddl in question_extra_columns.items():
-        if column_name not in existing_question_columns:
-            c.execute(f"ALTER TABLE questions ADD COLUMN {column_name} {ddl}")
+        # Add new attempt columns safely if the old database already exists.
+        attempt_extra_columns = {
+            "minutes_spent": "INTEGER DEFAULT 0"
+        }
 
-    # Add new attempt columns safely if the old database already exists.
-    attempt_extra_columns = {
-        "minutes_spent": "INTEGER DEFAULT 0"
-    }
-
-    c.execute("PRAGMA table_info(attempts)")
-    existing_attempt_columns = {row[1] for row in c.fetchall()}
-
-    for column_name, ddl in attempt_extra_columns.items():
-        if column_name not in existing_attempt_columns:
-            c.execute(f"ALTER TABLE attempts ADD COLUMN {column_name} {ddl}")
-
-    conn.commit()
-    conn.close()
+        _add_missing_columns(c, "attempts", attempt_extra_columns)
 
 
 def add_outline_rule(subject, rule_title, appearance_rate, rule_text, pdf_page, printed_page, source_file):
-    conn = get_connection()
-    c = conn.cursor()
+    with write_transaction() as conn:
+        existing = conn.execute("""
+            SELECT id
+            FROM outline_rules
+            WHERE source_file = ?
+            AND subject = ?
+            AND rule_title = ?
+            AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
+            LIMIT 1
+        """, (source_file, subject, rule_title, pdf_page, pdf_page)).fetchone()
 
-    c.execute("""
-        SELECT id
-        FROM outline_rules
-        WHERE source_file = ?
-        AND subject = ?
-        AND rule_title = ?
-        AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
-        LIMIT 1
-    """, (source_file, subject, rule_title, pdf_page, pdf_page))
+        if existing:
+            return False
 
-    existing = c.fetchone()
-
-    if existing:
-        conn.close()
-        return False
-
-    c.execute("""
-        INSERT INTO outline_rules (
+        conn.execute("""
+            INSERT INTO outline_rules (
+                subject,
+                rule_title,
+                appearance_rate,
+                rule_text,
+                pdf_page,
+                printed_page,
+                source_file,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
             subject,
             rule_title,
             appearance_rate,
@@ -197,29 +269,13 @@ def add_outline_rule(subject, rule_title, appearance_rate, rule_text, pdf_page, 
             pdf_page,
             printed_page,
             source_file,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        subject,
-        rule_title,
-        appearance_rate,
-        rule_text,
-        pdf_page,
-        printed_page,
-        source_file,
-        now()
-    ))
+            now()
+        ))
 
-    conn.commit()
-    conn.close()
     return True
 
 
 def get_outline_rules(subject=None):
-    conn = get_connection()
-    c = conn.cursor()
-
     query = """
         SELECT
             id,
@@ -241,16 +297,10 @@ def get_outline_rules(subject=None):
 
     query += " ORDER BY subject, pdf_page, rule_title"
 
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(query, params)
 
 
 def search_outline_rules(query, subject=None, limit=5):
-    conn = get_connection()
-    c = conn.cursor()
-
     search_terms = [
         term.strip()
         for term in str(query or "").replace(";", " ").replace(",", " ").split()
@@ -294,58 +344,45 @@ def search_outline_rules(query, subject=None, limit=5):
     """
     params.extend([subject, subject, limit])
 
-    c.execute(sql, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(sql, params)
 
 
 def add_rule_flashcard(subject, rule_title, rule_text, source_file, tags=""):
-    conn = get_connection()
-    c = conn.cursor()
+    with write_transaction() as conn:
+        existing = conn.execute("""
+            SELECT id
+            FROM rule_flashcards
+            WHERE source_file = ?
+            AND rule_title = ?
+            LIMIT 1
+        """, (source_file, rule_title)).fetchone()
 
-    c.execute("""
-        SELECT id
-        FROM rule_flashcards
-        WHERE source_file = ?
-        AND rule_title = ?
-        LIMIT 1
-    """, (source_file, rule_title))
+        if existing:
+            return False
 
-    existing = c.fetchone()
-
-    if existing:
-        conn.close()
-        return False
-
-    c.execute("""
-        INSERT INTO rule_flashcards (
+        conn.execute("""
+            INSERT INTO rule_flashcards (
+                subject,
+                rule_title,
+                rule_text,
+                source_file,
+                tags,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
             subject,
             rule_title,
             rule_text,
             source_file,
             tags,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        subject,
-        rule_title,
-        rule_text,
-        source_file,
-        tags,
-        now(),
-    ))
+            now(),
+        ))
 
-    conn.commit()
-    conn.close()
     return True
 
 
 def get_rule_flashcards(subject=None):
-    conn = get_connection()
-    c = conn.cursor()
-
     query = """
         SELECT
             id,
@@ -365,16 +402,10 @@ def get_rule_flashcards(subject=None):
 
     query += " ORDER BY subject, rule_title"
 
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(query, params)
 
 
 def search_rule_flashcards(query, subject=None, limit=30):
-    conn = get_connection()
-    c = conn.cursor()
-
     sql = """
         SELECT
             id,
@@ -394,9 +425,7 @@ def search_rule_flashcards(query, subject=None, limit=30):
         pass
 
     sql += " ORDER BY subject, rule_title"
-    c.execute(sql, params)
-    rows = c.fetchall()
-    conn.close()
+    rows = fetch_all(sql, params)
 
     stopwords = {
         "about", "again", "against", "answer", "because", "could", "court",
@@ -579,27 +608,36 @@ def add_plug_play_template(
     pdf_page,
     source_file
 ):
-    conn = get_connection()
-    c = conn.cursor()
+    with write_transaction() as conn:
+        existing = conn.execute("""
+            SELECT id
+            FROM plug_play_templates
+            WHERE source_file = ?
+            AND subject = ?
+            AND module_title = ?
+            AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
+            LIMIT 1
+        """, (source_file, subject, module_title, pdf_page, pdf_page)).fetchone()
 
-    c.execute("""
-        SELECT id
-        FROM plug_play_templates
-        WHERE source_file = ?
-        AND subject = ?
-        AND module_title = ?
-        AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
-        LIMIT 1
-    """, (source_file, subject, module_title, pdf_page, pdf_page))
+        if existing:
+            return False
 
-    existing = c.fetchone()
-
-    if existing:
-        conn.close()
-        return False
-
-    c.execute("""
-        INSERT INTO plug_play_templates (
+        conn.execute("""
+            INSERT INTO plug_play_templates (
+                subject,
+                module_title,
+                scenario_trigger,
+                issue_statement,
+                rule_text,
+                analysis_template,
+                conclusion_template,
+                testing_notes,
+                pdf_page,
+                source_file,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
             subject,
             module_title,
             scenario_trigger,
@@ -610,32 +648,13 @@ def add_plug_play_template(
             testing_notes,
             pdf_page,
             source_file,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        subject,
-        module_title,
-        scenario_trigger,
-        issue_statement,
-        rule_text,
-        analysis_template,
-        conclusion_template,
-        testing_notes,
-        pdf_page,
-        source_file,
-        now()
-    ))
+            now()
+        ))
 
-    conn.commit()
-    conn.close()
     return True
 
 
 def get_plug_play_templates(subject=None):
-    conn = get_connection()
-    c = conn.cursor()
-
     query = """
         SELECT
             id,
@@ -660,10 +679,7 @@ def get_plug_play_templates(subject=None):
 
     query += " ORDER BY subject, pdf_page, module_title"
 
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(query, params)
 
 
 def search_plug_play_templates(query, subject=None, limit=5):
@@ -740,71 +756,6 @@ def search_plug_play_templates(query, subject=None, limit=5):
     return [row for _, row in scored[:limit]]
 
 
-def _unused_sql_search_plug_play_templates(query, subject=None, limit=5):
-    conn = get_connection()
-    c = conn.cursor()
-
-    search_terms = [
-        term.strip()
-        for term in str(query or "").replace(";", " ").replace(",", " ").split()
-        if len(term.strip()) >= 2
-    ]
-
-    sql = """
-        SELECT
-            id,
-            subject,
-            module_title,
-            scenario_trigger,
-            issue_statement,
-            rule_text,
-            analysis_template,
-            conclusion_template,
-            testing_notes,
-            pdf_page,
-            source_file
-        FROM plug_play_templates
-        WHERE 1=1
-    """
-    params = []
-
-    if search_terms:
-        sql += " AND ("
-        term_clauses = []
-
-        for term in search_terms:
-            term_clauses.append("""
-                (
-                    module_title LIKE ?
-                    OR scenario_trigger LIKE ?
-                    OR issue_statement LIKE ?
-                    OR rule_text LIKE ?
-                    OR analysis_template LIKE ?
-                    OR subject LIKE ?
-                )
-            """)
-            like = f"%{term}%"
-            params.extend([like, like, like, like, like, like])
-
-        sql += " OR ".join(term_clauses)
-        sql += ")"
-
-    sql += """
-        ORDER BY
-            CASE WHEN ? IS NOT NULL AND subject = ? THEN 0 ELSE 1 END,
-            subject,
-            pdf_page,
-            module_title
-        LIMIT ?
-    """
-    params.extend([subject, subject, limit])
-
-    c.execute(sql, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
-
 def find_best_plug_play_for_call(subject, call_text, question_text, tested_issues="", limit=3):
     candidates = search_plug_play_templates(
         f"{subject or ''} {call_text or ''} {tested_issues or ''}",
@@ -878,10 +829,7 @@ def add_question(
     priority=3,
     source=""
 ):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    execute_write("""
         INSERT INTO questions (
             exam_name,
             question_number,
@@ -924,14 +872,8 @@ def add_question(
         now()
     ))
 
-    conn.commit()
-    conn.close()
-
 
 def get_questions(active_only=False, subject=None, status=None, search=None, due_only=False):
-    conn = get_connection()
-    c = conn.cursor()
-
     query = """
         SELECT
             id,
@@ -987,17 +929,19 @@ def get_questions(active_only=False, subject=None, status=None, search=None, due
             question_number ASC
     """
 
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(query, params)
 
 
-def get_question_bank_rows(subject=None, status=None, topic=None, exam_year=None, active_only=False):
+def get_question_bank_rows(
+    subject=None,
+    status=None,
+    topic=None,
+    exam_year=None,
+    active_only=False,
+    created_from=None,
+    created_to=None,
+):
     """Return rows for the browse/filter Question Bank page."""
-    conn = get_connection()
-    c = conn.cursor()
-
     query = """
         SELECT
             id,
@@ -1010,6 +954,7 @@ def get_question_bank_rows(subject=None, status=None, topic=None, exam_year=None
             priority,
             source,
             next_review_at,
+            created_at,
             tested_issues
         FROM questions
         WHERE 1=1
@@ -1030,6 +975,14 @@ def get_question_bank_rows(subject=None, status=None, topic=None, exam_year=None
     if exam_year and exam_year != "All":
         query += " AND exam_year = ?"
         params.append(int(exam_year))
+
+    if created_from:
+        query += " AND date(created_at) >= date(?)"
+        params.append(str(created_from))
+
+    if created_to:
+        query += " AND date(created_at) <= date(?)"
+        params.append(str(created_to))
 
     if topic:
         query += """
@@ -1054,31 +1007,21 @@ def get_question_bank_rows(subject=None, status=None, topic=None, exam_year=None
             question_number ASC
     """
 
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(query, params)
 
 
 def get_exam_years():
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
+    rows = fetch_all("""
         SELECT DISTINCT exam_year
         FROM questions
         WHERE exam_year IS NOT NULL
         ORDER BY exam_year DESC
     """)
-    years = [row[0] for row in c.fetchall()]
-    conn.close()
-    return years
+    return [row[0] for row in rows]
 
 
 def get_question_by_id(question_id):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    return fetch_one("""
         SELECT
             id,
             exam_name,
@@ -1105,41 +1048,25 @@ def get_question_by_id(question_id):
         WHERE id = ?
     """, (question_id,))
 
-    row = c.fetchone()
-    conn.close()
-    return row
-
 
 def get_subjects():
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    rows = fetch_all("""
         SELECT DISTINCT subject
         FROM questions
         WHERE subject IS NOT NULL AND subject != ''
         ORDER BY subject
     """)
-
-    rows = [row[0] for row in c.fetchall()]
-    conn.close()
-    return rows
+    return [row[0] for row in rows]
 
 
 def get_statuses():
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    rows = fetch_all("""
         SELECT DISTINCT july_2026_status
         FROM questions
         WHERE july_2026_status IS NOT NULL AND july_2026_status != ''
         ORDER BY july_2026_status
     """)
-
-    rows = [row[0] for row in c.fetchall()]
-    conn.close()
-    return rows
+    return [row[0] for row in rows]
 
 
 def review_date_from_score(score):
@@ -1169,11 +1096,23 @@ def save_attempt(
     notes,
     minutes_spent=0
 ):
-    conn = get_connection()
-    c = conn.cursor()
+    practiced_at = now()
+    next_review_at = review_date_from_score(self_score)
 
-    c.execute("""
-        INSERT INTO attempts (
+    with write_transaction() as conn:
+        conn.execute("""
+            INSERT INTO attempts (
+                question_id,
+                mode,
+                response_text,
+                self_score,
+                missed_issues,
+                notes,
+                minutes_spent,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
             question_id,
             mode,
             response_text,
@@ -1181,37 +1120,18 @@ def save_attempt(
             missed_issues,
             notes,
             minutes_spent,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        question_id,
-        mode,
-        response_text,
-        self_score,
-        missed_issues,
-        notes,
-        minutes_spent,
-        now()
-    ))
+            practiced_at
+        ))
 
-    next_review_at = review_date_from_score(self_score)
-
-    c.execute("""
-        UPDATE questions
-        SET last_practiced_at = ?, next_review_at = ?
-        WHERE id = ?
-    """, (now(), next_review_at, question_id))
-
-    conn.commit()
-    conn.close()
+        conn.execute("""
+            UPDATE questions
+            SET last_practiced_at = ?, next_review_at = ?
+            WHERE id = ?
+        """, (practiced_at, next_review_at, question_id))
 
 
 def get_attempts(limit=100):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    return fetch_all("""
         SELECT
             attempts.id,
             attempts.question_id,
@@ -1231,10 +1151,6 @@ def get_attempts(limit=100):
         LIMIT ?
     """, (limit,))
 
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
 
 def save_rule_attempt(
     subject,
@@ -1247,10 +1163,7 @@ def save_rule_attempt(
     missed_elements,
     notes,
 ):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    execute_write("""
         INSERT INTO rule_attempts (
             subject,
             rule_title,
@@ -1277,15 +1190,9 @@ def save_rule_attempt(
         now(),
     ))
 
-    conn.commit()
-    conn.close()
-
 
 def get_rule_attempts(limit=50):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    return fetch_all("""
         SELECT
             id,
             subject,
@@ -1303,122 +1210,117 @@ def get_rule_attempts(limit=50):
         LIMIT ?
     """, (limit,))
 
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
 
 def get_dashboard_stats():
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("SELECT COUNT(*) FROM questions")
-    total_questions = c.fetchone()[0]
-
-    c.execute("SELECT COUNT(*) FROM questions WHERE active_for_july_2026 = 1")
-    active_questions = c.fetchone()[0]
-
-    c.execute("SELECT COUNT(*) FROM attempts")
-    total_attempts = c.fetchone()[0]
-
-    c.execute("SELECT ROUND(AVG(self_score), 2) FROM attempts")
-    avg_score = c.fetchone()[0] or 0
-
-    c.execute("SELECT COALESCE(SUM(minutes_spent), 0) FROM attempts")
-    total_minutes = c.fetchone()[0] or 0
-
     today = datetime.now().strftime("%Y-%m-%d")
-    c.execute("""
-        SELECT COUNT(*), COALESCE(SUM(minutes_spent), 0)
-        FROM attempts
-        WHERE date(created_at) = date(?)
-    """, (today,))
-    today_attempts, today_minutes = c.fetchone()
 
-    c.execute("""
-        SELECT COUNT(*)
-        FROM questions
-        WHERE next_review_at IS NOT NULL
-        AND date(next_review_at) <= date(?)
-    """, (today,))
-    due_reviews = c.fetchone()[0]
+    with closing(get_connection()) as conn:
+        c = conn.cursor()
 
-    c.execute("""
-        SELECT COUNT(*)
-        FROM questions
-        WHERE last_practiced_at IS NULL
-    """)
-    unpracticed_questions = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM questions")
+        total_questions = c.fetchone()[0]
 
-    c.execute("""
-        SELECT
-            questions.subject,
-            ROUND(AVG(attempts.self_score), 2),
-            COUNT(*)
-        FROM attempts
-        JOIN questions ON attempts.question_id = questions.id
-        GROUP BY questions.subject
-        ORDER BY AVG(attempts.self_score) ASC
-    """)
-    subject_stats = c.fetchall()
+        c.execute("SELECT COUNT(*) FROM questions WHERE active_for_july_2026 = 1")
+        active_questions = c.fetchone()[0]
 
-    c.execute("""
-        SELECT
-            questions.subject,
-            COUNT(*) AS due_count
-        FROM questions
-        WHERE next_review_at IS NOT NULL
-        AND date(next_review_at) <= date(?)
-        GROUP BY questions.subject
-        ORDER BY due_count DESC, questions.subject ASC
-    """, (today,))
-    due_by_subject = c.fetchall()
+        c.execute("SELECT COUNT(*) FROM attempts")
+        total_attempts = c.fetchone()[0]
 
-    c.execute("""
-        SELECT
-            questions.subject,
-            COUNT(*) AS untouched_count
-        FROM questions
-        WHERE questions.active_for_july_2026 = 1
-        AND questions.last_practiced_at IS NULL
-        GROUP BY questions.subject
-        ORDER BY untouched_count DESC, questions.subject ASC
-    """)
-    untouched_by_subject = c.fetchall()
+        c.execute("SELECT ROUND(AVG(self_score), 2) FROM attempts")
+        avg_score = c.fetchone()[0] or 0
 
-    c.execute("""
-        SELECT
-            questions.id,
-            questions.exam_name,
-            questions.question_number,
-            questions.subject,
-            questions.july_2026_status,
-            questions.priority,
-            questions.next_review_at,
-            questions.last_practiced_at,
-            COALESCE(AVG(attempts.self_score), -1) AS avg_score,
-            COUNT(attempts.id) AS attempt_count
-        FROM questions
-        LEFT JOIN attempts ON attempts.question_id = questions.id
-        WHERE questions.active_for_july_2026 = 1
-        GROUP BY questions.id
-        ORDER BY
-            CASE
-                WHEN questions.next_review_at IS NOT NULL
-                AND date(questions.next_review_at) <= date(?) THEN 0
-                WHEN COUNT(attempts.id) = 0 THEN 1
-                WHEN AVG(attempts.self_score) <= 3 THEN 2
-                ELSE 3
-            END,
-            questions.priority DESC,
-            avg_score ASC,
-            questions.exam_year DESC,
-            questions.question_number ASC
-        LIMIT 8
-    """, (today,))
-    recommended_queue = c.fetchall()
+        c.execute("SELECT COALESCE(SUM(minutes_spent), 0) FROM attempts")
+        total_minutes = c.fetchone()[0] or 0
 
-    conn.close()
+        c.execute("""
+            SELECT COUNT(*), COALESCE(SUM(minutes_spent), 0)
+            FROM attempts
+            WHERE date(created_at) = date(?)
+        """, (today,))
+        today_attempts, today_minutes = c.fetchone()
+
+        c.execute("""
+            SELECT COUNT(*)
+            FROM questions
+            WHERE next_review_at IS NOT NULL
+            AND date(next_review_at) <= date(?)
+        """, (today,))
+        due_reviews = c.fetchone()[0]
+
+        c.execute("""
+            SELECT COUNT(*)
+            FROM questions
+            WHERE last_practiced_at IS NULL
+        """)
+        unpracticed_questions = c.fetchone()[0]
+
+        c.execute("""
+            SELECT
+                questions.subject,
+                ROUND(AVG(attempts.self_score), 2),
+                COUNT(*)
+            FROM attempts
+            JOIN questions ON attempts.question_id = questions.id
+            GROUP BY questions.subject
+            ORDER BY AVG(attempts.self_score) ASC
+        """)
+        subject_stats = c.fetchall()
+
+        c.execute("""
+            SELECT
+                questions.subject,
+                COUNT(*) AS due_count
+            FROM questions
+            WHERE next_review_at IS NOT NULL
+            AND date(next_review_at) <= date(?)
+            GROUP BY questions.subject
+            ORDER BY due_count DESC, questions.subject ASC
+        """, (today,))
+        due_by_subject = c.fetchall()
+
+        c.execute("""
+            SELECT
+                questions.subject,
+                COUNT(*) AS untouched_count
+            FROM questions
+            WHERE questions.active_for_july_2026 = 1
+            AND questions.last_practiced_at IS NULL
+            GROUP BY questions.subject
+            ORDER BY untouched_count DESC, questions.subject ASC
+        """)
+        untouched_by_subject = c.fetchall()
+
+        c.execute("""
+            SELECT
+                questions.id,
+                questions.exam_name,
+                questions.question_number,
+                questions.subject,
+                questions.july_2026_status,
+                questions.priority,
+                questions.next_review_at,
+                questions.last_practiced_at,
+                COALESCE(AVG(attempts.self_score), -1) AS avg_score,
+                COUNT(attempts.id) AS attempt_count
+            FROM questions
+            LEFT JOIN attempts ON attempts.question_id = questions.id
+            WHERE questions.active_for_july_2026 = 1
+            GROUP BY questions.id
+            ORDER BY
+                CASE
+                    WHEN questions.next_review_at IS NOT NULL
+                    AND date(questions.next_review_at) <= date(?) THEN 0
+                    WHEN COUNT(attempts.id) = 0 THEN 1
+                    WHEN AVG(attempts.self_score) <= 3 THEN 2
+                    ELSE 3
+                END,
+                questions.priority DESC,
+                avg_score ASC,
+                questions.exam_year DESC,
+                questions.question_number ASC
+            LIMIT 8
+        """, (today,))
+        recommended_queue = c.fetchall()
 
     return {
         "total_questions": total_questions,
@@ -1445,22 +1347,19 @@ def upsert_admin(username, email, name, password_hash):
     """Create or refresh the admin account (used to seed from secrets)."""
     if not username or not password_hash:
         return
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT id FROM app_users WHERE username = ?", (username,))
-    row = c.fetchone()
-    if row:
-        c.execute(
-            "UPDATE app_users SET email = ?, name = ?, password_hash = ?, is_admin = 1 WHERE id = ?",
-            (email, name, password_hash, row[0]),
-        )
-    else:
-        c.execute(
-            "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, 1)",
-            (username, email, name, password_hash),
-        )
-    conn.commit()
-    conn.close()
+
+    with write_transaction() as conn:
+        row = conn.execute("SELECT id FROM app_users WHERE username = ?", (username,)).fetchone()
+        if row:
+            conn.execute(
+                "UPDATE app_users SET email = ?, name = ?, password_hash = ?, is_admin = 1 WHERE id = ?",
+                (email, name, password_hash, row[0]),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, 1)",
+                (username, email, name, password_hash),
+            )
 
 
 def get_app_user(login):
@@ -1468,9 +1367,7 @@ def get_app_user(login):
     if not login:
         return None
     login = str(login).strip().lower()
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
+    row = fetch_one(
         """
         SELECT username, email, name, password_hash, is_admin
         FROM app_users
@@ -1479,8 +1376,6 @@ def get_app_user(login):
         """,
         (login, login),
     )
-    row = c.fetchone()
-    conn.close()
     if not row:
         return None
     return {
@@ -1493,23 +1388,14 @@ def get_app_user(login):
 
 
 def list_app_users():
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
+    return fetch_all(
         "SELECT username, email, name, is_admin, created_at FROM app_users ORDER BY is_admin DESC, username"
     )
-    rows = c.fetchall()
-    conn.close()
-    return rows
 
 
 def count_app_users():
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM app_users")
-    n = c.fetchone()[0]
-    conn.close()
-    return n
+    row = fetch_one("SELECT COUNT(*) FROM app_users")
+    return row[0]
 
 
 def add_app_user(username, email, name, password_hash, is_admin=False):
@@ -1518,40 +1404,31 @@ def add_app_user(username, email, name, password_hash, is_admin=False):
     email = (email or "").strip().lower()
     if not username or not password_hash:
         return False, "Username and password are required."
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT 1 FROM app_users WHERE LOWER(username) = ?", (username,))
-    if c.fetchone():
-        conn.close()
-        return False, f"Username '{username}' already exists."
-    if email:
-        c.execute("SELECT 1 FROM app_users WHERE LOWER(IFNULL(email,'')) = ?", (email,))
-        if c.fetchone():
-            conn.close()
+
+    with write_transaction() as conn:
+        if conn.execute("SELECT 1 FROM app_users WHERE LOWER(username) = ?", (username,)).fetchone():
+            return False, f"Username '{username}' already exists."
+
+        if email and conn.execute("SELECT 1 FROM app_users WHERE LOWER(IFNULL(email,'')) = ?", (email,)).fetchone():
             return False, f"Email '{email}' is already in use."
-    c.execute(
-        "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, ?)",
-        (username, email, name, password_hash, 1 if is_admin else 0),
-    )
-    conn.commit()
-    conn.close()
+
+        conn.execute(
+            "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, ?)",
+            (username, email, name, password_hash, 1 if is_admin else 0),
+        )
+
     return True, f"Added user '{username}'."
 
 
 def delete_app_user(username):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM app_users WHERE LOWER(username) = ?", ((username or "").strip().lower(),))
-    conn.commit()
-    conn.close()
+    execute_write(
+        "DELETE FROM app_users WHERE LOWER(username) = ?",
+        ((username or "").strip().lower(),),
+    )
 
 
 def set_user_password(username, password_hash):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
+    execute_write(
         "UPDATE app_users SET password_hash = ? WHERE LOWER(username) = ?",
         (password_hash, (username or "").strip().lower()),
     )
-    conn.commit()
-    conn.close()

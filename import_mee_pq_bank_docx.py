@@ -26,7 +26,8 @@ from pathlib import Path
 from zipfile import ZipFile
 import xml.etree.ElementTree as ET
 
-from database import DB_NAME, init_db, now
+import database
+from database import init_db, now
 from text_cleanup import normalize_extracted_text
 
 
@@ -590,13 +591,18 @@ def backup_db(db_path: Path) -> Path:
     return backup_path
 
 
+def current_db_path() -> Path:
+    """Return the currently configured app database path."""
+    return Path(database.DB_NAME)
+
+
 def db_key(exam_name: str, question_number: str) -> tuple[str, str]:
     return (str(exam_name or "").strip().lower(), str(question_number or "").strip().lower())
 
 
 def upsert_database(entries: list[ParsedBlock], apply: bool, overwrite: bool) -> dict[str, object]:
     init_db()
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(current_db_path())
     cur = conn.cursor()
     rows = cur.execute(
         """
@@ -777,7 +783,7 @@ def main() -> None:
     entries = parse_docx(docx_path)
     backup_path = None
     if args.apply:
-        backup_path = backup_db(Path(DB_NAME))
+        backup_path = backup_db(current_db_path())
         print(f"Backup created: {backup_path}")
 
     result = upsert_database(entries, apply=args.apply, overwrite=args.overwrite)
