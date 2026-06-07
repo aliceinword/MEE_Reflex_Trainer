@@ -2729,18 +2729,22 @@ def render_structured_model_analysis(qd, call_text=None, title="Structured Model
 
 
 def render_sample_answer_section(qd, expanded=False):
-    model_points = qd.get("model_points", "") if isinstance(qd, dict) else ""
+    model_points = (qd.get("model_points", "") or "").strip() if isinstance(qd, dict) else ""
+    rules = (qd.get("rules", "") or "").strip() if isinstance(qd, dict) else ""
     quality = model_answer_quality(qd) if isinstance(qd, dict) else "missing"
 
-    if not model_points and quality == "missing" and not (
-        qd.get("tested_issues") or qd.get("rules") or qd.get("trigger_facts")
+    if not model_points and not rules and not (
+        qd.get("tested_issues") or qd.get("trigger_facts")
     ):
         st.info("No sample answer/model analysis available for this question yet.")
         return
 
     with st.expander("Compare With Sample Answer - open after self-grading", expanded=expanded):
         st.warning("Open this only after you attempted the issue/rule. No passive reading.")
-        if quality == "usable":
+        # Priority: show the structured model_points whenever it is present and not
+        # detectably corrupt. Only fall back to the rules-based structured view when
+        # model_points is empty/None or known-damaged.
+        if model_points and quality != "damaged":
             render_sample_answer_text("Sample Answer / Model Analysis", model_points)
         else:
             render_structured_model_analysis(qd, title="Structured Model Analysis")
@@ -5950,7 +5954,9 @@ def flatten_subquestions_for_answer_mapping(qd):
 
 
 def get_model_section_for_subquestion(qd, subq_index, subpart=None):
-    model_text = qd.get("model_points", "") or qd.get("rules", "") or ""
+    # Priority: split from model_points. Rules is only used as the structured
+    # fallback below (when model_points has no usable per-call breakdown).
+    model_text = qd.get("model_points", "") or ""
     points = split_model_answer_points(model_text)
     wanted_subpart = (subpart or None)
     quality = model_answer_quality(qd)
@@ -7271,6 +7277,7 @@ TRIGGER FACTS:
                     render_readable_text("Rules", qd["rules"], READING_FONT_SIZE)
                     render_trigger_facts("Trigger Facts", qd)
                     render_trap_warnings("Trap Warnings", qd["traps"])
+                    render_sample_answer_section(qd, expanded=False)
 
 
 elif menu == "Mini Essay Drill":
@@ -7376,10 +7383,13 @@ elif menu == "Mini Essay Drill":
                     render_trap_warnings("Trap Warnings", qd["traps"])
                     with st.expander("Raw trap text", expanded=False):
                         st.text(qd.get("traps", "") or "")
-                    full_model = qd.get("model_points", "") or qd.get("rules", "")
-                    if full_model:
+                    model_points = (qd.get("model_points", "") or "").strip()
+                    if model_points and model_answer_quality(qd) != "damaged":
                         with st.expander("Full Model Answer / Analysis", expanded=False):
-                            render_readable_text("Full Model Answer / Analysis", full_model)
+                            render_sample_answer_text("Full Model Answer / Analysis", model_points)
+                    elif qd.get("rules") or qd.get("tested_issues") or qd.get("trigger_facts"):
+                        with st.expander("Full Model Answer / Analysis", expanded=False):
+                            render_structured_model_analysis(qd, title="Structured Model Analysis")
                     else:
                         st.info("No full model answer/model analysis available for this question yet.")
 
