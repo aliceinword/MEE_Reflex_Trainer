@@ -2347,6 +2347,14 @@ def render_global_styles():
         margin-bottom: 0.25rem;
     }
 
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(165px, 100%), 1fr));
+        gap: var(--metric-grid-gap, 0.55rem);
+        width: 100%;
+        margin: 0.35rem 0 0.7rem;
+    }
+
     .compact-metric {
         background: #F8FBFF;
         border: 1px solid #DBEAFE;

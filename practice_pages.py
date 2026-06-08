@@ -1,30 +1,28 @@
 # -*- coding: utf-8 -*-
 """Practice page renderers for the MEE trainer."""
 
-import streamlit as st
-
 from database import get_question_by_id
 from practice_components import (
     LADDER_LEVELS,
     ladder_goal,
-    render_answer_bank_tabs,
     render_ladder_response_input,
     render_ladder_prompt_panel,
     render_mini_drill_response_input,
     render_mini_prompt_panel,
-    render_model_answer_panel,
     render_plug_play_support,
+    render_practice_review_panel,
+    render_practice_section_break,
     render_save_ladder_attempt,
     render_save_mini_drill_attempt,
     training_score,
 )
 from question_utils import unpack_question
 from ui_components import (
+    TEXTAREA_HEIGHT_XS,
     question_picker,
     render_caption,
     render_compact_note,
     render_control_row,
-    render_divider,
     render_error,
     render_metric_row,
     render_page_title,
@@ -98,12 +96,10 @@ def render_mini_drill_tab(qd, compact_mode=False, reading_mode=False):
         )
 
     if mini_revealed:
-        render_divider()
-        render_model_answer_panel(qd, expanded=True, title="Model Answer - compare after your attempt")
-        render_answer_bank_tabs(
+        render_practice_review_panel(
             qd,
-            expanded=True,
-            title="Rule Outline + Trigger Facts",
+            model_answer_title="Model Answer - compare after your attempt",
+            bank_title="Rule Outline + Trigger Facts",
             include_sample_answer=False,
             include_rule_support=True,
             include_highlights=False,
@@ -129,7 +125,7 @@ def render_ladder_tab(qd, compact_mode=False, reading_mode=False):
     with work_col:
         combined_answer = render_ladder_response_input(level)
 
-    render_divider()
+    render_practice_section_break()
 
     score_col, check_col = render_control_row([1, 1], gap="large")
 
@@ -145,13 +141,13 @@ def render_ladder_tab(qd, compact_mode=False, reading_mode=False):
         missed = render_text_area(
             "What did you miss?",
             placeholder="Missed issue, element, or trigger fact.",
-            height=90,
+            height=TEXTAREA_HEIGHT_XS,
         )
 
         notes = render_text_area(
             "Fix note for future you",
             placeholder="One useful instruction for next time.",
-            height=90,
+            height=TEXTAREA_HEIGHT_XS,
         )
 
         render_save_ladder_attempt(qd, level, combined_answer, average_score, missed, notes, target_minutes)
@@ -167,11 +163,9 @@ def render_ladder_tab(qd, compact_mode=False, reading_mode=False):
         render_caption("The answer bank opens full-width below this practice panel.")
 
     if ladder_revealed:
-        render_divider()
-        render_answer_bank_tabs(
+        render_practice_review_panel(
             qd,
-            expanded=True,
-            title="Model Answer + Rule Outline",
+            bank_title="Model Answer + Rule Outline",
             include_rule_support=True,
             include_highlights=False,
             compact=compact_mode,

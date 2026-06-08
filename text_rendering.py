@@ -2,11 +2,29 @@
 """Shared long-text rendering helpers for the MEE trainer app."""
 
 import re
+from contextlib import contextmanager
 from html import escape
 
 import streamlit as st
 
 from text_cleanup import normalize_extracted_text
+
+
+def render_text_info(text):
+    """Render an informational text-rendering notice from one place."""
+    st.info(text)
+
+
+def render_text_warning(text):
+    """Render a warning text-rendering notice from one place."""
+    st.warning(text)
+
+
+@contextmanager
+def render_text_expander(label, *, expanded=False):
+    """Open a text-rendering expander without importing the app UI layer."""
+    with st.expander(label, expanded=expanded):
+        yield
 
 
 def escape_display_text(value):
@@ -205,7 +223,7 @@ def clean_sample_answer_text(text):
 def render_sample_answer_text(title, text):
     formatted = clean_sample_answer_text(text)
     if not formatted:
-        st.info("No sample answer/model analysis available for this question yet.")
+        render_text_info("No sample answer/model analysis available for this question yet.")
         return
 
     label_classes = {
@@ -529,7 +547,7 @@ def build_structured_model_sections(qd, call_text=None):
 def render_structured_model_analysis(qd, call_text=None, title="Structured Model Analysis"):
     sections = build_structured_model_sections(qd, call_text=call_text)
     if not sections:
-        st.info("No structured answer material is available for this question yet.")
+        render_text_info("No structured answer material is available for this question yet.")
         return
 
     section_html = []
@@ -566,7 +584,7 @@ def render_structured_model_analysis(qd, call_text=None, title="Structured Model
 
 def render_sample_answer_body(qd):
     if not isinstance(qd, dict):
-        st.info("No sample answer/model analysis available for this question yet.")
+        render_text_info("No sample answer/model analysis available for this question yet.")
         return
 
     model_points = qd.get("model_points", "") if isinstance(qd, dict) else ""
@@ -575,10 +593,10 @@ def render_sample_answer_body(qd):
     if not model_points and quality == "missing" and not (
         qd.get("tested_issues") or qd.get("rules") or qd.get("trigger_facts")
     ):
-        st.info("No sample answer/model analysis available for this question yet.")
+        render_text_info("No sample answer/model analysis available for this question yet.")
         return
 
-    st.warning("Open this only after you attempted the issue/rule. No passive reading.")
+    render_text_warning("Open this only after you attempted the issue/rule. No passive reading.")
     if quality == "usable":
         render_sample_answer_text("Sample Answer / Model Analysis", model_points)
     else:
@@ -1124,7 +1142,7 @@ def render_trap_warnings(title, traps_text):
     traps = extract_trap_items(traps_text)
 
     if not traps:
-        st.info("No trap warnings available yet.")
+        render_text_info("No trap warnings available yet.")
         return
 
     cards_html = ""
@@ -1214,7 +1232,7 @@ def render_trigger_facts(title, facts, qd=None):
     facts = list(facts or [])
 
     if not facts:
-        st.info("No trigger facts available yet.")
+        render_text_info("No trigger facts available yet.")
         return
 
     cards_html = ""
@@ -2231,7 +2249,7 @@ def render_trigger_rule_map(title, qd):
         mapping = []
 
     if not mapping:
-        st.info("No trigger identifiers could be detected for this question yet.")
+        render_text_info("No trigger identifiers could be detected for this question yet.")
         return
 
     shared_rules = split_structured_lines(qd.get("rules", ""))[:6]
@@ -2315,9 +2333,9 @@ def render_question_specific_highlighted_facts(title, qd, show_explanations=True
 
     legend_html += '</div></div>'
 
-    st.info("Colors show which facts likely support each call of the question.")
+    render_text_info("Colors show which facts likely support each call of the question.")
     if show_explanations:
-        st.info("Hover over or click a highlighted fact to see why it matters.")
+        render_text_info("Hover over or click a highlighted fact to see why it matters.")
     st.markdown(legend_html, unsafe_allow_html=True)
     st.markdown(
         (
@@ -2329,7 +2347,7 @@ def render_question_specific_highlighted_facts(title, qd, show_explanations=True
         unsafe_allow_html=True,
     )
 
-    with st.expander("Detected facts by question", expanded=False):
+    with render_text_expander("Detected facts by question", expanded=False):
         render_detected_facts_by_question(mapping)
 
 
@@ -2337,7 +2355,7 @@ def render_question_highlights_with_fallback(title, qd, text=None, show_explanat
     try:
         render_question_specific_highlighted_facts(title, qd, show_explanations=show_explanations)
     except Exception:
-        st.warning("Question-specific highlighting failed; showing universal highlights instead.")
+        render_text_warning("Question-specific highlighting failed; showing universal highlights instead.")
         render_universal_highlighted_fact_pattern(title, qd, text=text)
 
 def clean_outline_text(text):

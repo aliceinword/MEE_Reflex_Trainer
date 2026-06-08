@@ -361,15 +361,6 @@ def parse_records(markdown: str) -> list[ParsedRecord]:
     return parse_simple_qa_records(markdown)
 
 
-def existing_question_map(conn: sqlite3.Connection) -> dict[tuple[str, str], int]:
-    rows = conn.execute("SELECT id, exam_name, question_number FROM questions").fetchall()
-    result: dict[tuple[str, str], int] = {}
-    for question_id, exam_name, question_number in rows:
-        key = (str(exam_name).strip().lower(), str(question_number).strip().lstrip("0") or "0")
-        result[key] = int(question_id)
-    return result
-
-
 def backup_db(db_path: Path) -> Path:
     backup = db_path.with_name(f"{db_path.stem}_backup_before_markdown_qa_import_{datetime.now():%Y%m%d_%H%M%S}{db_path.suffix}")
     shutil.copy2(db_path, backup)
@@ -383,18 +374,16 @@ def current_db_path() -> Path:
 
 def import_records(records: list[ParsedRecord], apply: bool, allow_truncated: bool) -> dict:
     db_path = current_db_path()
-    conn = sqlite3.connect(db_path)
-    question_map = existing_question_map(conn)
+    question_map = database.get_question_import_index()
     skipped_truncated = [record for record in records if record.is_truncated and not allow_truncated]
     importable_records = [record for record in records if allow_truncated or not record.is_truncated]
 
     updates = []
     inserts = []
     for record in importable_records:
-        key = (record.exam_name.strip().lower(), record.question_number)
-        existing_id = question_map.get(key)
-        if existing_id:
-            updates.append((existing_id, record))
+        existing_row = question_map.get(database.question_import_key(record.exam_name, record.question_number))
+        if existing_row:
+            updates.append((existing_row[0], record))
         else:
             inserts.append(record)
 
@@ -409,10 +398,10 @@ def import_records(records: list[ParsedRecord], apply: bool, allow_truncated: bo
     }
 
     if not apply:
-        conn.close()
         return report
 
     report["backup"] = str(backup_db(db_path))
+    conn = sqlite3.connect(db_path)
 
     for question_id, record in updates:
         conn.execute(

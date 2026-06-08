@@ -84,6 +84,21 @@ def question_exists(exam_name, question_number, subject, source=None):
     ) is not None
 
 
+def question_import_key(exam_name, question_number):
+    """Return the normalized key importers use to match existing questions."""
+    normalized_number = str(question_number or "").strip().lower().lstrip("0") or "0"
+    return (str(exam_name or "").strip().lower(), normalized_number)
+
+
+def get_question_import_index(include_model_points=False):
+    """Return existing questions keyed by exam name and question number for importers."""
+    if include_model_points:
+        rows = fetch_all("SELECT id, exam_name, question_number, subject, model_points FROM questions")
+    else:
+        rows = fetch_all("SELECT id, exam_name, question_number FROM questions")
+    return {question_import_key(row[1], row[2]): row for row in rows}
+
+
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

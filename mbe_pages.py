@@ -106,7 +106,6 @@ def _render_mbe_bulk_upload_tab():
             [],
             mbe_upload_preview_rows(df),
             empty_message="No previewable rows found.",
-            height=320,
         )
 
         render_compact_note(

@@ -29,6 +29,14 @@ from text_rendering import (
 PARAGRAPH_INPUT_TIP = "Tip: Press Enter twice between paragraphs for clean spacing when displayed."
 EMBEDDED_TOOL_HEIGHT = 860
 FULL_PAGE_EMBED_HEIGHT = 1120
+TEXTAREA_HEIGHT_XS = 90
+TEXTAREA_HEIGHT_SM = 120
+TEXTAREA_HEIGHT_MD = 160
+TEXTAREA_HEIGHT_OUTLINE = 170
+TEXTAREA_HEIGHT_LG = 280
+TEXTAREA_HEIGHT_XL = 360
+TEXTAREA_HEIGHT_XXL = 420
+TEXTAREA_HEIGHT_PREVIEW = 320
 
 
 def render_app_header():
@@ -171,14 +179,24 @@ def compact_card_container(title):
 
 
 def render_metric_row(metrics, gap="small"):
-    """Render a row of consistent compact metric cards."""
+    """Render a responsive row of consistent compact metric cards."""
     if not metrics:
         return
 
-    cols = st.columns(len(metrics), gap=gap)
-    for col, (label, value) in zip(cols, metrics):
-        with col:
-            render_compact_metric(label, value)
+    gap_rem = {"small": "0.55rem", "medium": "0.8rem", "large": "1rem"}.get(gap, "0.55rem")
+    cards = []
+    for label, value in metrics:
+        cards.append(
+            '<div class="compact-metric">'
+            f'<div class="metric-label">{escape(str(label))}</div>'
+            f'<div class="metric-value">{escape(str(value))}</div>'
+            "</div>"
+        )
+
+    st.markdown(
+        f'<div class="metric-grid" style="--metric-grid-gap:{gap_rem}">' + "".join(cards) + "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def preview_table_height(row_count, *, min_height=150, max_height=360, row_height=32, header_height=78):
@@ -219,10 +237,37 @@ def render_preview_table(rows, empty_message="No preview rows available.", heigh
         render_info(empty_message)
 
 
-def render_import_preview(metrics, rows, *, empty_message, height=280):
-    """Render an import preview's metric row and preview table consistently."""
+def render_import_preview(metrics, rows, *, empty_message, height=None, max_rows=8):
+    """Render an import preview's metric row and adaptive preview table consistently."""
     render_metric_row(metrics)
-    render_preview_table(rows, empty_message=empty_message, height=height)
+    render_preview_table(rows, empty_message=empty_message, height=height, max_rows=max_rows)
+
+
+def render_import_dry_run_preview(
+    *,
+    action,
+    metrics_from_result,
+    rows_from_result,
+    empty_message,
+    spinner_text=None,
+    height=None,
+    max_rows=8,
+):
+    """Run one import dry run and render its standard preview table."""
+    if spinner_text:
+        with render_spinner(spinner_text):
+            result = action()
+    else:
+        result = action()
+
+    render_import_preview(
+        metrics_from_result(result),
+        rows_from_result(result),
+        empty_message=empty_message,
+        height=height,
+        max_rows=max_rows,
+    )
+    return result
 
 
 def render_control_row(widths, *, gap="small", vertical_alignment="top"):
@@ -481,6 +526,36 @@ def render_import_success(label, *, updated, inserted, unit="records", backup_pa
     render_success(f"{label} import complete. Updated {updated} and inserted {inserted} {unit}.")
     if backup_path:
         render_caption(f"Backup created: {backup_path}")
+
+
+def render_import_apply_action(
+    label,
+    *,
+    action,
+    success_label,
+    stats_from_result,
+    spinner_text=None,
+    unit="questions",
+):
+    """Run one import apply action and render the standard success feedback."""
+    if not render_primary_action_button(label):
+        return None
+
+    if spinner_text:
+        with render_spinner(spinner_text):
+            result = action()
+    else:
+        result = action()
+
+    stats = stats_from_result(result) or {}
+    render_import_success(
+        success_label,
+        updated=stats.get("updated", 0),
+        inserted=stats.get("inserted", 0),
+        unit=stats.get("unit", unit),
+        backup_path=stats.get("backup_path") or stats.get("backup"),
+    )
+    return result
 
 
 def format_review_date(value):

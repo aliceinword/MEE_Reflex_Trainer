@@ -5,7 +5,6 @@ from datetime import date, timedelta
 from html import escape
 
 import pandas as pd
-import streamlit as st
 
 from database import (
     DB_NAME,
@@ -44,6 +43,104 @@ from ui_components import (
     render_text_input,
     render_warning,
 )
+
+
+QUESTION_BANK_ADDED_DATE_OPTIONS = ["All dates", "Today", "Last 7 days", "Last 30 days", "This year"]
+
+
+def question_bank_added_date_range(selected_added_date, today=None):
+    """Return created_from/created_to filters for the question-bank date menu."""
+    today = today or date.today()
+
+    if selected_added_date == "Today":
+        return today.isoformat(), today.isoformat()
+    if selected_added_date == "Last 7 days":
+        return (today - timedelta(days=7)).isoformat(), today.isoformat()
+    if selected_added_date == "Last 30 days":
+        return (today - timedelta(days=30)).isoformat(), today.isoformat()
+    if selected_added_date == "This year":
+        return date(today.year, 1, 1).isoformat(), today.isoformat()
+
+    return None, None
+
+
+def render_question_bank_filters():
+    """Render Question Bank filters and return get_question_bank_rows arguments."""
+    subjects = ["All"] + get_subjects()
+    statuses = ["All"] + get_statuses()
+    years = ["All"] + [str(year) for year in get_exam_years()]
+
+    filter_cols = render_control_row([1.2, 1.2, 0.85, 1.05, 0.75])
+    with filter_cols[0]:
+        selected_subject = render_selectbox("Subject", subjects, key="bank_subject")
+    with filter_cols[1]:
+        selected_status = render_selectbox("Status", statuses, key="bank_status")
+    with filter_cols[2]:
+        selected_year = render_selectbox("Exam year", years, key="bank_year")
+    with filter_cols[3]:
+        selected_added_date = render_selectbox("Added date", QUESTION_BANK_ADDED_DATE_OPTIONS, key="bank_added_date")
+    with filter_cols[4]:
+        active_only = render_checkbox("Active only", value=False)
+
+    topic_query = render_text_input(
+        "Tested topic / keyword",
+        placeholder="personal jurisdiction, hearsay, agency",
+        key="bank_topic_query",
+    )
+
+    created_from, created_to = question_bank_added_date_range(selected_added_date)
+
+    return {
+        "subject": selected_subject,
+        "status": selected_status,
+        "topic": topic_query,
+        "exam_year": None if selected_year == "All" else selected_year,
+        "active_only": active_only,
+        "created_from": created_from,
+        "created_to": created_to,
+    }
+
+
+def question_bank_rows_dataframe(rows):
+    """Return a formatted DataFrame for Question Bank result rows."""
+    bank_df = pd.DataFrame(
+        rows,
+        columns=[
+            "ID",
+            "Exam",
+            "Q",
+            "Subject",
+            "Year",
+            "Season",
+            "Status",
+            "Priority",
+            "Source",
+            "Next Review",
+            "Added",
+            "Tested Issues",
+        ],
+    )
+    bank_df["Added"] = bank_df["Added"].fillna("").astype(str).str.slice(0, 10)
+    bank_df["Next Review"] = bank_df["Next Review"].fillna("").astype(str).str.slice(0, 10)
+    bank_df["Tested Issues"] = (
+        bank_df["Tested Issues"].fillna("").astype(str).str.replace(r"\s+", " ", regex=True).str.slice(0, 180)
+    )
+    return bank_df
+
+
+def render_question_bank_results_table(rows):
+    """Render the Question Bank results table with consistent preview sizing."""
+    render_preview_table(
+        question_bank_rows_dataframe(rows),
+        height=preview_table_height(len(rows), max_height=420),
+    )
+
+
+def select_question_bank_row(rows):
+    """Render the Question Bank detail selector and return the selected row."""
+    labels = [format_bank_question_label(row) for row in rows]
+    selected_label = render_selectbox("Open question details", labels, key="bank_selected_question")
+    return rows[labels.index(selected_label)]
 
 
 def render_dashboard_page():
@@ -205,54 +302,7 @@ def render_question_bank_page(compact_mode=False):
         "Browse, filter, and inspect stored MEE questions.",
     )
 
-    subjects = ["All"] + get_subjects()
-    statuses = ["All"] + get_statuses()
-    years = ["All"] + [str(year) for year in get_exam_years()]
-    added_date_options = ["All dates", "Today", "Last 7 days", "Last 30 days", "This year"]
-
-    filter_cols = render_control_row([1.2, 1.2, 0.85, 1.05, 0.75])
-    with filter_cols[0]:
-        selected_subject = render_selectbox("Subject", subjects, key="bank_subject")
-    with filter_cols[1]:
-        selected_status = render_selectbox("Status", statuses, key="bank_status")
-    with filter_cols[2]:
-        selected_year = render_selectbox("Exam year", years, key="bank_year")
-    with filter_cols[3]:
-        selected_added_date = render_selectbox("Added date", added_date_options, key="bank_added_date")
-    with filter_cols[4]:
-        active_only = render_checkbox("Active only", value=False)
-
-    topic_query = render_text_input(
-        "Tested topic / keyword",
-        placeholder="personal jurisdiction, hearsay, agency",
-        key="bank_topic_query",
-    )
-
-    today = date.today()
-    created_from = None
-    created_to = None
-    if selected_added_date == "Today":
-        created_from = today.isoformat()
-        created_to = today.isoformat()
-    elif selected_added_date == "Last 7 days":
-        created_from = (today - timedelta(days=7)).isoformat()
-        created_to = today.isoformat()
-    elif selected_added_date == "Last 30 days":
-        created_from = (today - timedelta(days=30)).isoformat()
-        created_to = today.isoformat()
-    elif selected_added_date == "This year":
-        created_from = date(today.year, 1, 1).isoformat()
-        created_to = today.isoformat()
-
-    rows = get_question_bank_rows(
-        subject=selected_subject,
-        status=selected_status,
-        topic=topic_query,
-        exam_year=None if selected_year == "All" else selected_year,
-        active_only=active_only,
-        created_from=created_from,
-        created_to=created_to,
-    )
+    rows = get_question_bank_rows(**render_question_bank_filters())
 
     render_match_count(len(rows))
 
@@ -260,34 +310,10 @@ def render_question_bank_page(compact_mode=False):
         render_info("No questions match those filters.")
         return
 
-    bank_df = pd.DataFrame(
-        rows,
-        columns=[
-            "ID",
-            "Exam",
-            "Q",
-            "Subject",
-            "Year",
-            "Season",
-            "Status",
-            "Priority",
-            "Source",
-            "Next Review",
-            "Added",
-            "Tested Issues",
-        ],
-    )
-    bank_df["Added"] = bank_df["Added"].fillna("").astype(str).str.slice(0, 10)
-    bank_df["Next Review"] = bank_df["Next Review"].fillna("").astype(str).str.slice(0, 10)
-    bank_df["Tested Issues"] = (
-        bank_df["Tested Issues"].fillna("").astype(str).str.replace(r"\s+", " ", regex=True).str.slice(0, 180)
-    )
-    render_preview_table(bank_df, height=preview_table_height(len(bank_df), max_height=420))
+    render_question_bank_results_table(rows)
 
-    labels = [format_bank_question_label(row) for row in rows]
-    selected_label = render_selectbox("Open question details", labels, key="bank_selected_question")
-    selected_question_id = rows[labels.index(selected_label)][0]
-    q = get_question_by_id(selected_question_id)
+    selected_row = select_question_bank_row(rows)
+    q = get_question_by_id(selected_row[0])
 
     if not q:
         return

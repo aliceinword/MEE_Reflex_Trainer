@@ -458,6 +458,68 @@
   .qtitle{font-size:17px !important;line-height:1.6 !important}
   .opts .opt{font-size:16px !important;line-height:1.5 !important;padding:14px 16px !important}
   .opts .opt .key{font-size:14px !important}
+  /* coverage report */
+  .cov-subj{border:1px solid var(--line);border-radius:12px;background:#fff;margin-top:10px;overflow:hidden}
+  .cov-subj>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px}
+  .cov-subj>summary::-webkit-details-marker{display:none}
+  .cov-subj-name{font-family:'IBM Plex Serif',Georgia,serif;font-size:15px;font-weight:700}
+  .cov-subj-meta{font-size:11.5px;color:var(--sec)}
+  .cov-cat{margin:6px 12px;padding:8px 11px;border-radius:9px;border-left:3px solid var(--line);background:#FAFAF8}
+  .cov-cat.cov-ok{border-left-color:var(--ok,#16A34A)}
+  .cov-cat.cov-gap{border-left-color:var(--no,#DC2626);background:#FEF2F2}
+  .cov-cat-head{display:flex;align-items:center;gap:8px}
+  .cov-mark{font-weight:700}
+  .cov-cat.cov-ok .cov-mark{color:var(--ok,#16A34A)}
+  .cov-cat.cov-gap .cov-mark{color:var(--no,#DC2626)}
+  .cov-cat-name{font-weight:600;font-size:13px;flex:1}
+  .cov-count{font-size:10px;color:var(--sec);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.04em}
+  .cov-cat.cov-gap .cov-count{color:var(--no,#DC2626)}
+  .cov-topics{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
+  .cov-topic{font-size:10.5px;color:var(--sec);background:rgba(0,0,0,.045);border-radius:6px;padding:2px 7px;line-height:1.5}
+  /* let question + feedback expand fully, no internal scroll, use the page width */
+  .app, #app, .wrap, .container, main { width: 100% !important; max-width: min(1760px, 100%) !important; }
+  #fb, .fb, .fb-box, .ab-compare, .ab-col, .trigger-analysis,
+  .call-box, .facts-text, .qcard, .qtitle, .opts, .lec-nav {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  /* the A/B comparison should use the wider space as side-by-side columns on desktop */
+  .ab-compare {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+    align-items: start !important;
+  }
+  .ab-compare .ab-diff { grid-column: 1 / -1 !important; }
+  @media (max-width: 720px) {
+    .ab-compare { grid-template-columns: 1fr !important; }
+  }
+  /* comfortable reading width for long explanations */
+  .fb-box, .trigger-analysis, .facts-text { line-height: 1.6 !important; }
+  body.drill-screen,
+  body.drill-screen .wrap,
+  body.drill-screen #app,
+  body.drill-screen .qcard.panel,
+  body.drill-screen .opts {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  body.drill-screen .wrap { min-height: calc(100vh - clamp(12px,1.3vw,20px)) !important; }
+  /* fix: options + feedback must flow in normal vertical order, never overlap */
+  body.drill-screen { overflow: auto !important; }
+  body.drill-screen #app { position: static !important; display: block !important; height: auto !important; max-height: none !important; overflow: visible !important; }
+  body.drill-screen .qcard.panel { position: static !important; height: auto !important; max-height: none !important; overflow: visible !important; }
+  #fb, .fb { position: static !important; display: block !important; height: auto !important; max-height: none !important; overflow: visible !important; margin-top: 14px !important; clear: both !important; }
+  .opts { position: static !important; display: flex !important; flex-direction: column !important; gap: 10px !important; height: auto !important; max-height: none !important; overflow: visible !important; }
+  .opts .opt { position: static !important; display: flex !important; width: 100% !important; float: none !important; height: auto !important; min-height: 0 !important; margin: 0 !important; }
+  .dodged { position: static !important; display: flex !important; float: none !important; margin: 10px 0 !important; height: auto !important; clear: both !important; }
+  .fb-box, .ab-compare, .trigger-analysis, .call-box { position: static !important; height: auto !important; max-height: none !important; overflow: visible !important; clear: both !important; }
+  /* keep the side-by-side comparison, but only as a grid INSIDE its own block (not overlapping siblings) */
+  .ab-compare { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 12px !important; align-items: start !important; margin: 10px 0 !important; }
+  .ab-compare .ab-col { position: static !important; float: none !important; }
+  .ab-compare .ab-diff { grid-column: 1 / -1 !important; }
+  @media (max-width: 720px){ .ab-compare { grid-template-columns: 1fr !important; } }
   /* ================= END AESTHETIC UPGRADE ================= */
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -2128,7 +2190,15 @@ function inferRuleTested(card, correct, doctrine) {
     "Larceny / Burglary / Factual Impossibility": "Larceny requires taking and carrying away property of another with intent to permanently deprive. Factual impossibility is not a defense to a completed taking. Burglary requires unlawful entry when the statute so defines it."
   };
   if (RULES[doctrine]) return RULES[doctrine];
-  return cleanRuleFromExplanation(correct && correct.why ? correct.why : "");
+  // No curated rule for this doctrine - return a CONCISE label instead of the full
+  // explanation (which would just repeat the rule text shown elsewhere in the box).
+  const subLabel = (card.sub || "").trim();
+  if (subLabel) return subLabel;
+  const titleLabel = (card.title || "").trim();
+  if (titleLabel) return titleLabel.length > 90 ? titleLabel.slice(0, 87) + "\u2026" : titleLabel;
+  const cleaned = cleanRuleFromExplanation(correct && correct.why ? correct.why : "");
+  const firstSentence = (String(cleaned).split(". ")[0] || cleaned).trim();
+  return firstSentence.length > 160 ? firstSentence.slice(0, 157) + "\u2026" : firstSentence;
 }
 
 function inferDoctrine(card) {
@@ -3279,8 +3349,55 @@ function isSnoozedStats(stats) {
   return new Date(stats.snoozedUntil).getTime() > Date.now();
 }
 
+function isSnoozed(card){
+  try{ const s = getCardStats(card) || {}; return s.snoozedUntil ? Date.now() < new Date(s.snoozedUntil).getTime() : false; }
+  catch(e){ return false; }
+}
+
 function isCardSnoozed(card) {
-  return isSnoozedStats(getCardStats(card));
+  return isSnoozed(card);
+}
+
+function lastAnsweredTime(card){
+  try{
+    const s = getCardStats(card) || {};
+    const t = s.lastAnsweredAt ? Date.parse(s.lastAnsweredAt) : (s.lastShown || 0);
+    return Number.isFinite(t) ? t : 0;
+  }catch(e){ return 0; }
+}
+
+function answeredRecently(card, hours){
+  try{
+    const s = getCardStats(card) || {};
+    const t = s.lastAnsweredAt ? Date.parse(s.lastAnsweredAt) : (s.lastShown || 0);
+    if(!t) return false;
+    return (Date.now() - t) < hours*3600*1000;
+  }catch(e){ return false; }
+}
+
+function dedupeCards(cards){
+  const seen = new Set();
+  return (cards || []).filter(card => {
+    const key = cardKey(card);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function staleAnsweredFirst(a, b){
+  return (lastAnsweredTime(a) || 0) - (lastAnsweredTime(b) || 0);
+}
+
+function finalizeQueue(pool, requestedSize, sorter){
+  const max = requestedSize || (pool ? pool.length : 0);
+  const unique = dedupeCards(pool || []);
+  const available = unique.filter(c => !isSnoozed(c));
+  const preferred = available.filter(c => !answeredRecently(c, 12));
+  const recent = available.filter(c => answeredRecently(c, 12)).sort(staleAnsweredFirst);
+  const orderedPreferred = sorter ? preferred.sort(sorter) : preferred;
+  const queue = dedupeCards(orderedPreferred.concat(recent));
+  return queue.slice(0, max);
 }
 
 function isErrorItemDue(card) {
@@ -3292,13 +3409,18 @@ function isErrorItemDue(card) {
 }
 
 function snoozeCardForTwoWeeks(card, btnEl) {
-  const until = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  return snoozeCard(card, 14, btnEl);
+}
+
+function snoozeCard(card, days, btnEl){
+  const untilMs = Date.now() + days * 24 * 3600 * 1000;
+  const until = new Date(untilMs).toISOString();
   try {
     const stats = { ...defaultCardStats(), ...getCardStats(card) };
-    stats.snoozedUntil = until;
+    stats.snoozedUntil = untilMs;
     stats.snoozedAt = nowISO();
     stats.nextReviewAt = until;
-    stats.dueAt = new Date(until).getTime();
+    stats.dueAt = untilMs;
     setCardStats(card, stats);
 
     const list = loadErrorList();
@@ -3311,7 +3433,7 @@ function snoozeCardForTwoWeeks(card, btnEl) {
     }
   } catch (e) {}
   if (btnEl) {
-    btnEl.textContent = "Skipped for 2 weeks";
+    btnEl.textContent = "\u{1F515} Snoozed 2 wks";
     btnEl.disabled = true;
     btnEl.style.opacity = ".75";
   }
@@ -3561,23 +3683,26 @@ function buildSessionQueue(pool, opts) {
   const cfg = opts.reviewOnly
     ? { maxQuestions: pool.length, maxErrorQuestions: 999, maxNewQuestions: 999, maxDue: 999 }
     : (settings.dailyReview || opts.dailyReview)
-      ? { maxQuestions: settings.dailyDue + settings.dailyErrors + settings.dailyNew, maxErrorQuestions: settings.dailyErrors, maxNewQuestions: settings.dailyNew, maxDue: settings.dailyDue }
-      : { maxQuestions: settings.maxQuestions, maxErrorQuestions: settings.maxErrorQuestions, maxNewQuestions: settings.maxNewQuestions, maxDue: settings.maxQuestions };
+      ? { maxQuestions: opts.maxQuestions || settings.dailyDue + settings.dailyErrors + settings.dailyNew, maxErrorQuestions: settings.dailyErrors, maxNewQuestions: settings.dailyNew, maxDue: settings.dailyDue }
+      : { maxQuestions: opts.maxQuestions || settings.maxQuestions, maxErrorQuestions: settings.maxErrorQuestions, maxNewQuestions: settings.maxNewQuestions, maxDue: opts.maxQuestions || settings.maxQuestions };
 
   const errorKeys = new Set(loadErrorList().filter(x => x.status !== "resolved").map(x => x.key));
   const lastSessionKeys = new Set(loadLastSessionShownKeys());
 
-  const active = pool.filter(c => {
+  const active = dedupeCards(pool).filter(c => {
     if (getCardStats(c).isMastered) return false;
-    if (isCardSnoozed(c)) return false;
+    if (isSnoozed(c)) return false;
     const key = cardKey(c);
     if (errorKeys.has(key) && !isErrorItemDue(c)) return false;
     return true;
   });
-  const primary = active.filter(c => !lastSessionKeys.has(cardKey(c)));
-  const fallback = active.filter(c => lastSessionKeys.has(cardKey(c)));
+  const notRecent = active.filter(c => !answeredRecently(c, 12));
+  const recentFallback = active.filter(c => answeredRecently(c, 12));
+  const primary = notRecent.filter(c => !lastSessionKeys.has(cardKey(c)));
+  const fallback = notRecent.filter(c => lastSessionKeys.has(cardKey(c)));
   primary.sort((a, b) => queuePriorityScore(b) - queuePriorityScore(a));
   fallback.sort((a, b) => queuePriorityScore(b) - queuePriorityScore(a));
+  recentFallback.sort(staleAnsweredFirst);
 
   const queue = [];
   let newCount = 0, errorCount = 0, dueCount = 0;
@@ -3608,9 +3733,10 @@ function buildSessionQueue(pool, opts) {
 
   for (const c of primary) tryAdd(c);
   for (const c of fallback) tryAdd(c);
+  for (const c of recentFallback) tryAdd(c);
 
   if (!queue.length && active.length) {
-    return active.sort((a, b) => queuePriorityScore(b) - queuePriorityScore(a)).slice(0, cfg.maxQuestions);
+    return dedupeCards(active.sort(staleAnsweredFirst)).slice(0, cfg.maxQuestions);
   }
   return queue;
 }
@@ -4366,6 +4492,7 @@ function renderStart(){
       <button class="btn btn-ghost btn-sm" id="goDanger">☠ Danger Errors</button>
       <button class="btn btn-ghost btn-sm" id="goActive">🔥 Active Weakness</button>
       <button class="btn btn-ghost btn-sm" id="goWeekly">📊 Weekly Report</button>
+      <button class="btn btn-ghost btn-sm" id="goCoverage">📋 Coverage Report</button>
     </div>
     <div class="toolbar">
       <button class="btn btn-primary btn-sm" id="advBtn">📥 Import from AdaptiBar</button>
@@ -4387,6 +4514,7 @@ function renderStart(){
   document.getElementById('goDanger').onclick=()=>{state.mode='drill';startDangerDrill();};
   document.getElementById('goActive').onclick=()=>{state.mode='drill';startActiveWeaknessDrill();};
   document.getElementById('goWeekly').onclick=renderWeeklyReportView;
+  document.getElementById('goCoverage').onclick=renderCoverageReport;
 
   document.getElementById('addBtn').onclick=()=>renderAdd();
   document.getElementById('advBtn').onclick=renderAdaptiImport;
@@ -4505,7 +4633,8 @@ function startErrorReview() {
   }
 
   state.currentSession = newSession();
-  state.queue = cards.sort((a, b) => {
+  const settings = loadSessionSettings();
+  state.queue = finalizeQueue(cards, settings.maxQuestions || cards.length, (a, b) => {
     const sa = getCardStats(a);
     const sb = getCardStats(b);
     return (sb.errorCount || sb.timesWrong || 0) - (sa.errorCount || sa.timesWrong || 0);
@@ -4611,7 +4740,9 @@ function startRun(opts){
   else pool=pool.filter(d=>!getCardStats(d).isMastered);
 
   if(opts.reviewOnly || opts.activeWeakness || opts.oldMissRecheck || opts.dangerOnly) {
-    pool.sort((a,b)=>queuePriorityScore(b)-queuePriorityScore(a));
+    const settings = loadSessionSettings();
+    const requested = opts.maxQuestions || (opts.reviewOnly ? pool.length : settings.maxQuestions);
+    pool = finalizeQueue(pool, requested, (a,b)=>queuePriorityScore(b)-queuePriorityScore(a));
   } else {
     pool = buildSessionQueue(pool, opts);
   }
@@ -4948,14 +5079,14 @@ function revealDrillFeedback(pending) {
   if (d.ru) fb += `<div class="fb-box fb-ru"><strong>Shortcut</strong>${esc(d.ru)}</div>`;
   const flagged = !!getCardStats(d).flaggedForReview;
   fb += `<div class="fb-actions"><button class="btn btn-ghost btn-sm" id="flagLater">${flagged?'🚩 Flagged ✓':'🚩 Flag for later'}</button>
-    <button class="btn btn-ghost btn-sm" id="snoozeTwoWeeks">Don't ask this question again for 2 weeks</button>
+    <button class="btn btn-ghost btn-sm" id="snooze14">&#128277; Don't ask for 2 weeks</button>
     <button class="btn btn-primary" id="next">${state.i + 1 < state.queue.length ? 'Next →' : 'See results →'}</button></div></div>`;
   document.getElementById('fb').innerHTML = fb;
   document.getElementById('next').onclick = nextCard;
   const flagBtn = document.getElementById('flagLater');
   if (flagBtn) flagBtn.onclick = () => flagCardForLater(d, flagBtn);
-  const snoozeBtn = document.getElementById('snoozeTwoWeeks');
-  if (snoozeBtn) snoozeBtn.onclick = () => snoozeCardForTwoWeeks(d, snoozeBtn);
+  const sn = document.getElementById('snooze14');
+  if (sn) sn.onclick = () => snoozeCard(d, 14, sn);
   try {
     document.getElementById('fb').insertAdjacentHTML('beforeend', renderTriggerAnalysisBox(d));
   } catch (e) {}
@@ -5052,6 +5183,51 @@ function nextCard(){
 }
 
 /* ---------- LECTURE ---------- */
+/* ============================ COVERAGE REPORT ============================ */
+const COV_STOP = new Set(("the a an and or of to in for on with without by within into onto as is are was were be been being not no nor any all under over from at this that these those there here their its his her your our which who whom whose when where what how why whether between among after before during including include includes etc ie eg type types kind kinds general other others special problem problems issue issues rule rules law laws case cases court courts party parties claim claims action actions matter related involving against upon out off per via amp nbsp may must shall will would could should").split(/\s+/));
+function covTokens(str){
+  return [...new Set(String(str || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => w.length >= 4 && !COV_STOP.has(w)))];
+}
+function renderCoverageReport(){
+  const cards = allCards();
+  const subjects = Object.keys(MBE_OUTLINE);
+  let totalCats = 0, coveredCats = 0;
+  const totalCards = cards.length;
+  let sections = "";
+  subjects.forEach(subject => {
+    const cats = MBE_OUTLINE[subject] || [];
+    const subjCards = cards.filter(c => normalizeMBESubject(c.subj) === subject);
+    const cardToks = subjCards.map(c => new Set([...covTokens(c.sub), ...covTokens(c.title)]));
+    let catLines = "", subjCovered = 0;
+    cats.forEach(cat => {
+      totalCats++;
+      const bag = new Set([...covTokens(cat.c), ...cat.t.flatMap(t => covTokens(t))]);
+      let n = 0;
+      cardToks.forEach(tok => { for (const t of tok) { if (bag.has(t)) { n++; break; } } });
+      const ok = n > 0;
+      if (ok) { coveredCats++; subjCovered++; }
+      const topics = cat.t.map(t => `<span class="cov-topic">${esc(t)}</span>`).join("");
+      catLines += `<div class="cov-cat ${ok ? 'cov-ok' : 'cov-gap'}">
+        <div class="cov-cat-head"><span class="cov-mark">${ok ? '\u2713' : '\u26A0'}</span><span class="cov-cat-name">${esc(cat.c)}</span><span class="cov-count">${ok ? n + ' card' + (n === 1 ? '' : 's') : 'no cards'}</span></div>
+        <div class="cov-topics">${topics}</div>
+      </div>`;
+    });
+    const gaps = cats.length - subjCovered;
+    sections += `<details class="cov-subj" ${gaps > 0 ? 'open' : ''}>
+      <summary><span class="cov-subj-name">${esc(subject)}</span><span class="cov-subj-meta">${subjCovered}/${cats.length} areas \u00B7 ${subjCards.length} cards${gaps > 0 ? ` \u00B7 <b style="color:var(--no,#DC2626)">${gaps} gap${gaps === 1 ? '' : 's'}</b>` : ' \u00B7 \u2713'}</span></summary>
+      ${catLines}</details>`;
+  });
+  const pct = totalCats ? Math.round(coveredCats / totalCats * 100) : 0;
+  app.innerHTML = `
+    <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:20px;margin-bottom:4px">Coverage Report</h2>
+    <p style="color:var(--sec);font-size:12.5px;line-height:1.6;margin-bottom:6px">Across <b>${totalCards}</b> cards (built-in + your imports), you have at least one card in <b>${coveredCats} of ${totalCats}</b> official MBE areas (${pct}%). Areas with <b style="color:var(--no,#DC2626)">no cards</b> are flagged.</p>
+    <p style="color:var(--mut);font-size:11px;line-height:1.5;margin-bottom:12px">Approximate: keyword-matches your cards' subject + subtopic labels to the NCBE outline. Treat a flagged gap as a strong lead, not gospel \u2014 sometimes it just means your label is worded differently. The grey chips under each area are the official sub-topics tested there.</p>
+    ${sections}
+    <div class="lec-nav" style="margin-top:14px"><button class="btn btn-ghost" id="covBack">\u2190 Main menu</button></div>`;
+  document.getElementById('covBack').onclick = renderStart;
+}
+/* ========================== END COVERAGE REPORT ========================== */
+
 function renderLecture(){
   setViewportMode('drill');
   const d=state.queue[state.i];
@@ -5540,7 +5716,7 @@ function renderEnd(){
       <button class="btn btn-ghost" id="viewMastered">Review Mastered</button>
       <button class="btn btn-ghost" id="restart">Back to start</button></div></div>`;
   if(state.missed.length){document.getElementById('retry').onclick=()=>{
-    const ms=state.missed.slice();
+    const ms=dedupeCards(state.missed.slice());
     state.currentSession = newSession();
     state.queue=ms;state.i=0;state.correct=0;state.streak=0;
     state.bestStreak=0;state.dodged=0;state.missed=[];state.perSubj={};state.perMbeKey={};

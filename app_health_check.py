@@ -407,6 +407,27 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         "ui_components.py",
         "user_pages.py",
     ]
+    active_page_modules = [
+        "app_shell.py",
+        "content_tools.py",
+        "main_pages.py",
+        "mbe_pages.py",
+        "practice_components.py",
+        "practice_pages.py",
+        "user_pages.py",
+    ]
+    streamlit_import_offenders = []
+    for module in active_page_modules:
+        text = (ROOT / module).read_text(encoding="utf-8")
+        if "import streamlit as st" in text or "from streamlit" in text:
+            streamlit_import_offenders.append(module)
+
+    checker.check(
+        "active page modules avoid direct Streamlit imports",
+        not streamlit_import_offenders,
+        ", ".join(streamlit_import_offenders),
+    )
+
     forbidden_patterns = ["st.write(", "st.text(", "st.json("]
     offenders = []
     for module in active_modules:
@@ -487,6 +508,26 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
 
     checker.check("active pages use shared text-area helper", not text_area_offenders, ", ".join(text_area_offenders))
     ui_components_source = (ROOT / "ui_components.py").read_text(encoding="utf-8")
+    text_area_height_literal_offenders = []
+    for module in active_page_modules:
+        module_path = ROOT / module
+        tree = ast.parse(module_path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not isinstance(node.func, ast.Name) or node.func.id != "render_text_area":
+                continue
+            for keyword in node.keywords:
+                if keyword.arg == "height" and isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, int):
+                    text_area_height_literal_offenders.append(f"{module}:{keyword.value.value}")
+
+    checker.check(
+        "active pages use shared text-area sizing tokens",
+        not text_area_height_literal_offenders
+        and "TEXTAREA_HEIGHT_XL" in ui_components_source
+        and "TEXTAREA_HEIGHT_PREVIEW" in ui_components_source,
+        ", ".join(text_area_height_literal_offenders),
+    )
     checker.check(
         "shared input helpers explicitly stretch to container width",
         '"width": "stretch"' in ui_components_source
@@ -592,8 +633,29 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         "import previews use shared preview helper",
         "render_import_preview(" in content_tools
         and "def render_import_preview(" in ui_components
+        and "def render_import_dry_run_preview(" in ui_components
+        and "render_import_dry_run_preview(" in content_tools
+        and "max_rows=8" in ui_components
+        and "render_preview_table(rows, empty_message=empty_message, height=height, max_rows=max_rows)" in ui_components
         and "render_metric_row(" not in content_tools
         and "render_preview_table(" not in content_tools,
+    )
+    checker.check(
+        "metric rows use responsive shared grid",
+        "def render_metric_row(" in ui_components
+        and "metric-grid" in ui_components
+        and "st.columns(len(metrics)" not in ui_components
+        and ".metric-grid" in (ROOT / "styles.py").read_text(encoding="utf-8"),
+    )
+    text_rendering = (ROOT / "text_rendering.py").read_text(encoding="utf-8")
+    checker.check(
+        "text renderer centralizes notices and debug expanders",
+        "def render_text_info(" in text_rendering
+        and "def render_text_warning(" in text_rendering
+        and "def render_text_expander(" in text_rendering
+        and text_rendering.count("st.info(") == 1
+        and text_rendering.count("st.warning(") == 1
+        and text_rendering.count("st.expander(") == 1,
     )
     checker.check(
         "page control rows use shared layout helper",
@@ -640,6 +702,14 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         and '["February", "July", "Other"]' not in content_tools,
     )
     checker.check(
+        "manual entry form is split into field helpers",
+        "def render_manual_entry_metadata_fields(" in content_tools
+        and "def render_manual_entry_content_fields(" in content_tools
+        and "values.update(render_manual_entry_metadata_fields())" in content_tools
+        and "values.update(render_manual_entry_content_fields())" in content_tools
+        and "save_question_from_mapping(values)" in content_tools,
+    )
+    checker.check(
         "CSV import uses service helpers",
         "csv_import_metrics(" in content_tools
         and "csv_import_preview_rows(" in content_tools
@@ -649,15 +719,19 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
     )
     checker.check(
         "import completion messages use shared helper",
-        "render_import_success(" in content_tools
-        and "def render_import_success(" in ui_components
+        "def render_import_success(" in ui_components
+        and "def render_import_apply_action(" in ui_components
+        and "render_import_apply_action(" in content_tools
+        and "render_import_success(" not in content_tools
         and "Imported {imported}" not in content_tools
         and "Backup created:" not in content_tools,
     )
     checker.check(
         "import actions use shared primary button helper",
         "def render_primary_action_button(" in ui_components
-        and "render_primary_action_button(" in content_tools
+        and "def render_import_apply_action(" in ui_components
+        and "render_import_apply_action(" in content_tools
+        and "render_primary_action_button(" not in content_tools
         and 'st.button("Import' not in content_tools,
     )
     form_submit_offenders = []
@@ -695,7 +769,9 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         "active modules use shared spinner/stop helpers",
         "def render_spinner(" in ui_components
         and "def stop_app(" in ui_components
-        and "render_spinner(" in content_tools
+        and "render_import_dry_run_preview(" in content_tools
+        and "render_import_apply_action(" in content_tools
+        and "render_spinner(" not in content_tools
         and "stop_app(" in auth
         and not shell_primitive_offenders,
         ", ".join(shell_primitive_offenders),
@@ -705,6 +781,20 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         "render_question_detail_tabs(" in main_pages
         and "def render_question_detail_tabs" in ui_components
         and "render_call_text(" not in main_pages,
+    )
+    checker.check(
+        "MEE Question Bank filters are helper-driven",
+        "def render_question_bank_filters(" in main_pages
+        and "def question_bank_added_date_range(" in main_pages
+        and "def question_bank_rows_dataframe(" in main_pages
+        and "def render_question_bank_results_table(" in main_pages
+        and "def select_question_bank_row(" in main_pages
+        and "QUESTION_BANK_ADDED_DATE_OPTIONS" in main_pages
+        and "get_question_bank_rows(**render_question_bank_filters())" in main_pages
+        and "render_question_bank_results_table(rows)" in main_pages
+        and "select_question_bank_row(rows)" in main_pages
+        and "selected_added_date = render_selectbox" in main_pages
+        and "created_from = None" not in main_pages,
     )
     checker.check(
         "question identity display uses shared helper",
@@ -803,7 +893,7 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         and "render_mini_prompt_panel(" in practice_pages
         and "render_ladder_prompt_panel(" in practice_pages
         and "render_plug_play_support(" in practice_pages
-        and "render_model_answer_panel(" in practice_pages
+        and "render_practice_review_panel(" in practice_pages
         and "render_mini_drill_response_input(" in practice_pages
         and "def render_mini_prompt_panel(" in practice_components
         and "def render_ladder_prompt_panel(" in practice_components
@@ -811,6 +901,9 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         and "def render_mini_drill_response_input(" in practice_components
         and "def render_plug_play_support(" in practice_components
         and "def render_model_answer_panel(" in practice_components
+        and "def render_practice_review_panel(" in practice_components
+        and "render_divider()" in practice_components
+        and "render_divider()" not in practice_pages
         and "render_question_highlights_with_fallback(" in practice_components
         and "render_trigger_rule_map(" in practice_components
         and "def render_trigger_rule_map(" in (ROOT / "text_rendering.py").read_text(encoding="utf-8"),
@@ -849,6 +942,19 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         "legacy question importers use shared DB helpers",
         not legacy_import_offenders,
         ", ".join(legacy_import_offenders),
+    )
+    markdown_importer = (ROOT / "import_markdown_mee_qa_bank.py").read_text(encoding="utf-8")
+    docx_bank_importer = (ROOT / "import_mee_pq_bank_docx.py").read_text(encoding="utf-8")
+    database_source = (ROOT / "database.py").read_text(encoding="utf-8")
+    checker.check(
+        "bank importers use shared question import index",
+        "def get_question_import_index(" in database_source
+        and "def question_import_key(" in database_source
+        and "database.get_question_import_index()" in markdown_importer
+        and "database.get_question_import_index(include_model_points=True)" in docx_bank_importer
+        and "def existing_question_map(" not in markdown_importer
+        and "SELECT id, exam_name, question_number" not in markdown_importer
+        and "SELECT id, exam_name, question_number" not in docx_bank_importer,
     )
 
 

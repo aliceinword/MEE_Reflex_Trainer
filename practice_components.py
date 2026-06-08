@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """Shared practice-mode components for MEE drills."""
 
-import streamlit as st
-
 from database import find_best_outline_rules_for_question, find_best_plug_play_for_call, save_attempt
 from text_rendering import (
     extract_fact_pattern_only,
@@ -20,9 +18,14 @@ from text_rendering import (
     render_trigger_facts,
 )
 from ui_components import (
+    TEXTAREA_HEIGHT_LG,
+    TEXTAREA_HEIGHT_SM,
+    TEXTAREA_HEIGHT_XL,
+    TEXTAREA_HEIGHT_XS,
     render_action_button,
     render_caption,
     render_checkbox,
+    render_divider,
     render_expander,
     render_info,
     render_section_heading,
@@ -193,17 +196,17 @@ def render_ladder_response_input(level):
         user_issues = render_text_area(
             "Step A - What issues do you see?",
             placeholder="List each legal issue raised by this call.",
-            height=120,
+            height=TEXTAREA_HEIGHT_SM,
         )
         user_rules = render_text_area(
             "Step B - Write the rules from memory",
             placeholder="Write the governing test, elements, or standard.",
-            height=140,
+            height=TEXTAREA_HEIGHT_SM,
         )
         user_facts = render_text_area(
             "Optional - Which facts triggered those issues?",
             placeholder="Quote or summarize the facts that connect to each rule element.",
-            height=90,
+            height=TEXTAREA_HEIGHT_XS,
         )
 
         return f"""
@@ -224,7 +227,7 @@ TRIGGER FACTS:
                 "Issue 1: ___\nRule: ___\nTrigger facts: ___\n\n"
                 "Issue 2: ___\nRule: ___\nTrigger facts: ___"
             ),
-            height=280,
+            height=TEXTAREA_HEIGHT_LG,
         )
 
     if level.startswith("Level 3"):
@@ -234,7 +237,7 @@ TRIGGER FACTS:
                 "Issue: Whether ___\nRule: Under ___\nApplication: Here, ___ because ___\n"
                 "Counterargument: However, ___\nConclusion: Therefore, ___"
             ),
-            height=280,
+            height=TEXTAREA_HEIGHT_LG,
         )
 
     if level.startswith("Level 4"):
@@ -244,10 +247,10 @@ TRIGGER FACTS:
                 "Call 1:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:\n\n"
                 "Call 2:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:"
             ),
-            height=300,
+            height=TEXTAREA_HEIGHT_LG,
         )
 
-    return render_text_area("Write the full timed essay", height=360)
+    return render_text_area("Write the full timed essay", height=TEXTAREA_HEIGHT_XL)
 
 
 def render_mini_drill_response_input():
@@ -256,22 +259,22 @@ def render_mini_drill_response_input():
     issue = render_text_area(
         "Your issue",
         placeholder="Whether the facts satisfy the doctrine tested by this call.",
-        height=95,
+        height=TEXTAREA_HEIGHT_XS,
     )
     rule = render_text_area(
         "Your rule",
         placeholder="State the test, elements, standard, and important exception.",
-        height=120,
+        height=TEXTAREA_HEIGHT_SM,
     )
     trigger_facts = render_text_area(
         "Your trigger facts",
         placeholder="Which exact facts triggered this issue or rule?",
-        height=105,
+        height=TEXTAREA_HEIGHT_XS,
     )
     conclusion = render_text_area(
         "Your micro-conclusion",
         placeholder="Therefore, likely yes/no because...",
-        height=85,
+        height=TEXTAREA_HEIGHT_XS,
     )
 
     return f"""
@@ -313,6 +316,11 @@ def render_model_answer_panel(qd, *, expanded=True, title="Model Answer"):
     with render_expander(title, expanded=expanded):
         render_section_heading("Model Answer")
         render_sample_answer_body(qd)
+
+
+def render_practice_section_break():
+    """Render the standard separator between practice work and review controls."""
+    render_divider()
 
 
 def render_answer_bank_tabs(
@@ -398,3 +406,31 @@ def render_answer_bank_tabs(
 
                 if not outline_matches and not plug_matches:
                     render_info("No extra rule support matched this question yet.")
+
+
+def render_practice_review_panel(
+    qd,
+    *,
+    bank_title,
+    model_answer_title=None,
+    include_sample_answer=True,
+    include_rule_support=True,
+    include_highlights=False,
+    compact=False,
+    reading_mode=False,
+):
+    """Render the standard post-retrieval review area for practice drills."""
+    render_divider()
+    if model_answer_title:
+        render_model_answer_panel(qd, expanded=True, title=model_answer_title)
+
+    render_answer_bank_tabs(
+        qd,
+        expanded=True,
+        title=bank_title,
+        include_sample_answer=include_sample_answer,
+        include_rule_support=include_rule_support,
+        include_highlights=include_highlights,
+        compact=compact,
+        reading_mode=reading_mode,
+    )

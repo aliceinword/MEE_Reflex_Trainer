@@ -597,20 +597,14 @@ def current_db_path() -> Path:
 
 
 def db_key(exam_name: str, question_number: str) -> tuple[str, str]:
-    return (str(exam_name or "").strip().lower(), str(question_number or "").strip().lower())
+    return database.question_import_key(exam_name, question_number)
 
 
 def upsert_database(entries: list[ParsedBlock], apply: bool, overwrite: bool) -> dict[str, object]:
     init_db()
-    conn = sqlite3.connect(current_db_path())
-    cur = conn.cursor()
-    rows = cur.execute(
-        """
-        SELECT id, exam_name, question_number, subject, model_points
-        FROM questions
-        """
-    ).fetchall()
-    existing = {db_key(row[1], row[2]): row for row in rows}
+    existing = database.get_question_import_index(include_model_points=True)
+    conn = sqlite3.connect(current_db_path()) if apply else None
+    cur = conn.cursor() if conn is not None else None
 
     stats = Counter()
     short_answers: list[ParsedBlock] = []
@@ -635,6 +629,7 @@ def upsert_database(entries: list[ParsedBlock], apply: bool, overwrite: bool) ->
                 continue
 
             if apply:
+                assert cur is not None
                 cur.execute(
                     """
                     UPDATE questions
@@ -678,6 +673,7 @@ def upsert_database(entries: list[ParsedBlock], apply: bool, overwrite: bool) ->
             continue
 
         if apply:
+            assert cur is not None
             cur.execute(
                 """
                 INSERT INTO questions (
@@ -725,9 +721,9 @@ def upsert_database(entries: list[ParsedBlock], apply: bool, overwrite: bool) ->
             )
         stats["inserted" if apply else "would_insert"] += 1
 
-    if apply:
+    if conn is not None:
         conn.commit()
-    conn.close()
+        conn.close()
 
     return {
         "stats": stats,
