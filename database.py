@@ -8,19 +8,62 @@ from pathlib import Path
 DEFAULT_DB_NAME = "mee_trainer.db"
 DB_NAME = os.environ.get("MEE_TRAINER_DB", DEFAULT_DB_NAME)
 LEGACY_DB_NAME = "mee_reflex.db"
+PUBLIC_SEED_TABLES = (
+    "questions",
+    "outline_rules",
+    "plug_play_templates",
+    "rule_flashcards",
+)
+
+
+def _table_count_for_path(db_path, table_name):
+    try:
+        with closing(sqlite3.connect(db_path)) as conn:
+            row = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
+            return int(row[0] or 0)
+    except Exception:
+        return 0
+
+
+def _seed_missing_public_content(db_path, seed_path):
+    """Backfill public study content from the bundled seed DB into an empty runtime DB."""
+    if not db_path.exists() or not seed_path.exists():
+        return
+
+    seed_tables = [
+        table
+        for table in PUBLIC_SEED_TABLES
+        if _table_count_for_path(db_path, table) == 0 and _table_count_for_path(seed_path, table) > 0
+    ]
+    if not seed_tables:
+        return
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("ATTACH DATABASE ? AS seed", (str(seed_path),))
+        try:
+            for table in seed_tables:
+                conn.execute(f'DELETE FROM "{table}"')
+                conn.execute(f'INSERT INTO "{table}" SELECT * FROM seed."{table}"')
+            conn.commit()
+        finally:
+            conn.execute("DETACH DATABASE seed")
 
 
 def _ensure_database_file():
     db_path = Path(DB_NAME)
     legacy_path = Path(LEGACY_DB_NAME)
 
-    if db_path.exists() or not legacy_path.exists():
+    if not legacy_path.exists():
         return
 
     if DB_NAME != DEFAULT_DB_NAME:
         return
 
-    shutil.copy2(legacy_path, db_path)
+    if not db_path.exists():
+        shutil.copy2(legacy_path, db_path)
+        return
+
+    _seed_missing_public_content(db_path, legacy_path)
 
 
 def get_connection():

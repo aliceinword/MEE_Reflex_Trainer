@@ -14,7 +14,6 @@ from mbe_import_services import (
 )
 
 from ui_components import (
-    FULL_PAGE_EMBED_HEIGHT,
     render_caption,
     render_compact_note,
     render_control_row,
@@ -119,8 +118,9 @@ def render_mbe_drills_page():
     .block-container {
         padding: 0 !important;
         margin: 0 !important;
-        height: 100vh !important;
-        overflow: auto !important;
+        max-width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
     }
 
     header[data-testid="stHeader"],
@@ -147,9 +147,10 @@ def render_mbe_drills_page():
     iframe[title*="streamlit"],
     iframe[title*="component"],
     iframe[srcdoc] {
-        height: calc(100vh - 3.75rem) !important;
-        min-height: calc(100vh - 3.75rem) !important;
-        max-height: calc(100vh - 3.75rem) !important;
+        height: 3600px !important;
+        min-height: 3600px !important;
+        max-height: none !important;
+        overflow: hidden !important;
     }
 
     iframe[title*="streamlit"],
@@ -172,7 +173,8 @@ def render_mbe_drills_page():
     section.main,
     [data-testid="stAppViewContainer"],
     [data-testid="stMain"] {
-        overflow: auto !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
     }
     </style>
     """)
@@ -182,7 +184,8 @@ def render_mbe_drills_page():
         mbe_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mbe_trap_trainer.html")
         render_html_file_embed(
             mbe_path,
-            height=FULL_PAGE_EMBED_HEIGHT,
+            height=3600,
+            scrolling=False,
             missing_message=(
                 "mbe_trap_trainer.html was not found next to app.py. "
                 "Make sure the file is in the project folder."

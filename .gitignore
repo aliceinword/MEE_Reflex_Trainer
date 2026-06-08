@@ -24,6 +24,9 @@ env/
 *.sqlite
 *.sqlite3
 
+# Public seed DB intentionally bundled for shared/demo deployments.
+!mee_reflex.db
+
 # Local imports / generated exports
 data/imports/
 data/processed/

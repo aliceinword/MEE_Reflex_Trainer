@@ -508,8 +508,8 @@ def render_download_button(label, *, data, file_name, mime=None, key=None, use_c
     return st.download_button(label, **kwargs)
 
 
-def render_html_file_embed(path, *, height=EMBEDDED_TOOL_HEIGHT, missing_message=None):
-    """Render a local HTML tool in a contained, scrollable iframe."""
+def render_html_file_embed(path, *, height=EMBEDDED_TOOL_HEIGHT, missing_message=None, scrolling=True):
+    """Render a local HTML tool in an iframe."""
     html_path = Path(path)
     try:
         html = html_path.read_text(encoding="utf-8")
@@ -518,7 +518,7 @@ def render_html_file_embed(path, *, height=EMBEDDED_TOOL_HEIGHT, missing_message
         return
 
     st.markdown('<div class="full-page-embed" aria-hidden="true"></div>', unsafe_allow_html=True)
-    components.html(html, height=height, scrolling=True)
+    components.html(html, height=height, scrolling=scrolling)
 
 
 def render_import_success(label, *, updated, inserted, unit="records", backup_path=None):
