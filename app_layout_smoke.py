@@ -308,7 +308,10 @@ def check_mbe(checker: LayoutSmoke) -> None:
     at = _run_page(page)
     _check_no_exceptions(checker, page, at)
     _check_nav(checker, page, at)
-    _check_required_text(checker, page, at, ["MBE Drills - Trap Trainer"])
+    checker.check(
+        "MBE Drills opens without extra Streamlit title",
+        "MBE Drills - Trap Trainer" not in _page_text(at),
+    )
 
 
 def main() -> None:

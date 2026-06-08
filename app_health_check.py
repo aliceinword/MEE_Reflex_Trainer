@@ -548,7 +548,14 @@ def check_layout_width_styles(checker: HealthCheck) -> None:
     checker.check("normal reading width uses full-width constant", "FULL_WIDTH_TEXT_MAX" in app_shell and "max_width = FULL_WIDTH_TEXT_MAX" in app_shell)
     checker.check("reading styles govern sample-answer width", ".sample-answer-box," in styles and "max-width: min({max_width}px, 100%)" in styles)
     checker.check("embedded HTML tools use shared contained height", "EMBEDDED_TOOL_HEIGHT = 860" in ui_components)
-    checker.check("MBE page uses shared scrollable HTML embed", "render_html_file_embed(" in mbe_pages and "height=2400" not in mbe_pages)
+    checker.check(
+        "MBE page uses full-page scrollable HTML embed",
+        "FULL_PAGE_EMBED_HEIGHT" in ui_components
+        and "FULL_PAGE_EMBED_HEIGHT" in mbe_pages
+        and "render_page_title(" not in mbe_pages
+        and "height=2400" not in mbe_pages
+        and ".full-page-embed" in styles,
+    )
 
 
 def check_import_parser(checker: HealthCheck) -> None:

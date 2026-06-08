@@ -27,6 +27,7 @@ from text_rendering import (
 
 PARAGRAPH_INPUT_TIP = "Tip: Press Enter twice between paragraphs for clean spacing when displayed."
 EMBEDDED_TOOL_HEIGHT = 860
+FULL_PAGE_EMBED_HEIGHT = 1120
 
 
 def render_app_header():
@@ -229,7 +230,9 @@ def render_html_file_embed(path, *, height=EMBEDDED_TOOL_HEIGHT, missing_message
         st.error(missing_message or f"{html_path.name} was not found.")
         return
 
+    st.markdown('<div class="full-page-embed">', unsafe_allow_html=True)
     components.html(html, height=height, scrolling=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_import_success(label, *, updated, inserted, unit="records", backup_path=None):

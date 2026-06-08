@@ -124,6 +124,20 @@ def render_global_styles():
         max-width: none;
         margin: 0 auto;
     }
+
+    .full-page-embed {
+        width: 100%;
+        max-width: none;
+        margin: -0.35rem 0 0 0;
+    }
+
+    .full-page-embed iframe {
+        width: 100% !important;
+        min-height: calc(100vh - 3.2rem) !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+    }
     
     .element-container {
         margin-bottom: 0.35rem;
