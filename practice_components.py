@@ -8,6 +8,8 @@ from text_rendering import (
     extract_fact_pattern_only,
     get_clean_trigger_facts,
     render_attack_rule_box,
+    render_call_text,
+    render_fact_pattern_text,
     render_plug_play_template,
     render_question_highlights_with_fallback,
     render_readable_text,
@@ -17,7 +19,17 @@ from text_rendering import (
     render_trap_warnings,
     render_trigger_facts,
 )
-from ui_components import render_tab_set, render_text_area
+from ui_components import (
+    render_action_button,
+    render_caption,
+    render_checkbox,
+    render_expander,
+    render_info,
+    render_section_heading,
+    render_success,
+    render_tab_set,
+    render_text_area,
+)
 
 
 LADDER_LEVELS = [
@@ -63,9 +75,119 @@ def save_ladder_attempt(qd, level, response_text, score, missed, notes, minutes_
     )
 
 
+def render_save_attempt_button(
+    label,
+    qd,
+    level,
+    response_text,
+    score,
+    missed,
+    notes,
+    minutes_spent,
+    *,
+    success_message,
+    key=None,
+):
+    """Render a consistent practice-save button and success message."""
+    if render_action_button(label, key=key):
+        save_ladder_attempt(
+            qd,
+            level,
+            response_text,
+            score,
+            missed,
+            notes,
+            minutes_spent,
+        )
+        render_success(success_message)
+        return True
+
+    return False
+
+
+def render_save_mini_drill_attempt(qd, response_text, score):
+    """Render the Mini Drill save action using the shared attempt contract."""
+    return render_save_attempt_button(
+        "Save Mini Drill Attempt",
+        qd,
+        "Mini Drill",
+        response_text,
+        score,
+        "",
+        "",
+        8,
+        success_message="Mini Drill saved.",
+        key=f"mini_save_{qd['id']}",
+    )
+
+
+def render_save_ladder_attempt(qd, level, response_text, score, missed, notes, minutes_spent):
+    """Render the Muscle Ladder save action using the shared attempt contract."""
+    return render_save_attempt_button(
+        "Save Muscle Ladder Attempt",
+        qd,
+        level,
+        response_text,
+        score,
+        missed,
+        notes,
+        minutes_spent,
+        success_message="Saved. This question is now scheduled for review based on your score.",
+    )
+
+
+def render_call_prompt(qd, *, expanded=True):
+    """Render the call of the question in the shared practice prompt style."""
+    with render_expander("Call of the Question", expanded=expanded):
+        render_call_text("Call of the Question", qd.get("call_of_question", ""))
+
+
+def render_fact_prompt(qd, *, highlighted=False, show_explanations=True, expanded=True, in_expander=True):
+    """Render the cleaned fact pattern, optionally with trigger highlighting."""
+    fact_only = extract_fact_pattern_only(
+        qd.get("question_text", ""),
+        qd.get("call_of_question", ""),
+    )
+
+    if highlighted:
+        render_question_highlights_with_fallback(
+            "Fact Pattern with Trigger Facts Highlighted",
+            qd,
+            text=fact_only,
+            show_explanations=show_explanations,
+        )
+        return
+
+    if not in_expander:
+        render_fact_pattern_text("Fact Pattern", fact_only)
+        return
+
+    with render_expander("Fact Pattern", expanded=expanded):
+        render_fact_pattern_text("Fact Pattern", fact_only)
+
+
+def render_mini_prompt_panel(qd):
+    """Render Mini Drill prompt controls and return whether facts are highlighted."""
+    render_call_prompt(qd)
+    highlight_facts = render_checkbox(
+        "Highlight relevant triggering facts",
+        value=False,
+        key=f"mini_highlight_{qd['id']}",
+    )
+    render_caption("Leave this off for retrieval. Turn it on when you are ready to compare.")
+    render_fact_prompt(qd, highlighted=highlight_facts, in_expander=False)
+    return highlight_facts
+
+
+def render_ladder_prompt_panel(qd):
+    """Render the standard Muscle Ladder prompt panel."""
+    render_call_prompt(qd)
+    render_fact_prompt(qd)
+
+
 def render_ladder_response_input(level):
     """Render the writing prompt for a selected Muscle Ladder level."""
-    st.markdown(f"### {level.split(' - ')[0]} Work")
+    render_section_heading(f"{level.split(' - ')[0]} Work")
 
     if level.startswith("Level 1"):
         user_issues = render_text_area(
@@ -130,7 +252,7 @@ TRIGGER FACTS:
 
 def render_mini_drill_response_input():
     """Render the compact issue-rule-fact answer builder for Mini Drill."""
-    st.markdown("### Mini Drill Work")
+    render_section_heading("Mini Drill Work")
     issue = render_text_area(
         "Your issue",
         placeholder="Whether the facts satisfy the doctrine tested by this call.",
@@ -177,9 +299,9 @@ def render_plug_play_support(qd, *, expanded=True):
         limit=2,
     )
 
-    with st.expander("Plug & Play Template - use while answering", expanded=expanded):
+    with render_expander("Plug & Play Template - use while answering", expanded=expanded):
         if not plug_matches:
-            st.info("No Plug & Play template matched this question yet.")
+            render_info("No Plug & Play template matched this question yet.")
             return
 
         for template in plug_matches:
@@ -188,8 +310,8 @@ def render_plug_play_support(qd, *, expanded=True):
 
 def render_model_answer_panel(qd, *, expanded=True, title="Model Answer"):
     """Render the model answer as a prominent full-width reveal panel."""
-    with st.expander(title, expanded=expanded):
-        st.markdown("### Model Answer")
+    with render_expander(title, expanded=expanded):
+        render_section_heading("Model Answer")
         render_sample_answer_body(qd)
 
 
@@ -204,8 +326,8 @@ def render_answer_bank_tabs(
     reading_mode=False,
 ):
     """Render the shared post-retrieval answer bank for practice surfaces."""
-    with st.expander(title, expanded=expanded):
-        st.markdown(f"### {title}")
+    with render_expander(title, expanded=expanded):
+        render_section_heading(title)
         tab_names = []
         if include_sample_answer:
             tab_names.append("Sample Answer")
@@ -265,14 +387,14 @@ def render_answer_bank_tabs(
                 )
 
                 if outline_matches:
-                    st.markdown("#### Attack Outline Rules")
+                    render_section_heading("Attack Outline Rules", level=4)
                     for rule in outline_matches:
                         render_attack_rule_box(rule, reading_mode=reading_mode)
 
                 if plug_matches:
-                    st.markdown("#### Plug & Play Templates")
+                    render_section_heading("Plug & Play Templates", level=4)
                     for template in plug_matches:
                         render_plug_play_template(template)
 
                 if not outline_matches and not plug_matches:
-                    st.info("No extra rule support matched this question yet.")
+                    render_info("No extra rule support matched this question yet.")

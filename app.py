@@ -35,11 +35,11 @@ if menu == "Dashboard":
     render_dashboard_page()
 
 
-elif menu == "Question Bank":
+elif menu in {"MEE Question Bank", "Question Bank"}:
     render_question_bank_page(reading_settings["compact_mode"])
 
 
-elif menu in {"Advanced Tools", "Import Questions", "Manual Entry"}:
+elif menu in {"MEE Advanced Tools", "Advanced Tools", "Import Questions", "Manual Entry"}:
     render_advanced_tools_page()
 
 elif menu == "MEE Muscle Ladder":

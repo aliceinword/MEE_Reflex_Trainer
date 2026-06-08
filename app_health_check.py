@@ -47,6 +47,7 @@ def temporary_database_copy(prefix: str):
 
 CORE_MODULES = [
     "app.py",
+    "app_state.py",
     "app_layout_smoke.py",
     "app_shell.py",
     "app_runtime_smoke.py",
@@ -151,14 +152,18 @@ def check_app_shell(checker: HealthCheck) -> None:
 
     nav_pages = [page for _group, pages in NAV_GROUPS for page in pages]
     checker.check("Home is in primary navigation", "Home" in nav_pages)
-    checker.check("Question Bank is in primary navigation", "Question Bank" in nav_pages)
+    checker.check("MEE Question Bank is in primary navigation", "MEE Question Bank" in nav_pages)
     checker.check("MEE practice page is in primary navigation", "MEE Muscle Ladder" in nav_pages)
     checker.check("MBE is separated from MEE navigation", "MBE Drills" in nav_pages)
-    checker.check("Import Questions is in Advanced Tools navigation", "Import Questions" in nav_pages)
-    checker.check("Manual Entry is in Advanced Tools navigation", "Manual Entry" in nav_pages)
-    checker.check("Advanced Tools is not a daily practice page", "Advanced Tools" not in nav_pages)
+    nav_groups = [group for group, _pages in NAV_GROUPS]
+    checker.check("MEE Advanced Tools group is in navigation", "MEE Advanced Tools" in nav_groups)
+    checker.check("Import Questions is in MEE Advanced Tools navigation", "Import Questions" in nav_pages)
+    checker.check("Manual Entry is in MEE Advanced Tools navigation", "Manual Entry" in nav_pages)
+    checker.check("MEE Advanced Tools is not a daily practice page", "MEE Advanced Tools" not in nav_pages)
     checker.check("Settings page is in navigation", "Settings" in nav_pages)
     checker.check("Practice Mode alias routes to practice", MENU_ALIASES.get("Practice Mode") == "MEE Muscle Ladder")
+    checker.check("Question Bank alias routes to MEE Question Bank", MENU_ALIASES.get("Question Bank") == "MEE Question Bank")
+    checker.check("MEE Advanced Tools alias routes to Import Questions", MENU_ALIASES.get("MEE Advanced Tools") == "Import Questions")
     checker.check("Bulk import alias routes to Import Questions", MENU_ALIASES.get("Bulk Import MEE Bank") == "Import Questions")
     checker.check("Add question alias routes to Manual Entry", MENU_ALIASES.get("Add MEE Question") == "Manual Entry")
     checker.check("Import Questions is advanced-only", "Import Questions" in ADVANCED_TOOL_PAGES)
@@ -178,6 +183,13 @@ def check_database(checker: HealthCheck) -> None:
     missing_helpers = [name for name in sorted(REQUIRED_DB_HELPERS) if not hasattr(database, name)]
     checker.check("database shared query helpers exist", not missing_helpers, ", ".join(missing_helpers))
 
+    checker.check(
+        "default SQLite backend is mee_trainer.db",
+        getattr(database, "DEFAULT_DB_NAME", "") == "mee_trainer.db"
+        and Path(database.DEFAULT_DB_NAME).name == "mee_trainer.db"
+        and DB_PATH.name == "mee_trainer.db",
+        str((getattr(database, "DEFAULT_DB_NAME", None), DB_PATH)),
+    )
     checker.check("database file exists", DB_PATH.exists(), str(DB_PATH))
     health_source = (ROOT / "app_health_check.py").read_text(encoding="utf-8")
     checker.check(
@@ -205,8 +217,8 @@ def check_database(checker: HealthCheck) -> None:
 
     all_rows = get_question_bank_rows()
     future_rows = get_question_bank_rows(created_from="2999-01-01")
-    checker.check("Question Bank query returns rows", len(all_rows) > 0, str(len(all_rows)))
-    checker.check("Question Bank date filter can exclude future rows", len(future_rows) == 0, str(len(future_rows)))
+    checker.check("MEE Question Bank query returns rows", len(all_rows) > 0, str(len(all_rows)))
+    checker.check("MEE Question Bank date filter can exclude future rows", len(future_rows) == 0, str(len(future_rows)))
 
 
 def _sql_arg_is_dynamic_string(node: ast.AST) -> bool:
@@ -336,8 +348,28 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
 
     missing_renderers = [name for name in sorted(REQUIRED_RENDERERS) if not hasattr(text_rendering, name)]
     checker.check("shared long-text renderers exist", not missing_renderers, ", ".join(missing_renderers))
+    paragraphs = text_rendering.split_paragraphs(
+        "First sentence. Second Sentence\n\nThird paragraph continues."
+    )
+    checker.check(
+        "shared renderer splits explicit and implicit paragraphs",
+        paragraphs[:3]
+        == [
+            "First sentence.",
+            "Second Sentence",
+            "Third paragraph continues.",
+        ],
+        str(paragraphs),
+    )
 
     renderer_tree = ast.parse((ROOT / "text_rendering.py").read_text(encoding="utf-8-sig"))
+    text_rendering_source = (ROOT / "text_rendering.py").read_text(encoding="utf-8-sig")
+    checker.check(
+        "shared text blocks use full-width paragraph wrapper",
+        'style="margin-bottom:1.2em"' in text_rendering_source
+        and "'width: 100%;'" in text_rendering_source
+        and "render_html_box(title, body, class_name" in text_rendering_source,
+    )
     renderer_calls = {}
     for node in renderer_tree.body:
         if not isinstance(node, ast.FunctionDef):
@@ -385,6 +417,47 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
 
     checker.check("active modules avoid raw text/code display helpers", not offenders, ", ".join(offenders))
 
+    heading_offenders = []
+    direct_heading_patterns = [
+        'st.markdown("###',
+        "st.markdown('###",
+        'st.markdown(f"###',
+        "st.markdown(f'###",
+        'st.markdown("####',
+        "st.markdown('####",
+        'st.markdown(f"####',
+        "st.markdown(f'####",
+        "st.subheader(",
+    ]
+    for module in active_modules:
+        if module == "ui_components.py":
+            continue
+        text = (ROOT / module).read_text(encoding="utf-8")
+        for pattern in direct_heading_patterns:
+            if pattern in text:
+                heading_offenders.append(f"{module}:{pattern}")
+
+    checker.check(
+        "page section headings use shared helper",
+        "def render_section_heading(" in (ROOT / "ui_components.py").read_text(encoding="utf-8")
+        and not heading_offenders,
+        ", ".join(heading_offenders),
+    )
+
+    markdown_offenders = []
+    for module in active_modules:
+        if module == "ui_components.py":
+            continue
+        text = (ROOT / module).read_text(encoding="utf-8")
+        if "st.markdown(" in text:
+            markdown_offenders.append(module)
+
+    checker.check(
+        "active pages use shared markdown/html helpers",
+        not markdown_offenders,
+        ", ".join(markdown_offenders),
+    )
+
     table_offenders = []
     for module in active_modules:
         if module == "ui_components.py":
@@ -394,6 +467,15 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
             table_offenders.append(module)
 
     checker.check("active pages use shared dataframe/table helper", not table_offenders, ", ".join(table_offenders))
+    checker.check(
+        "preview tables centralize adaptive height and row limiting",
+        "def preview_table_height(" in (ROOT / "ui_components.py").read_text(encoding="utf-8")
+        and "max_rows=None" in (ROOT / "ui_components.py").read_text(encoding="utf-8")
+        and "rows.head(max_rows)" in (ROOT / "ui_components.py").read_text(encoding="utf-8")
+        and "rows = rows[:max_rows]" in (ROOT / "ui_components.py").read_text(encoding="utf-8")
+        and ".head(10)" not in (ROOT / "main_pages.py").read_text(encoding="utf-8")
+        and "height=min(" not in (ROOT / "main_pages.py").read_text(encoding="utf-8"),
+    )
 
     text_area_offenders = []
     for module in active_modules:
@@ -404,12 +486,108 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
             text_area_offenders.append(module)
 
     checker.check("active pages use shared text-area helper", not text_area_offenders, ", ".join(text_area_offenders))
+    ui_components_source = (ROOT / "ui_components.py").read_text(encoding="utf-8")
+    checker.check(
+        "shared input helpers explicitly stretch to container width",
+        '"width": "stretch"' in ui_components_source
+        and ui_components_source.count('"width": "stretch"') >= 6
+        and "st.text_area(label, **kwargs)" in ui_components_source
+        and "st.text_input(label, **kwargs)" in ui_components_source
+        and "st.selectbox(label, options, **kwargs)" in ui_components_source
+        and "st.file_uploader(label, **kwargs)" in ui_components_source,
+    )
+    input_control_offenders = []
+    direct_input_patterns = [
+        "st.text_input(",
+        "st.selectbox(",
+        "st.checkbox(",
+        "st.slider(",
+        "st.number_input(",
+        "st.file_uploader(",
+        "st.download_button(",
+    ]
+    for module in active_modules:
+        if module == "ui_components.py":
+            continue
+        text = (ROOT / module).read_text(encoding="utf-8")
+        for pattern in direct_input_patterns:
+            if pattern in text:
+                input_control_offenders.append(f"{module}:{pattern}")
+
+    checker.check(
+        "active pages use shared input control helpers",
+        not input_control_offenders,
+        ", ".join(input_control_offenders),
+    )
+    feedback_offenders = []
+    direct_feedback_patterns = [
+        "st.info(",
+        "st.success(",
+        "st.error(",
+        "st.warning(",
+        "st.caption(",
+        "st.divider(",
+    ]
+    for module in active_modules:
+        if module == "ui_components.py":
+            continue
+        text = (ROOT / module).read_text(encoding="utf-8")
+        for pattern in direct_feedback_patterns:
+            if pattern in text:
+                feedback_offenders.append(f"{module}:{pattern}")
+
+    checker.check(
+        "active pages use shared feedback helpers",
+        not feedback_offenders,
+        ", ".join(feedback_offenders),
+    )
+    shell_offenders = []
+    direct_shell_patterns = [
+        "st.expander(",
+        "st.form(",
+    ]
+    for module in active_modules:
+        if module == "ui_components.py":
+            continue
+        text = (ROOT / module).read_text(encoding="utf-8")
+        for pattern in direct_shell_patterns:
+            if pattern in text:
+                shell_offenders.append(f"{module}:{pattern}")
+
+    checker.check(
+        "active pages use shared expander/form helpers",
+        not shell_offenders,
+        ", ".join(shell_offenders),
+    )
+    action_offenders = []
+    direct_action_patterns = [
+        "st.button(",
+        "st.rerun(",
+        "st.sidebar.button(",
+        "st.sidebar.checkbox(",
+        "st.sidebar.slider(",
+        "st.sidebar.markdown(",
+    ]
+    for module in active_modules:
+        if module == "ui_components.py":
+            continue
+        text = (ROOT / module).read_text(encoding="utf-8")
+        for pattern in direct_action_patterns:
+            if pattern in text:
+                action_offenders.append(f"{module}:{pattern}")
+
+    checker.check(
+        "active pages use shared button/rerun/sidebar helpers",
+        not action_offenders,
+        ", ".join(action_offenders),
+    )
     content_tools = (ROOT / "content_tools.py").read_text(encoding="utf-8")
     main_pages = (ROOT / "main_pages.py").read_text(encoding="utf-8")
     practice_components = (ROOT / "practice_components.py").read_text(encoding="utf-8")
     practice_pages = (ROOT / "practice_pages.py").read_text(encoding="utf-8")
     user_pages = (ROOT / "user_pages.py").read_text(encoding="utf-8")
     ui_components = (ROOT / "ui_components.py").read_text(encoding="utf-8")
+    auth = (ROOT / "auth.py").read_text(encoding="utf-8")
     checker.check(
         "import previews use shared preview helper",
         "render_import_preview(" in content_tools
@@ -424,6 +602,8 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         and "render_control_row(" in main_pages
         and "render_control_row(" in practice_pages
         and "render_control_row(" in user_pages
+        and 'width="stretch"' in ui_components
+        and "vertical_alignment=vertical_alignment" in ui_components
         and "st.columns(" not in content_tools
         and "st.columns(" not in main_pages
         and "st.columns(" not in practice_pages
@@ -475,10 +655,64 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         and "Backup created:" not in content_tools,
     )
     checker.check(
-        "Question Bank uses shared question detail tabs",
+        "import actions use shared primary button helper",
+        "def render_primary_action_button(" in ui_components
+        and "render_primary_action_button(" in content_tools
+        and 'st.button("Import' not in content_tools,
+    )
+    form_submit_offenders = []
+    for module_name, module_text in {
+        "content_tools.py": content_tools,
+        "main_pages.py": main_pages,
+        "practice_pages.py": practice_pages,
+        "practice_components.py": practice_components,
+        "user_pages.py": user_pages,
+    }.items():
+        if "st.form_submit_button(" in module_text:
+            form_submit_offenders.append(module_name)
+
+    checker.check(
+        "forms use shared submit button helper",
+        "def render_form_submit_button(" in ui_components
+        and "render_form_submit_button(" in content_tools
+        and "render_form_submit_button(" in user_pages
+        and not form_submit_offenders,
+        ", ".join(form_submit_offenders),
+    )
+    shell_primitive_offenders = []
+    for module_name, module_text in {
+        "auth.py": auth,
+        "content_tools.py": content_tools,
+        "main_pages.py": main_pages,
+        "practice_pages.py": practice_pages,
+        "practice_components.py": practice_components,
+        "user_pages.py": user_pages,
+    }.items():
+        if "st.spinner(" in module_text or "st.stop(" in module_text:
+            shell_primitive_offenders.append(module_name)
+
+    checker.check(
+        "active modules use shared spinner/stop helpers",
+        "def render_spinner(" in ui_components
+        and "def stop_app(" in ui_components
+        and "render_spinner(" in content_tools
+        and "stop_app(" in auth
+        and not shell_primitive_offenders,
+        ", ".join(shell_primitive_offenders),
+    )
+    checker.check(
+        "MEE Question Bank uses shared question detail tabs",
         "render_question_detail_tabs(" in main_pages
         and "def render_question_detail_tabs" in ui_components
         and "render_call_text(" not in main_pages,
+    )
+    checker.check(
+        "question identity display uses shared helper",
+        "def render_question_identity(" in ui_components
+        and "render_question_identity(" in main_pages
+        and "render_question_identity(" in practice_pages
+        and "st.subheader(f\"{qd['exam_name']}" not in main_pages
+        and "st.caption(\n        f\"{qd['exam_name']}" not in practice_pages,
     )
     checker.check(
         "page navigation uses shared helpers",
@@ -486,10 +720,58 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         and "def render_nav_button(" in ui_components
         and 'st.session_state["current_page"] =' not in main_pages,
     )
+    app_state = (ROOT / "app_state.py").read_text(encoding="utf-8")
+    shared_state_key_offenders = []
+    shared_state_keys = [
+        '"current_page"',
+        '"_authed_user"',
+        '"_authed_name"',
+        '"_is_admin"',
+        '"adhd_mode"',
+    ]
+    for module_name, module_text in {
+        "app_shell.py": (ROOT / "app_shell.py").read_text(encoding="utf-8"),
+        "auth.py": (ROOT / "auth.py").read_text(encoding="utf-8"),
+        "content_tools.py": content_tools,
+        "main_pages.py": main_pages,
+        "practice_pages.py": practice_pages,
+        "practice_components.py": practice_components,
+        "ui_components.py": ui_components,
+        "user_pages.py": user_pages,
+    }.items():
+        for key in shared_state_keys:
+            if key in module_text:
+                shared_state_key_offenders.append(f"{module_name}:{key}")
+
+    checker.check(
+        "shared session-state keys use app_state helpers",
+        all(key in app_state for key in shared_state_keys)
+        and "def get_current_page(" in app_state
+        and "def set_auth_user(" in app_state
+        and not shared_state_key_offenders,
+        ", ".join(shared_state_key_offenders),
+    )
     checker.check(
         "question picker random choice is centralized",
         "def _select_random_question(" in ui_components
         and ui_components.count("random.randrange(") == 1,
+    )
+    checker.check(
+        "question selector labels use shared format helpers",
+        "def format_picker_question_label(" in ui_components
+        and "def format_bank_question_label(" in ui_components
+        and "format_picker_question_label(" in ui_components
+        and "format_bank_question_label(" in main_pages
+        and "Q{row[" not in main_pages
+        and "Priority {row[" not in main_pages,
+    )
+    checker.check(
+        "matching counts use shared helper",
+        "def render_match_count(" in ui_components
+        and "def format_match_count(" in ui_components
+        and "render_match_count(" in main_pages
+        and 'st.caption(f"{len(' not in main_pages
+        and 'st.caption(f"{len(' not in ui_components,
     )
     checker.check(
         "practice ladder metadata and save use shared helpers",
@@ -497,10 +779,17 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         and "def ladder_goal(" in practice_components
         and "def training_score(" in practice_components
         and "def save_ladder_attempt(" in practice_components
+        and "def render_save_attempt_button(" in practice_components
+        and "def render_save_mini_drill_attempt(" in practice_components
+        and "def render_save_ladder_attempt(" in practice_components
         and "def render_ladder_response_input(" in practice_components
-        and "save_ladder_attempt(" in practice_pages
+        and "render_save_mini_drill_attempt(" in practice_pages
+        and "render_save_ladder_attempt(" in practice_pages
+        and "save_ladder_attempt(" not in practice_pages.replace("render_save_ladder_attempt(", "")
         and "render_ladder_response_input(" in practice_pages
         and "save_attempt(" not in practice_pages
+        and '"Save Mini Drill Attempt"' not in practice_pages
+        and '"Save Muscle Ladder Attempt"' not in practice_pages
         and "def _ladder_goal(" not in practice_pages,
     )
     checker.check(
@@ -511,17 +800,28 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
     checker.check(
         "practice mini drill exposes manual trigger highlighting and plug-play support",
         "def render_mini_drill_tab(" in practice_pages
-        and '"Highlight relevant triggering facts"' in practice_pages
-        and "render_question_highlights_with_fallback(" in practice_pages
+        and "render_mini_prompt_panel(" in practice_pages
+        and "render_ladder_prompt_panel(" in practice_pages
         and "render_plug_play_support(" in practice_pages
         and "render_model_answer_panel(" in practice_pages
         and "render_mini_drill_response_input(" in practice_pages
+        and "def render_mini_prompt_panel(" in practice_components
+        and "def render_ladder_prompt_panel(" in practice_components
+        and '"Highlight relevant triggering facts"' in practice_components
         and "def render_mini_drill_response_input(" in practice_components
         and "def render_plug_play_support(" in practice_components
         and "def render_model_answer_panel(" in practice_components
         and "render_question_highlights_with_fallback(" in practice_components
         and "render_trigger_rule_map(" in practice_components
         and "def render_trigger_rule_map(" in (ROOT / "text_rendering.py").read_text(encoding="utf-8"),
+    )
+    checker.check(
+        "practice reveal controls use shared helper",
+        "def render_reveal_control(" in ui_components
+        and "render_reveal_control(" in practice_pages
+        and "reveal_gate_box(" not in practice_pages
+        and 'st.session_state[f"mini_reveal_state_' not in practice_pages
+        and 'st.session_state[f"ladder_reveal_' not in practice_pages,
     )
     styles = (ROOT / "styles.py").read_text(encoding="utf-8")
     text_rendering = (ROOT / "text_rendering.py").read_text(encoding="utf-8")
@@ -557,6 +857,7 @@ def check_layout_width_styles(checker: HealthCheck) -> None:
     app_shell = (ROOT / "app_shell.py").read_text(encoding="utf-8")
     ui_components = (ROOT / "ui_components.py").read_text(encoding="utf-8")
     mbe_pages = (ROOT / "mbe_pages.py").read_text(encoding="utf-8")
+    mbe_html = (ROOT / "mbe_trap_trainer.html").read_text(encoding="utf-8")
 
     checker.check("page container is configured for full width", "max-width: none !important" in styles)
     checker.check("sample answer box is not globally narrow capped", ".sample-answer-box" in styles and "max-width: 980px" not in styles)
@@ -565,17 +866,94 @@ def check_layout_width_styles(checker: HealthCheck) -> None:
     checker.check("reading styles govern sample-answer width", ".sample-answer-box," in styles and "max-width: min({max_width}px, 100%)" in styles)
     checker.check("embedded HTML tools use shared contained height", "EMBEDDED_TOOL_HEIGHT = 860" in ui_components)
     checker.check(
-        "MBE page uses full-page scrollable HTML embed",
+        "MBE page uses full-page viewport HTML embed",
         "FULL_PAGE_EMBED_HEIGHT" in ui_components
         and "FULL_PAGE_EMBED_HEIGHT" in mbe_pages
         and "render_page_title(" not in mbe_pages
         and "height=2400" not in mbe_pages
+        and "height: calc(100vh" in styles
+        and "height: calc(100vh" in mbe_pages
+        and 'div[data-testid="stElementContainer"]:has(iframe)' in mbe_pages
+        and 'iframe[srcdoc]' in mbe_pages
         and ".full-page-embed" in styles,
+    )
+    checker.check(
+        "HTML embed marker does not reserve vertical space",
+        'class="full-page-embed" aria-hidden="true"' in ui_components
+        and 'components.html(html, height=height, scrolling=True)\n    st.markdown("</div>"' not in ui_components
+        and "height: 0 !important" in styles
+        and "height: 0 !important" in mbe_pages,
+    )
+    checker.check(
+        "MBE drill screen is viewport-fitted",
+        "function setViewportMode" in mbe_html
+        and "body.drill-screen #app" in mbe_html
+        and "grid-template-columns:repeat(2,minmax(0,1fr))" in mbe_html
+        and "display:none" in mbe_html
+        and "function renderDrill()" in mbe_html
+        and "setViewportMode('drill')" in mbe_html,
+    )
+    readability_marker = "/* larger, more readable question + answers */"
+    aesthetic_marker = "/* ================= END AESTHETIC UPGRADE ================= */"
+    checker.check(
+        "MBE question and answer text uses readable override sizes",
+        readability_marker in mbe_html
+        and aesthetic_marker in mbe_html
+        and mbe_html.index(readability_marker) < mbe_html.index(aesthetic_marker)
+        and ".call-text{font-size:19px !important;line-height:1.45 !important}" in mbe_html
+        and ".facts-text{font-size:16.5px !important;line-height:1.7 !important}" in mbe_html
+        and ".facts-label, .call-tag{font-size:10px !important}" in mbe_html
+        and ".qtitle{font-size:17px !important;line-height:1.6 !important}" in mbe_html
+        and ".opts .opt{font-size:16px !important;line-height:1.5 !important;padding:14px 16px !important}" in mbe_html
+        and ".opts .opt .key{font-size:14px !important}" in mbe_html,
+    )
+
+
+def check_mbe_drill_workflow_controls(checker: HealthCheck) -> None:
+    mbe_html = (ROOT / "mbe_trap_trainer.html").read_text(encoding="utf-8")
+
+    checker.check(
+        "MBE note button uses user-facing label",
+        "Add A Note to Myself" in mbe_html
+        and "Note to myself (saved for later):" in mbe_html
+        and "Add Future Change" not in mbe_html
+        and "Future change idea" not in mbe_html,
+    )
+    checker.check(
+        "MBE two-week skip control is present",
+        "Don't ask this question again for 2 weeks" in mbe_html
+        and 'id="snoozeTwoWeeks"' in mbe_html
+        and "function snoozeCardForTwoWeeks(card, btnEl)" in mbe_html,
+    )
+    checker.check(
+        "MBE two-week skip persists scheduling state",
+        "snoozedUntil: null" in mbe_html
+        and "stats.snoozedUntil = until" in mbe_html
+        and "stats.nextReviewAt = until" in mbe_html
+        and "item.snoozedUntil = until" in mbe_html,
+    )
+    checker.check(
+        "MBE queues exclude snoozed cards",
+        "function isCardSnoozed(card)" in mbe_html
+        and "if (isCardSnoozed(c)) return false;" in mbe_html
+        and "dueKeys.has(cardKey(card)) && !isCardSnoozed(card)" in mbe_html
+        and 'passesDateFilter(d, state.dateFilter || "all") && !isCardSnoozed(d)' in mbe_html,
+    )
+    checker.check(
+        "MBE trigger highlighting has doctrine-agnostic fallback",
+        "function extractGenericSignalPhrases(text)" in mbe_html
+        and "extractGenericSignalPhrases(stem)" in mbe_html
+        and "let result = limitTriggerPhrases(matched, null, doctrine);" in mbe_html
+        and "if (!result || result.length === 0)" in mbe_html
+        and "\\bchallenge the constitutionality\\b" in mbe_html
+        and "\\bFirst Amendment\\b" in mbe_html
+        and "\\bordinance\\b" in mbe_html,
     )
 
 
 def check_import_parser(checker: HealthCheck) -> None:
     import import_services
+    import mbe_import_services
 
     missing_template_columns = import_services.missing_csv_required_columns(import_services.CSV_TEMPLATE_RECORD.keys())
     checker.check("CSV template includes all required columns", not missing_template_columns, ", ".join(missing_template_columns))
@@ -610,6 +988,72 @@ def check_import_parser(checker: HealthCheck) -> None:
         checker.check("CSV service helpers run", True)
         checker.check("CSV service metrics include row count", ("Rows", 1) in csv_metrics, str(csv_metrics))
         checker.check("CSV service preview returns first row", len(csv_preview) == 1, str(len(csv_preview)))
+
+    try:
+        import fitz
+
+        pdf_doc = fitz.open()
+        pdf_page = pdf_doc.new_page()
+        pdf_page.insert_text(
+            (72, 72),
+            "\n".join([
+                "Subject: Contracts",
+                "Exam: July 2019",
+                "Question 1: Is the oral modification binding?",
+                "Answer: Likely no under common law without consideration.",
+                "Rule Outline: Common law modifications require consideration.",
+            ]),
+            fontsize=12,
+        )
+        pdf_bytes = pdf_doc.tobytes()
+        pdf_doc.close()
+
+        class _HealthPdfUpload:
+            name = "health-check.pdf"
+
+            def getvalue(self):
+                return pdf_bytes
+
+        pdf_text, pdf_records, pdf_report = import_services.run_pdf_text_import(
+            _HealthPdfUpload(),
+            apply=False,
+            allow_truncated=True,
+        )
+    except Exception as exc:
+        checker.check("PDF import dry run parses upload-like file", False, str(exc))
+    else:
+        checker.check("PDF import dry run extracts text", "Question 1:" in pdf_text, pdf_text[:120])
+        checker.check(
+            "PDF import dry run parses one record",
+            len(pdf_records) == 1 and pdf_report["records_parsed"] == 1,
+            str((len(pdf_records), pdf_report)),
+        )
+        if pdf_records:
+            checker.check("PDF import dry run captures answer", bool(pdf_records[0].model_points.strip()))
+            checker.check("PDF import dry run captures rule outline", bool(pdf_records[0].rules.strip()))
+
+    mbe_pages = (ROOT / "mbe_pages.py").read_text(encoding="utf-8")
+    checker.check(
+        "MBE bulk upload parsing uses service helpers",
+        "pd.read_csv(" not in mbe_pages
+        and "pd.read_excel(" not in mbe_pages
+        and "read_mbe_bulk_upload(" in mbe_pages
+        and "mbe_upload_metrics(" in mbe_pages,
+    )
+    try:
+        import pandas as pd
+
+        mbe_sample = pd.DataFrame([{column: "x" for column in mbe_import_services.MBE_BULK_TEMPLATE_COLUMNS}])
+        mbe_missing = mbe_import_services.missing_mbe_template_columns(mbe_sample.columns)
+        mbe_extra = mbe_import_services.extra_mbe_template_columns(mbe_sample.columns)
+        mbe_metrics = mbe_import_services.mbe_upload_metrics(mbe_sample, mbe_missing, mbe_extra)
+        mbe_preview = mbe_import_services.mbe_upload_preview_rows(mbe_sample)
+    except Exception as exc:
+        checker.check("MBE bulk service helpers run", False, str(exc))
+    else:
+        checker.check("MBE bulk service helpers run", True)
+        checker.check("MBE bulk service metrics include row count", ("Rows", 1) in mbe_metrics, str(mbe_metrics))
+        checker.check("MBE bulk service preview returns first row", len(mbe_preview) == 1, str(len(mbe_preview)))
 
     simple_text = """
 Subject: Contracts
@@ -1137,6 +1581,7 @@ def check_app_user_save_path(checker: HealthCheck) -> None:
         database.DB_NAME = str(temp_db)
 
         try:
+            database.init_db()
             created_ok, created_msg = database.add_app_user(
                 "HealthUser",
                 "HealthUser@example.com",
@@ -1158,6 +1603,10 @@ def check_app_user_save_path(checker: HealthCheck) -> None:
                 "hash-three",
                 is_admin=True,
             )
+            database.set_user_remember_token("healthuser", "remember-hash")
+            remembered_user = database.get_app_user_by_remember_token("remember-hash")
+            database.clear_user_remember_token("healthuser")
+            cleared_user = database.get_app_user_by_remember_token("remember-hash")
 
             conn = database.get_connection()
             try:
@@ -1200,6 +1649,16 @@ def check_app_user_save_path(checker: HealthCheck) -> None:
         duplicate_email_ok is False and "already in use" in duplicate_email_msg,
         duplicate_email_msg,
     )
+    checker.check(
+        "remember token lookup returns the configured user",
+        bool(remembered_user) and remembered_user["username"] == "healthuser",
+        str(remembered_user),
+    )
+    checker.check(
+        "remember token clear removes saved login token",
+        cleared_user is None,
+        str(cleared_user),
+    )
     checker.check("app user save leaves real DB untouched", real_count == 0, str(real_count))
 
 
@@ -1212,6 +1671,7 @@ def main() -> None:
     check_database_sql_safety(checker)
     check_renderers_and_ui(checker)
     check_layout_width_styles(checker)
+    check_mbe_drill_workflow_controls(checker)
     check_import_parser(checker)
     check_shared_question_save_path(checker)
     check_text_import_apply_path(checker)

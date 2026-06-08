@@ -90,7 +90,7 @@ def now():
 
 def _add_missing_columns(cursor, table_name, column_definitions):
     """Add allowlisted columns for legacy databases without repeating migration code."""
-    if table_name not in {"questions", "attempts"}:
+    if table_name not in {"questions", "attempts", "app_users"}:
         raise ValueError(f"Unsupported migration table: {table_name}")
 
     for column_name in column_definitions:
@@ -179,6 +179,8 @@ def init_db():
                 email TEXT,
                 name TEXT,
                 password_hash TEXT NOT NULL,
+                remember_token_hash TEXT,
+                remember_created_at TEXT,
                 is_admin INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
@@ -232,6 +234,12 @@ def init_db():
         }
 
         _add_missing_columns(c, "attempts", attempt_extra_columns)
+
+        user_extra_columns = {
+            "remember_token_hash": "TEXT",
+            "remember_created_at": "TEXT",
+        }
+        _add_missing_columns(c, "app_users", user_extra_columns)
 
 
 def add_outline_rule(subject, rule_title, appearance_rate, rule_text, pdf_page, printed_page, source_file):
@@ -1387,6 +1395,31 @@ def get_app_user(login):
     }
 
 
+def get_app_user_by_remember_token(token_hash):
+    """Look up a user by a hashed remember-me token."""
+    if not token_hash:
+        return None
+
+    row = fetch_one(
+        """
+        SELECT username, email, name, password_hash, is_admin
+        FROM app_users
+        WHERE remember_token_hash = ?
+        LIMIT 1
+        """,
+        (str(token_hash),),
+    )
+    if not row:
+        return None
+    return {
+        "username": row[0],
+        "email": row[1],
+        "name": row[2],
+        "password_hash": row[3],
+        "is_admin": bool(row[4]),
+    }
+
+
 def list_app_users():
     return fetch_all(
         "SELECT username, email, name, is_admin, created_at FROM app_users ORDER BY is_admin DESC, username"
@@ -1431,4 +1464,28 @@ def set_user_password(username, password_hash):
     execute_write(
         "UPDATE app_users SET password_hash = ? WHERE LOWER(username) = ?",
         (password_hash, (username or "").strip().lower()),
+    )
+
+
+def set_user_remember_token(username, token_hash):
+    """Persist a hashed remember-me token for a user."""
+    execute_write(
+        """
+        UPDATE app_users
+        SET remember_token_hash = ?, remember_created_at = ?
+        WHERE LOWER(username) = ?
+        """,
+        (token_hash, now(), (username or "").strip().lower()),
+    )
+
+
+def clear_user_remember_token(username):
+    """Clear a user's persisted remember-me token."""
+    execute_write(
+        """
+        UPDATE app_users
+        SET remember_token_hash = NULL, remember_created_at = NULL
+        WHERE LOWER(username) = ?
+        """,
+        ((username or "").strip().lower(),),
     )

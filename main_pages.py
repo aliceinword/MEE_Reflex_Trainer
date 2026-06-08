@@ -20,13 +20,29 @@ from database import (
 from question_utils import unpack_question
 from ui_components import (
     compact_card_container,
+    render_checkbox,
     render_control_row,
     render_compact_card,
+    render_divider,
+    render_expander,
+    render_html_close,
+    render_html_open,
+    render_info,
+    render_markdown_body,
     render_metric_row,
     render_nav_button,
     render_page_title,
+    preview_table_height,
     render_preview_table,
+    format_bank_question_label,
+    render_match_count,
     render_question_detail_tabs,
+    render_question_identity,
+    render_section_heading,
+    render_selectbox,
+    render_success,
+    render_text_input,
+    render_warning,
 )
 
 
@@ -34,7 +50,7 @@ def render_dashboard_page():
     stats = get_dashboard_stats()
     render_page_title("Home", "One tiny useful rep. No overwhelm.")
 
-    st.markdown('<div class="dashboard-wrap">', unsafe_allow_html=True)
+    render_html_open("dashboard-wrap")
 
     metric_values = [
         ("Questions", stats["total_questions"]),
@@ -91,7 +107,7 @@ def render_dashboard_page():
         )
 
     if not rule_bank_cards:
-        st.warning("No flashcards are imported yet. Add your own rule bank when you are ready.")
+        render_warning("No flashcards are imported yet. Add your own rule bank when you are ready.")
 
     bottom_left, bottom_right = render_control_row([1.5, 1], gap="medium")
 
@@ -101,10 +117,10 @@ def render_dashboard_page():
                 subject_df = pd.DataFrame(
                     stats["subject_stats"],
                     columns=["Subject", "Average Score", "Attempts"],
-                ).head(5)
-                render_preview_table(subject_df, height=205)
+                )
+                render_preview_table(subject_df, max_rows=5)
             else:
-                st.info("No attempts yet. Complete one short practice attempt to activate this view.")
+                render_info("No attempts yet. Complete one short practice attempt to activate this view.")
 
     with bottom_right:
         due_reviews = stats["due_reviews"]
@@ -125,7 +141,7 @@ def render_dashboard_page():
             ),
         )
 
-    with st.expander("Smart Practice Queue", expanded=False):
+    with render_expander("Smart Practice Queue", expanded=False):
         if stats["recommended_queue"]:
             queue_df = pd.DataFrame(
                 stats["recommended_queue"],
@@ -144,17 +160,17 @@ def render_dashboard_page():
             )
 
             queue_df["Avg Score"] = queue_df["Avg Score"].apply(
-                lambda value: "New" if value == -1 else round(value, 2)
+                lambda value: "New" if value == -1 else f"{round(value, 2):g}"
             )
             queue_df["Next Review"] = queue_df["Next Review"].fillna("not scheduled")
             queue_df["Last Practiced"] = queue_df["Last Practiced"].fillna("never")
 
-            render_preview_table(queue_df.head(10), height=260)
+            render_preview_table(queue_df, max_rows=10)
         else:
-            st.info("No active questions found yet. Import or add a few questions to build the queue.")
+            render_info("No active questions found yet. Import or add a few questions to build the queue.")
 
-    with st.expander("Full 35-minute session plan", expanded=False):
-        st.markdown("""
+    with render_expander("Full 35-minute session plan", expanded=False):
+        render_markdown_body("""
         1. **5 min** - Issue spotting
         2. **7 min** - Rule flash
         3. **15 min** - IRAC paragraph
@@ -167,25 +183,25 @@ def render_dashboard_page():
         **Compare With Sample Answer**.
         """)
 
-    with st.expander("Due and Untouched by Subject", expanded=False):
+    with render_expander("Due and Untouched by Subject", expanded=False):
         if stats["due_by_subject"]:
             due_df = pd.DataFrame(stats["due_by_subject"], columns=["Subject", "Due"])
-            render_preview_table(due_df.head(10), height=260)
+            render_preview_table(due_df, max_rows=10)
         elif stats["untouched_by_subject"]:
             untouched_df = pd.DataFrame(
                 stats["untouched_by_subject"],
                 columns=["Subject", "Untouched Active"],
             )
-            render_preview_table(untouched_df.head(10), height=260)
+            render_preview_table(untouched_df, max_rows=10)
         else:
-            st.success("No due reviews and no untouched active questions.")
+            render_success("No due reviews and no untouched active questions.")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_html_close()
 
 
 def render_question_bank_page(compact_mode=False):
     render_page_title(
-        "Question Bank",
+        "MEE Question Bank",
         "Browse, filter, and inspect stored MEE questions.",
     )
 
@@ -196,17 +212,17 @@ def render_question_bank_page(compact_mode=False):
 
     filter_cols = render_control_row([1.2, 1.2, 0.85, 1.05, 0.75])
     with filter_cols[0]:
-        selected_subject = st.selectbox("Subject", subjects, key="bank_subject")
+        selected_subject = render_selectbox("Subject", subjects, key="bank_subject")
     with filter_cols[1]:
-        selected_status = st.selectbox("Status", statuses, key="bank_status")
+        selected_status = render_selectbox("Status", statuses, key="bank_status")
     with filter_cols[2]:
-        selected_year = st.selectbox("Exam year", years, key="bank_year")
+        selected_year = render_selectbox("Exam year", years, key="bank_year")
     with filter_cols[3]:
-        selected_added_date = st.selectbox("Added date", added_date_options, key="bank_added_date")
+        selected_added_date = render_selectbox("Added date", added_date_options, key="bank_added_date")
     with filter_cols[4]:
-        active_only = st.checkbox("Active only", value=False)
+        active_only = render_checkbox("Active only", value=False)
 
-    topic_query = st.text_input(
+    topic_query = render_text_input(
         "Tested topic / keyword",
         placeholder="personal jurisdiction, hearsay, agency",
         key="bank_topic_query",
@@ -238,10 +254,10 @@ def render_question_bank_page(compact_mode=False):
         created_to=created_to,
     )
 
-    st.caption(f"{len(rows)} matching questions")
+    render_match_count(len(rows))
 
     if not rows:
-        st.info("No questions match those filters.")
+        render_info("No questions match those filters.")
         return
 
     bank_df = pd.DataFrame(
@@ -266,16 +282,10 @@ def render_question_bank_page(compact_mode=False):
     bank_df["Tested Issues"] = (
         bank_df["Tested Issues"].fillna("").astype(str).str.replace(r"\s+", " ", regex=True).str.slice(0, 180)
     )
-    render_preview_table(
-        bank_df,
-        height=min(420, 80 + (len(bank_df) * 32)),
-    )
+    render_preview_table(bank_df, height=preview_table_height(len(bank_df), max_height=420))
 
-    labels = [
-        f"{row[0]} - {row[1]} Q{row[2]} - {row[3]} - Priority {row[7] or '-'}"
-        for row in rows
-    ]
-    selected_label = st.selectbox("Open question details", labels, key="bank_selected_question")
+    labels = [format_bank_question_label(row) for row in rows]
+    selected_label = render_selectbox("Open question details", labels, key="bank_selected_question")
     selected_question_id = rows[labels.index(selected_label)][0]
     q = get_question_by_id(selected_question_id)
 
@@ -283,10 +293,7 @@ def render_question_bank_page(compact_mode=False):
         return
 
     qd = unpack_question(q)
-    st.subheader(f"{qd['exam_name']} Q{qd['question_number']} - {qd['subject']}")
-    st.caption(
-        f"Status: {qd['july_2026_status']} | Priority: {qd['priority'] or '-'} | Source: {qd['source'] or '-'}"
-    )
+    render_question_identity(qd, show_heading=True, show_source=True)
 
     render_question_detail_tabs(qd, compact_mode=compact_mode)
 
@@ -297,7 +304,7 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
         "Reading comfort, layout preferences, and app health.",
     )
 
-    st.markdown("### Layout")
+    render_section_heading("Layout")
     layout_values = [
         ("Reading mode", "on" if reading_mode else "off"),
         ("Compact mode", "on" if compact_mode else "off"),
@@ -306,10 +313,10 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
     ]
     render_metric_row(layout_values)
 
-    st.info("Use the sidebar Reading Comfort controls to change these values.")
+    render_info("Use the sidebar Reading Comfort controls to change these values.")
 
     stats = get_dashboard_stats()
-    st.markdown("### Data")
+    render_section_heading("Data")
     data_values = [
         ("Questions", stats["total_questions"]),
         ("Attempts", stats["total_attempts"]),
@@ -318,9 +325,9 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
     ]
     render_metric_row(data_values)
 
-    st.divider()
-    st.markdown("### Workflow")
-    st.info(
+    render_divider()
+    render_section_heading("Workflow")
+    render_info(
         "Daily MEE work lives in MEE Muscle Ladder. MBE Drills is separate because it trains multiple-choice reflexes. "
-        "Use Advanced Tools only when you need to import data or add a question by hand."
+        "Use MEE Advanced Tools only when you need to import data or add a question by hand."
     )

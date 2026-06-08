@@ -17,6 +17,7 @@ env/
 # Streamlit
 *.log
 .streamlit/secrets.toml
+.streamlit/remember_login.json
 
 # Database (local data — do not commit)
 *.db

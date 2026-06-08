@@ -19,8 +19,11 @@ def normalize_long_text(text):
     if not text:
         return ""
 
-    text = normalize_extracted_text(str(text))
     text = text.replace("\r\n", "\n").replace("\r", "\n")
+    paragraph_marker = "ZXQPARABREAKZXQ"
+    text = re.sub(r"\n\s*\n+", f"\n{paragraph_marker}\n", str(text))
+    text = normalize_extracted_text(text)
+    text = text.replace(paragraph_marker, "\n\n")
     text = text.replace("\u00a0", " ")
     text = re.sub(r"[ \t]+", " ", text)
     return text.strip()

@@ -81,7 +81,16 @@ def _labels(elements) -> list[str]:
 
 def _page_text(at: AppTest) -> str:
     chunks = []
-    for collection in [at.markdown, at.button, at.checkbox, at.selectbox, at.text_input, at.text_area, at.tabs]:
+    for collection in [
+        at.markdown,
+        at.button,
+        at.checkbox,
+        at.selectbox,
+        at.text_input,
+        at.text_area,
+        getattr(at, "file_uploader", []),
+        at.tabs,
+    ]:
         for element in collection:
             chunks.append(_element_label(element))
             chunks.append(_element_value(element))
@@ -103,7 +112,7 @@ def _check_nav(checker: LayoutSmoke, page: str, at: AppTest) -> None:
     labels = _labels(at.button)
     for nav_label in [
         "Home",
-        "Question Bank",
+        "MEE Question Bank",
         "MEE Muscle Ladder",
         "MBE Drills",
         "Import Questions",
@@ -111,6 +120,7 @@ def _check_nav(checker: LayoutSmoke, page: str, at: AppTest) -> None:
         "Settings",
     ]:
         checker.check(f"{page} nav includes {nav_label}", nav_label in labels)
+    checker.check(f"{page} nav group includes MEE Advanced Tools", "MEE Advanced Tools" in _page_text(at))
 
 
 def _check_required_text(checker: LayoutSmoke, page: str, at: AppTest, required: list[str]) -> None:
@@ -134,11 +144,11 @@ def check_dashboard(checker: LayoutSmoke) -> None:
 
 
 def check_question_bank(checker: LayoutSmoke) -> None:
-    page = "Question Bank"
+    page = "MEE Question Bank"
     at = _run_page(page)
     _check_no_exceptions(checker, page, at)
     _check_nav(checker, page, at)
-    _check_required_text(checker, page, at, ["Question Bank", "Sample Answer / Model Analysis", "Trigger Facts"])
+    _check_required_text(checker, page, at, ["MEE Question Bank", "Sample Answer / Model Analysis", "Trigger Facts"])
     _check_required_labels(
         checker,
         page,
@@ -148,7 +158,7 @@ def check_question_bank(checker: LayoutSmoke) -> None:
     )
     _check_required_labels(checker, page, "text input", _labels(at.text_input), ["Tested topic / keyword"])
     _check_required_labels(checker, page, "tab", _labels(at.tabs), ["Prompt", "Answer", "Rule Outline"])
-    checker.check("Question Bank hides Metadata tab", "Metadata" not in _labels(at.tabs), ", ".join(_labels(at.tabs)))
+    checker.check("MEE Question Bank hides Metadata tab", "Metadata" not in _labels(at.tabs), ", ".join(_labels(at.tabs)))
 
 
 def check_practice(checker: LayoutSmoke) -> None:
@@ -308,6 +318,13 @@ def check_mbe(checker: LayoutSmoke) -> None:
     at = _run_page(page)
     _check_no_exceptions(checker, page, at)
     _check_nav(checker, page, at)
+    _check_required_labels(
+        checker,
+        page,
+        "tab",
+        _labels(at.tabs),
+        ["MBE Drills", "MBE Drills Question Bulk Upload"],
+    )
     checker.check(
         "MBE Drills opens without extra Streamlit title",
         "MBE Drills - Trap Trainer" not in _page_text(at),
