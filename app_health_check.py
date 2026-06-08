@@ -408,6 +408,7 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
     main_pages = (ROOT / "main_pages.py").read_text(encoding="utf-8")
     practice_components = (ROOT / "practice_components.py").read_text(encoding="utf-8")
     practice_pages = (ROOT / "practice_pages.py").read_text(encoding="utf-8")
+    user_pages = (ROOT / "user_pages.py").read_text(encoding="utf-8")
     ui_components = (ROOT / "ui_components.py").read_text(encoding="utf-8")
     checker.check(
         "import previews use shared preview helper",
@@ -422,17 +423,21 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         and "render_control_row(" in content_tools
         and "render_control_row(" in main_pages
         and "render_control_row(" in practice_pages
+        and "render_control_row(" in user_pages
         and "st.columns(" not in content_tools
         and "st.columns(" not in main_pages
-        and "st.columns(" not in practice_pages,
+        and "st.columns(" not in practice_pages
+        and "st.columns(" not in user_pages,
     )
     checker.check(
         "page tabs use shared tab helper",
         "def render_tab_set(" in ui_components
         and "render_tab_set(" in content_tools
+        and "render_tab_set(" in practice_components
         and "st.tabs(" not in content_tools
         and "st.tabs(" not in main_pages
-        and "st.tabs(" not in practice_pages,
+        and "st.tabs(" not in practice_pages
+        and "st.tabs(" not in practice_components,
     )
     checker.check(
         "compact instructional notes use shared helper",

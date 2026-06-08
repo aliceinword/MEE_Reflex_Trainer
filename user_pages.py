@@ -7,7 +7,7 @@ import streamlit as st
 
 from auth import hash_password
 from database import add_app_user, delete_app_user, list_app_users, set_user_password
-from ui_components import render_page_title
+from ui_components import render_control_row, render_page_title
 
 
 def render_manage_users_page():
@@ -19,7 +19,7 @@ def render_manage_users_page():
 
     st.markdown("#### Add a user")
     with st.form("add_user_form", clear_on_submit=True):
-        ac1, ac2 = st.columns(2)
+        ac1, ac2 = render_control_row(2)
         with ac1:
             nu_username = st.text_input("Username", placeholder="e.g. alice")
             nu_email = st.text_input("Email", placeholder="alice@example.com")
@@ -52,7 +52,7 @@ def render_manage_users_page():
         st.info("No users yet.")
     for user in users:
         u_username, u_email, u_name, u_is_admin, u_created = user
-        uc1, uc2, uc3 = st.columns([3, 2, 1])
+        uc1, uc2, uc3 = render_control_row([3, 2, 1])
         with uc1:
             badge = " (admin)" if u_is_admin else ""
             st.markdown(f"**{escape(u_username)}**{badge}  \n{escape(u_email or '')}")

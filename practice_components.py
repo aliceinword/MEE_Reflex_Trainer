@@ -17,7 +17,7 @@ from text_rendering import (
     render_trap_warnings,
     render_trigger_facts,
 )
-from ui_components import render_text_area
+from ui_components import render_tab_set, render_text_area
 
 
 LADDER_LEVELS = [
@@ -214,7 +214,7 @@ def render_answer_bank_tabs(
         if include_rule_support:
             tab_names.append("Rule Support")
 
-        tabs = st.tabs(tab_names)
+        tabs = render_tab_set(tab_names)
         tab_index = 0
 
         if include_sample_answer:
