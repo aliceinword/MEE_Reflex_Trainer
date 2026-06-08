@@ -1378,8 +1378,8 @@ def clean_call_text(call_text):
     text = re.sub(r'([A-Za-z]),\s+"\s*([a-z])', r'\1," \2', text)
     text = re.sub(r'([A-Za-z])"([A-Za-z])', r'\1 "\2', text)
     call_starter_words = (
-        "If|What|Which|How|Was|Were|Is|Are|Did|Does|Do|Can|Could|Should|Will|Would|"
-        "May|Before|After|During|At|Upon|Assuming that|Assuming further that"
+        r"If|What|Which|How|Was|Were|Is|Are|Did|Does|Do|Can|Could|Should|Will|Would|"
+        r"May(?!\s+\d)|Before|After|During|At|Upon|Assuming that|Assuming further that"
     )
     text = re.sub(
         rf"\s+((?:{call_starter_words})\b)",
@@ -1419,9 +1419,9 @@ def extract_subquestions(call_text):
     top_level_pattern = re.compile(r"^(\d+)\.\s*(.*)")
     subpart_pattern = re.compile(r"^([a-z]\.)\s*(.*)", re.IGNORECASE)
     call_start_pattern = re.compile(
-        r"^(If|What|Which|How|Was|Were|Is|Are|Did|Does|Do|Can|Could|Should|Will|Would|May|"
+        r"^(If|What|Which|How|Was|Were|Is|Are|Did|Does|Do|Can|Could|Should|Will|Would|May(?!\s+\d)|"
         r"Before|After|During|At|Upon|Assuming that|Assuming further that)\b|"
-        r"^(if|what|which|how|was|were|is|are|did|does|do|can|could|should|will|would|may|"
+        r"^(if|what|which|how|was|were|is|are|did|does|do|can|could|should|will|would|may(?!\s+\d)|"
         r"before|after|during|at|upon|assuming that|assuming further that)\b.*\?|"
         r"^[A-Z][A-Za-z]*(?:'s)?(?:\s+[A-Z][A-Za-z]*(?:'s)?)?\?",
     )
