@@ -1515,8 +1515,17 @@ def render_call_text(title, call_text):
     safe_title = escape_display_text(title)
     cards_html = ""
 
-    for question in subquestions:
-        label = escape_display_text(question.get("label", "Question"))
+    for index, question in enumerate(subquestions, start=1):
+        raw_label = question.get("label", "Question")
+        label_match = re.search(r"(\d+)", raw_label)
+        if len(subquestions) == 1:
+            display_label = "Call"
+        elif label_match:
+            display_label = f"Call {label_match.group(1)}"
+        else:
+            display_label = f"Call {index}"
+
+        label = escape_display_text(display_label)
         question_text = escape_display_text(question.get("text", ""))
         subparts_html = ""
 
