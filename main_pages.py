@@ -81,7 +81,7 @@ def render_question_bank_filters():
     with filter_cols[3]:
         selected_added_date = render_selectbox("Added date", QUESTION_BANK_ADDED_DATE_OPTIONS, key="bank_added_date")
     with filter_cols[4]:
-        active_only = render_checkbox("Active only", value=False)
+        active_only = render_checkbox("Active only", value=True)
 
     topic_query = render_text_input(
         "Tested topic / keyword",
@@ -322,6 +322,10 @@ def render_question_bank_page(compact_mode=False):
         return
 
     qd = unpack_question(q)
+    if not qd.get("active_for_july_2026"):
+        render_warning(
+            "This saved row is inactive. It may be an older duplicate import; use the active version for practice."
+        )
     render_question_identity(qd, show_heading=True, show_source=True)
 
     render_question_detail_tabs(qd, compact_mode=compact_mode)
