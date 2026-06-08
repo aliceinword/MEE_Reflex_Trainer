@@ -2434,17 +2434,42 @@ def render_outline_rule_text(title, text, reading_mode=False):
     )
 
 
+def format_plug_text_html(text):
+    """Format Plug & Play template text with readable paragraphs and placeholder emphasis."""
+    safe_text = escape_display_text(str(text or "").strip())
+    safe_text = re.sub(
+        r"(\[[^\]]+\])",
+        r'<span class="plug-placeholder">\1</span>',
+        safe_text,
+    )
+    paragraphs = [
+        paragraph.strip()
+        for paragraph in re.split(r"\n+", safe_text)
+        if paragraph.strip()
+    ]
+
+    if not paragraphs:
+        return ""
+
+    return "".join(f"<p>{paragraph}</p>" for paragraph in paragraphs)
+
+
+def plug_section_class(title):
+    title_key = re.sub(r"[^a-z0-9]+", "-", str(title or "").lower()).strip("-")
+    return f" plug-section-{title_key}" if title_key else ""
+
+
 def render_plug_section(title, text):
     if not text:
         return ""
 
     safe_title = escape_display_text(title)
-    safe_text = escape_display_text(str(text).strip())
+    body_html = format_plug_text_html(text)
 
     return (
-        '<div class="plug-section">'
+        f'<div class="plug-section{plug_section_class(title)}">'
         f'<div class="plug-section-title">{safe_title}</div>'
-        f'<div class="plug-text">{safe_text}</div>'
+        f'<div class="plug-text">{body_html}</div>'
         '</div>'
     )
 
@@ -2479,8 +2504,9 @@ def render_plug_play_template(template):
     st.markdown(
         (
             '<div class="plug-box">'
-            f'<div class="plug-title">Plug & Play Template: {safe_title}</div>'
-            f'<div class="plug-text plug-meta"><strong>{safe_meta}</strong></div>'
+            '<div class="plug-kicker">Plug & Play Template</div>'
+            f'<div class="plug-title">{safe_title}</div>'
+            f'<div class="plug-meta-pill">{safe_meta}</div>'
             f'<div class="plug-grid">{section_html}</div>'
             '</div>'
         ),

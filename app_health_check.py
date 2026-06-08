@@ -518,6 +518,17 @@ def check_renderers_and_ui(checker: HealthCheck) -> None:
         and "render_trigger_rule_map(" in practice_components
         and "def render_trigger_rule_map(" in (ROOT / "text_rendering.py").read_text(encoding="utf-8"),
     )
+    styles = (ROOT / "styles.py").read_text(encoding="utf-8")
+    text_rendering = (ROOT / "text_rendering.py").read_text(encoding="utf-8")
+    checker.check(
+        "plug-play templates use LBP-inspired style tokens",
+        "#D91B2E" in styles
+        and "#AEE3BD" in styles
+        and "#3B3434" in styles
+        and "plug-placeholder" in styles
+        and "plug-meta-pill" in styles
+        and "format_plug_text_html(" in text_rendering,
+    )
 
     legacy_import_offenders = []
     for module in ["import_questions_bank.py", "import_questions_docx.py"]:

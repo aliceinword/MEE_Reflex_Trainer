@@ -1371,12 +1371,13 @@ def render_global_styles():
     
     /* Plug & Play template boxes */
     .plug-box {
-        background: rgba(255, 255, 255, 0.97);
-        border: 1.5px solid #BDE0FE;
-        border-radius: 14px;
-        padding: 0.9rem 1rem;
-        margin: 0.55rem 0 0.8rem 0;
-        box-shadow: 0 4px 14px rgba(29, 78, 137, 0.07);
+        background: #FFFDFC;
+        border: 2px solid #AEE3BD;
+        border-top: 7px solid #D91B2E;
+        border-radius: 12px;
+        padding: 1rem 1.05rem;
+        margin: 0.55rem 0 0.9rem 0;
+        box-shadow: 0 8px 22px rgba(59, 52, 52, 0.08);
         box-sizing: border-box;
         display: block;
         width: 100%;
@@ -1413,48 +1414,88 @@ def render_global_styles():
     
     .plug-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.75rem 1rem;
+        grid-template-columns: 1fr;
+        gap: 0.55rem;
         width: 100%;
     }
     
     .plug-section {
         min-width: 0;
+        background: #F3FFF6;
+        border: 1.5px solid #AEE3BD;
+        border-radius: 10px;
+        padding: 0.7rem 0.8rem;
     }
     
     .plug-title {
-        color: #1D4E89;
-        font-weight: 700;
-        font-size: 1.02rem;
-        margin-bottom: 0.35rem;
-        padding-bottom: 0.3rem;
-        border-bottom: 2px solid #DBEAFE;
+        color: #3B3434;
+        font-weight: 900;
+        font-size: 1.08rem;
+        line-height: 1.25;
+        text-transform: uppercase;
+        margin-bottom: 0.45rem;
+        padding-bottom: 0.35rem;
+        border-bottom: 2px solid #AEE3BD;
+    }
+
+    .plug-kicker {
+        color: #D91B2E;
+        font-size: 0.78rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+
+    .plug-meta-pill {
+        display: inline-flex;
+        color: #3B3434;
+        background: #FFFFFF;
+        border: 1px solid #AEE3BD;
+        border-radius: 999px;
+        padding: 0.2rem 0.55rem;
+        margin: 0 0 0.75rem 0;
+        font-size: 0.84rem;
+        font-weight: 800;
     }
     
     .plug-section-title {
-        color: #0F766E;
-        font-weight: 700;
-        margin-top: 0.15rem;
-        margin-bottom: 0.25rem;
+        color: #D91B2E;
+        font-weight: 900;
+        font-size: 0.88rem;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        margin-top: 0;
+        margin-bottom: 0.35rem;
     }
     
     .plug-text {
-        color: #102033;
+        color: #3B3434;
         font-size: 16px;
-        line-height: 1.42;
-        white-space: pre-line;
+        line-height: 1.52;
+        white-space: normal;
         word-break: normal;
         overflow-wrap: break-word;
+    }
+
+    .plug-text p {
+        margin: 0 0 0.55rem 0;
+    }
+
+    .plug-text p:last-child {
+        margin-bottom: 0;
+    }
+
+    .plug-placeholder {
+        color: #D91B2E;
+        background: rgba(174, 227, 189, 0.40);
+        border-radius: 6px;
+        padding: 0.05rem 0.2rem;
+        font-weight: 850;
     }
     
     .plug-meta {
         margin-bottom: 0.75rem;
-    }
-    
-    @media (max-width: 900px) {
-        .plug-grid {
-            grid-template-columns: 1fr;
-        }
     }
     
     /* Little soft divider vibe */
@@ -1930,9 +1971,12 @@ def render_global_styles():
         align-items: flex-start;
     }
     
-    .flash-grid,
-    .plug-grid {
+    .flash-grid {
         grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)) !important;
+    }
+
+    .plug-grid {
+        grid-template-columns: 1fr !important;
     }
     
     .trap-warning-box {
