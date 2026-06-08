@@ -1570,7 +1570,7 @@ def render_call_text(title, call_text):
 
         cards_html += (
             '<div class="call-card">'
-            f'<div class="call-card-label">{label}</div>'
+            f'{f"<div class=\"call-card-label\">{label}</div>" if len(subquestions) > 1 else ""}'
             f'<div class="call-card-text">{question_text}</div>'
             f'{subparts_html}'
             '</div>'
