@@ -75,13 +75,14 @@ def render_mini_drill_tab(qd, compact_mode=False, reading_mode=False):
         "Start with the clean question. Turn highlights on only after you try to retrieve the issue, rule, and trigger facts."
     )
 
-    prompt_col, work_col = render_control_row([1.05, 1], gap="large")
+    render_mini_prompt_panel(qd)
 
-    with prompt_col:
-        render_mini_prompt_panel(qd)
+    render_practice_section_break()
 
-    with work_col:
+    support_col, work_col = render_control_row([0.95, 1.15], gap="large")
+    with support_col:
         render_plug_play_support(qd, expanded=True)
+    with work_col:
         combined_answer = render_mini_drill_response_input()
 
         mini_score = render_slider("Mini Drill score", 0, 5, 0, key=f"mini_score_{qd['id']}")

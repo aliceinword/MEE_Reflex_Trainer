@@ -133,11 +133,11 @@ def render_mbe_drills_page():
 
     .full-page-embed {
         width: 100% !important;
-        height: 0 !important;
+        height: auto !important;
         min-height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
-        overflow: hidden !important;
+        overflow: visible !important;
     }
 
     div[data-testid="stElementContainer"]:has(iframe),
@@ -150,7 +150,7 @@ def render_mbe_drills_page():
         height: 3600px !important;
         min-height: 3600px !important;
         max-height: none !important;
-        overflow: hidden !important;
+        overflow: auto !important;
     }
 
     iframe[title*="streamlit"],
@@ -185,7 +185,7 @@ def render_mbe_drills_page():
         render_html_file_embed(
             mbe_path,
             height=3600,
-            scrolling=False,
+            scrolling=True,
             missing_message=(
                 "mbe_trap_trainer.html was not found next to app.py. "
                 "Make sure the file is in the project folder."

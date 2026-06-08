@@ -111,8 +111,9 @@ def make_readable_legal_text(text):
 def render_text_block(title, text, class_name="readable", compact=False, empty_message="No text available."):
     """Render a full-width styled text block with paragraph spacing."""
     paragraphs = split_paragraphs(text) or [empty_message]
+    paragraph_margin = "0.65em" if class_name == "question" else "1.2em"
     body = "".join(
-        f'<p style="margin-bottom:1.2em">{escape_display_text(paragraph)}</p>'
+        f'<p style="margin-bottom:{paragraph_margin}">{escape_display_text(paragraph)}</p>'
         for paragraph in paragraphs
     )
 
@@ -603,6 +604,41 @@ def render_sample_answer_body(qd):
         render_structured_model_analysis(qd, title="Structured Model Analysis")
 
 
+def compact_question_paragraphs(lines, *, max_sentences=3, max_chars=620):
+    """Group imported one-sentence-per-line question text into compact paragraphs."""
+    paragraphs = []
+    current = []
+    sentence_count = 0
+    marker_pattern = re.compile(r"^(\d+\.|[a-z]\.|\(\d+\)|\([a-z]\)|\([ivx]+\))\s+", re.IGNORECASE)
+
+    def flush():
+        nonlocal current, sentence_count
+        if current:
+            paragraphs.append(" ".join(current).strip())
+        current = []
+        sentence_count = 0
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            flush()
+            continue
+
+        if marker_pattern.match(line):
+            flush()
+            paragraphs.append(line)
+            continue
+
+        current.append(line)
+        sentence_count += len(re.findall(r"[.!?](?:\"|')?$", line)) or 1
+
+        if sentence_count >= max_sentences or len(" ".join(current)) >= max_chars:
+            flush()
+
+    flush()
+    return paragraphs
+
+
 def clean_question_text(question_text):
     if not question_text:
         return "No question text available."
@@ -639,6 +675,13 @@ def clean_question_text(question_text):
             lines.append(line)
 
     text = " ".join(lines)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    text = re.sub(r"([.!?])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"([,;:])([A-Za-z])", r"\1 \2", text)
+    text = _normalize_quote_spacing(text)
+    text = re.sub(r'([A-Za-z]),\s+"\s*([a-z])', r'\1," \2', text)
+    text = re.sub(r'([A-Za-z])"([A-Za-z])', r'\1 "\2', text)
 
     # Keep list labels visible, but avoid the huge model-answer spacing.
     text = re.sub(r"\s+(\(\d+\))\s+", r"\n\1 ", text)
@@ -668,7 +711,7 @@ def clean_question_text(question_text):
             joined_lines.append(line)
             index += 1
 
-    text = "\n".join(joined_lines)
+    text = "\n\n".join(compact_question_paragraphs(joined_lines))
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     return text.strip()
@@ -1327,6 +1370,13 @@ def clean_call_text(call_text):
             lines.append(line)
 
     text = " ".join(lines)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    text = re.sub(r"([.!?])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"([,;:])([A-Za-z])", r"\1 \2", text)
+    text = _normalize_quote_spacing(text)
+    text = re.sub(r'([A-Za-z]),\s+"\s*([a-z])', r'\1," \2', text)
+    text = re.sub(r'([A-Za-z])"([A-Za-z])', r'\1 "\2', text)
     text = re.sub(
         r"\s+((?:If|What|Was|Were|Is|Are|Did|Does|Do|Can|Could|Should|Will|Would|May|Assuming that)\b)",
         r"\n\1",

@@ -357,13 +357,37 @@ def render_divider():
     st.divider()
 
 
+def irac_answer_template():
+    """Return a compact IRAC starter for question-bank drafting."""
+    return """Issue:
+The issue is whether ___.
+
+Rule:
+Under ___, ___.
+
+Application:
+Here, ___ because ___.
+
+Conclusion:
+Therefore, ___."""
+
+
 def render_question_detail_tabs(qd, compact_mode=False):
     """Render one question's prompt, answer, outline, and metadata tabs."""
     prompt_tab, answer_tab, outline_tab = render_tab_set(["Prompt", "Answer", "Rule Outline"])
 
     with prompt_tab:
         render_call_text("Call of the Question", qd["call_of_question"])
-        render_question_text("Question Text", qd["question_text"])
+        question_col, answer_col = render_control_row([1.08, 0.92], gap="large")
+        with question_col:
+            render_question_text("Question Text", qd["question_text"])
+        with answer_col:
+            render_text_area(
+                "Your IRAC Answer",
+                value=irac_answer_template(),
+                height=TEXTAREA_HEIGHT_XXL,
+                key=f"question_bank_irac_answer_{qd['id']}",
+            )
 
     with answer_tab:
         render_sample_answer_text("Sample Answer / Model Analysis", qd["model_points"])

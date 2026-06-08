@@ -46,6 +46,7 @@ from ui_components import (
 
 
 QUESTION_BANK_ADDED_DATE_OPTIONS = ["All dates", "Today", "Last 7 days", "Last 30 days", "This year"]
+QUESTION_BANK_VISIBLE_ROWS = 3
 
 
 def question_bank_added_date_range(selected_added_date, today=None):
@@ -130,17 +131,19 @@ def question_bank_rows_dataframe(rows):
 
 def render_question_bank_results_table(rows):
     """Render the Question Bank results table with consistent preview sizing."""
+    visible_rows = rows[:QUESTION_BANK_VISIBLE_ROWS]
     render_preview_table(
-        question_bank_rows_dataframe(rows),
-        height=preview_table_height(len(rows), max_height=420),
+        question_bank_rows_dataframe(visible_rows),
+        height=preview_table_height(len(visible_rows), max_height=220),
     )
 
 
 def select_question_bank_row(rows):
     """Render the Question Bank detail selector and return the selected row."""
-    labels = [format_bank_question_label(row) for row in rows]
+    visible_rows = rows[:QUESTION_BANK_VISIBLE_ROWS]
+    labels = [format_bank_question_label(row) for row in visible_rows]
     selected_label = render_selectbox("Open question details", labels, key="bank_selected_question")
-    return rows[labels.index(selected_label)]
+    return visible_rows[labels.index(selected_label)]
 
 
 def render_dashboard_page():
