@@ -1377,10 +1377,20 @@ def clean_call_text(call_text):
     text = _normalize_quote_spacing(text)
     text = re.sub(r'([A-Za-z]),\s+"\s*([a-z])', r'\1," \2', text)
     text = re.sub(r'([A-Za-z])"([A-Za-z])', r'\1 "\2', text)
+    call_starter_words = (
+        "If|What|Which|How|Was|Were|Is|Are|Did|Does|Do|Can|Could|Should|Will|Would|"
+        "May|Before|After|During|At|Upon|Assuming that|Assuming further that"
+    )
     text = re.sub(
-        r"\s+((?:If|What|Was|Were|Is|Are|Did|Does|Do|Can|Could|Should|Will|Would|May|Assuming that)\b)",
+        rf"\s+((?:{call_starter_words})\b)",
         r"\n\1",
         text,
+    )
+    text = re.sub(
+        rf"(?<=Explain\.)\s+(?=((?:{call_starter_words})\b|[A-Z][A-Za-z]*(?:'s)?(?:\s+[A-Z][A-Za-z]*(?:'s)?)?\?\s*Explain\.))",
+        "\n",
+        text,
+        flags=re.IGNORECASE,
     )
     text = re.sub(r"\s+(\d+\([a-z]\)\.)\s*", r"\n\1 ", text, flags=re.IGNORECASE)
     text = re.sub(r"\s+(\d+\.)\s+", r"\n\1 ", text)
@@ -1409,7 +1419,11 @@ def extract_subquestions(call_text):
     top_level_pattern = re.compile(r"^(\d+)\.\s*(.*)")
     subpart_pattern = re.compile(r"^([a-z]\.)\s*(.*)", re.IGNORECASE)
     call_start_pattern = re.compile(
-        r"^(If|What|Was|Were|Is|Are|Did|Does|Do|Can|Could|Should|Will|Would|May|Assuming that)\b",
+        r"^(If|What|Which|How|Was|Were|Is|Are|Did|Does|Do|Can|Could|Should|Will|Would|May|"
+        r"Before|After|During|At|Upon|Assuming that|Assuming further that)\b|"
+        r"^(if|what|which|how|was|were|is|are|did|does|do|can|could|should|will|would|may|"
+        r"before|after|during|at|upon|assuming that|assuming further that)\b.*\?|"
+        r"^[A-Z][A-Za-z]*(?:'s)?(?:\s+[A-Z][A-Za-z]*(?:'s)?)?\?",
     )
 
     has_numbered_call = any(top_level_pattern.match(line) for line in lines)
@@ -1417,11 +1431,24 @@ def extract_subquestions(call_text):
     if not has_numbered_call:
         while lines and not call_start_pattern.match(lines[0]):
             lines.pop(0)
+        if len(lines) > 1 and lines[0].endswith(":") and not re.search(r"\?", lines[0]):
+            shared_assumption = lines.pop(0)
+            lines = [f"{shared_assumption} {line}" for line in lines]
+
+    pending_assumption = None
 
     for line in lines:
         numbered_subpart = numbered_subpart_pattern.match(line)
         top = top_level_pattern.match(line)
         sub = subpart_pattern.match(line)
+
+        if (
+            not has_numbered_call
+            and line.endswith(":")
+            and not re.search(r"\?", line)
+        ):
+            pending_assumption = line
+            continue
 
         if numbered_subpart:
             question_number = numbered_subpart.group(1)
@@ -1460,9 +1487,11 @@ def extract_subquestions(call_text):
                 subquestions.append(current)
 
             unnumbered_count += 1
+            line_text = f"{pending_assumption} {line}" if pending_assumption else line.strip()
+            pending_assumption = None
             current = {
                 "label": f"Question {unnumbered_count}",
-                "text": line.strip(),
+                "text": line_text,
                 "subparts": [],
             }
 
