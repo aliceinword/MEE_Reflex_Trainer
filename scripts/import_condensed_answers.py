@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import _bootstrap  # noqa: F401
+
 import argparse
 import re
 import shutil
-import sqlite3
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
 import fitz
 
-from database import DB_NAME, init_db
+from database import DB_NAME, fetch_all, init_db, write_transaction
 from text_cleanup import normalize_extracted_text
 
 
@@ -287,16 +288,12 @@ def db_key(exam_name, question_number):
 
 def update_database(entries, apply=False, overwrite=False):
     init_db()
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-
-    cur.execute(
+    question_rows = fetch_all(
         """
         SELECT id, exam_name, question_number, model_points
         FROM questions
         """
     )
-    question_rows = cur.fetchall()
     questions_by_key = {}
     duplicate_db_keys = []
 
@@ -310,6 +307,8 @@ def update_database(entries, apply=False, overwrite=False):
     unmatched = []
     skipped_existing = []
     empty_entries = []
+    clear_model_ids = []
+    model_updates = []
 
     entry_counts = Counter(db_key(e["exam_name"], e["question_number"]) for e in entries)
     duplicate_entry_keys = [key for key, count in entry_counts.items() if count > 1]
@@ -329,7 +328,7 @@ def update_database(entries, apply=False, overwrite=False):
             stats["empty_or_short"] += 1
             if apply and overwrite:
                 question_id, _existing_model_points = target
-                cur.execute("UPDATE questions SET model_points = '' WHERE id = ?", (question_id,))
+                clear_model_ids.append(question_id)
             continue
 
         question_id, existing_model_points = target
@@ -339,17 +338,19 @@ def update_database(entries, apply=False, overwrite=False):
             continue
 
         if apply:
-            cur.execute(
-                "UPDATE questions SET model_points = ? WHERE id = ?",
-                (model_points, question_id),
-            )
+            model_updates.append((model_points, question_id))
 
         stats["updated" if apply else "would_update"] += 1
 
-    if apply:
-        conn.commit()
-
-    conn.close()
+    if apply and (clear_model_ids or model_updates):
+        with write_transaction() as conn:
+            for question_id in clear_model_ids:
+                conn.execute("UPDATE questions SET model_points = '' WHERE id = ?", (question_id,))
+            for model_points, question_id in model_updates:
+                conn.execute(
+                    "UPDATE questions SET model_points = ? WHERE id = ?",
+                    (model_points, question_id),
+                )
 
     return {
         "stats": stats,

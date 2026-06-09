@@ -158,7 +158,7 @@ def _repair_compacted_text(text: str) -> str:
     text = re.sub(r"(?<=\d)\.(?=[A-Z])", ". ", text)
     text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)
     text = re.sub(r"(?<=[a-z])(?=\d)", " ", text)
-    text = re.sub(r"(?<=\d),\s+(?=\d)", ",", text)
+    text = re.sub(r"(?<=\d),\s+(?=\d{3}\b)", ",", text)
     text = re.sub(r"\b([A-Z][a-z]+)\s+sand\s+bore\b", r"\1's and bore", text)
     text = re.sub(r"\b([A-Z][a-z]+)\s+s\s+and\s+bore\b", r"\1's and bore", text)
     text = re.sub(r"\b([Ii])\s*didn\s+t\s*write\b", r"\1 didn't write", text)
@@ -167,7 +167,7 @@ def _repair_compacted_text(text: str) -> str:
     text = re.sub(r"\s+([,.;:!?])", r"\1", text)
     text = re.sub(r"([,.;:!?])(?=\S)", r"\1 ", text)
     text = re.sub(r"\s+\"", '"', text)
-    text = re.sub(r"(?<=\d),\s+(?=\d)", ",", text)
+    text = re.sub(r"(?<=\d),\s+(?=\d{3}\b)", ",", text)
     return re.sub(r"[ \t]{2,}", " ", text)
 
 

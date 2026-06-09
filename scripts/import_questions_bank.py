@@ -13,17 +13,20 @@ Answers (issues, rules, traps, model points) are intentionally left blank so
 they can be filled in later from a separate answer document.
 
 Usage:
-    python import_questions_bank.py "MEE_Question_Extraction_By_Compiled_Topics.md"
+    python scripts/import_questions_bank.py "MEE_Question_Extraction_By_Compiled_Topics.md"
 
 Re-running is safe: a question with the same exam + number + subject + source
 is skipped.
 """
 
+import _bootstrap  # noqa: F401
+
 import re
 import sys
 from pathlib import Path
 
-from database import init_db, add_question, get_connection
+from database import init_db, question_exists
+from import_services import save_question_from_mapping
 
 SOURCE_LABEL = "MEE Question Bank (my import)"
 
@@ -56,19 +59,6 @@ def split_question_and_call(full_text):
     return full_text.strip(), ""
 
 
-def question_exists(conn, exam_name, question_number, subject):
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT 1 FROM questions
-        WHERE exam_name = ? AND question_number = ? AND subject = ? AND source = ?
-        LIMIT 1
-        """,
-        (exam_name, question_number, subject, SOURCE_LABEL),
-    )
-    return cur.fetchone() is not None
-
-
 def main(path):
     path = Path(path)
     if not path.exists():
@@ -76,7 +66,6 @@ def main(path):
         return
 
     init_db()
-    conn = get_connection()
 
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
@@ -96,29 +85,29 @@ def main(path):
         exam_name, year, season, number = meta
         body = "\n".join(buffer).strip()
         if body:
-            if question_exists(conn, exam_name, number, subject):
+            if question_exists(exam_name, number, subject, SOURCE_LABEL):
                 skipped += 1
             else:
-                fact_and_call, call = split_question_and_call(body)
-                add_question(
-                    exam_name=exam_name,
-                    question_number=number,
-                    subject=subject,
-                    question_text=body,
-                    call_of_question=call,
-                    tested_issues="",
-                    rules="",
-                    trigger_facts="",
-                    traps="",
-                    model_points="",
-                    active_for_july_2026=True,
-                    exam_year=year,
-                    exam_season=season,
-                    secondary_subjects="",
-                    july_2026_status="Active standalone MEE",
-                    priority=3,
-                    source=SOURCE_LABEL,
-                )
+                fact_text, call = split_question_and_call(body)
+                save_question_from_mapping({
+                    "exam_name": exam_name,
+                    "question_number": number,
+                    "subject": subject,
+                    "question_text": fact_text,
+                    "call_of_question": call,
+                    "tested_issues": "",
+                    "rules": "",
+                    "trigger_facts": "",
+                    "traps": "",
+                    "model_points": "",
+                    "active_for_july_2026": True,
+                    "exam_year": year,
+                    "exam_season": season,
+                    "secondary_subjects": "",
+                    "july_2026_status": "Active standalone MEE",
+                    "priority": 3,
+                    "source": SOURCE_LABEL,
+                })
                 added += 1
         meta = None
         buffer = []
@@ -149,7 +138,6 @@ def main(path):
             buffer.append(line)
 
     flush()
-    conn.close()
     print(f"Imported {added} question(s); skipped {skipped} already present.")
 
 

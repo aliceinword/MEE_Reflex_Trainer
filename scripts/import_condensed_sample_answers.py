@@ -7,6 +7,8 @@ model_points. Keep this filename working, but route it through the safer importe
 that updates only questions.model_points.
 """
 
+import _bootstrap  # noqa: F401
+
 from import_condensed_answers import main
 
 

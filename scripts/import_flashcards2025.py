@@ -1,5 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
+import _bootstrap  # noqa: F401
+
 import html
 import re
 import sys
@@ -196,7 +198,7 @@ def import_flashcards(path):
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: python import_flashcards2025.py Flashcards2025.rtf')
+        print("Usage: python scripts/import_flashcards2025.py Flashcards2025.rtf")
         return 1
 
     imported, skipped = import_flashcards(sys.argv[1])

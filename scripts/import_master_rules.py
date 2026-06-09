@@ -7,10 +7,12 @@ Expected document structure (styles):
   Tip         -> issue-spotter note
 
 Usage:
-    python import_master_rules.py "MEE_Master_Rules_By_Subject_July_2026.docx"
+    python scripts/import_master_rules.py "MEE_Master_Rules_By_Subject_July_2026.docx"
 
 Re-running is safe: duplicates (same subject + title + source) are skipped.
 """
+
+import _bootstrap  # noqa: F401
 
 import re
 import sys

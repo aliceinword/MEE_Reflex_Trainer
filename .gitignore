@@ -17,19 +17,22 @@ env/
 # Streamlit
 *.log
 .streamlit/secrets.toml
+.streamlit/remember_login.json
 
-# Local data and copyrighted materials -- DO NOT COMMIT
+# Database (local data — do not commit)
 *.db
 *.sqlite
 *.sqlite3
-*.pdf
-*.csv
-*.docx
-!mee_reflex.db
-!MEE_Condensed_Sample_Answers_By_Subject.pdf
+*.backup*.db
+*_backup_*.db
 
-# Personal question bank (Markdown) -- keep README.md, exclude bank files
-MEE_Question_Extraction*.md
+# Public seed DB intentionally bundled for shared/demo deployments.
+!mee_reflex.db
+
+# Local imports / generated exports
+data/imports/
+data/processed/
+*.docx
 
 # OS
 .DS_Store
@@ -38,4 +41,5 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp

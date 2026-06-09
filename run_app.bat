@@ -1,5 +1,4 @@
 @echo off
 cd /d "C:\Users\olesi\OneDrive\MEE_Reflex_Trainer"
-call .venv\Scripts\activate
-streamlit run app.py
+"C:\Users\olesi\AppData\Local\Programs\Python\Python313\python.exe" -m streamlit run app.py
 pause
