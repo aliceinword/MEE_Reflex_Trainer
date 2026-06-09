@@ -3440,9 +3440,8 @@ function finalizeQueue(pool, requestedSize, sorter){
   const unique = dedupeCards(pool || []);
   const available = unique.filter(c => !isSnoozed(c));
   const preferred = available.filter(c => !answeredRecently(c, 12));
-  const recent = available.filter(c => answeredRecently(c, 12)).sort(staleAnsweredFirst);
   const orderedPreferred = sorter ? preferred.sort(sorter) : preferred;
-  const queue = dedupeCards(orderedPreferred.concat(recent));
+  const queue = dedupeCards(orderedPreferred);
   return queue.slice(0, max);
 }
 
@@ -3781,7 +3780,6 @@ function buildSessionQueue(pool, opts) {
 
   for (const c of primary) tryAdd(c);
   for (const c of fallback) tryAdd(c);
-  for (const c of recentFallback) tryAdd(c);
 
   if (!queue.length && active.length) {
     return dedupeCards(active.sort(staleAnsweredFirst)).slice(0, cfg.maxQuestions);
