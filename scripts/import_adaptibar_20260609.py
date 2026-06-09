@@ -18,11 +18,12 @@ SOURCE = "adaptibar_past_questions_20260609"
 # ---------------------------------------------------------------------------
 
 def card(adv_id, subject, subtopic, scenario, a, b, c, d, correct):
+    # Trainer option shape: "t" holds the choice text (see mbe_trap_trainer.html).
     options = [
-        {"label": "A", "text": a, "ok": correct == "A"},
-        {"label": "B", "text": b, "ok": correct == "B"},
-        {"label": "C", "text": c, "ok": correct == "C"},
-        {"label": "D", "text": d, "ok": correct == "D"},
+        {"t": a, "ok": correct == "A"},
+        {"t": b, "ok": correct == "B"},
+        {"t": c, "ok": correct == "C"},
+        {"t": d, "ok": correct == "D"},
     ]
     return {
         "adv_id": str(adv_id),
@@ -329,7 +330,7 @@ def build_cards(raw_cards):
     result = []
     for c in raw_cards:
         options = json.loads(c["options_json"])
-        correct_text = next((o["text"] for o in options if o["ok"]), "")
+        correct_text = next((o.get("t") or o.get("text", "") for o in options if o["ok"]), "")
         uid = _card_uid(
             c["subject"], c["subtopic"], c["title"],
             c["scenario"], c["question"], correct_text,

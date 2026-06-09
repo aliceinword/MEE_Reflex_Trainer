@@ -479,15 +479,20 @@ def builtin_duplicate_lookup():
     content_fps = set()
     adv_ids = set()
     for card in load_builtin_trap_trainer_cards():
-        content_fps.add(
-            mbe_card_content_fingerprint(
-                subject=card.get("subj"),
-                subtopic=card.get("sub"),
-                scenario=card.get("scenario"),
-                question=card.get("q"),
-                options=card.get("options") or [],
+        # Fingerprint under both the raw and normalized subject so cards whose
+        # subject gets normalized on import (e.g. "Criminal Law" ->
+        # "Criminal Law and Procedure") still match the built-in deck.
+        raw_subject = card.get("subj") or ""
+        for subject in {raw_subject, normalize_mbe_subject(raw_subject)}:
+            content_fps.add(
+                mbe_card_content_fingerprint(
+                    subject=subject,
+                    subtopic=card.get("sub"),
+                    scenario=card.get("scenario"),
+                    question=card.get("q"),
+                    options=card.get("options") or [],
+                )
             )
-        )
         for key in (card.get("advId"), card.get("id")):
             if not key:
                 continue
@@ -547,6 +552,20 @@ def find_builtin_duplicate_db_rows(rows):
     return dupes
 
 
+def normalize_trainer_options(options):
+    """Coerce stored option dicts to the trainer's shape ("t" = choice text)."""
+    out = []
+    for opt in options or []:
+        if not isinstance(opt, dict):
+            continue
+        opt = dict(opt)
+        if not opt.get("t") and opt.get("text"):
+            opt["t"] = opt.pop("text")
+        opt.pop("label", None)
+        out.append(opt)
+    return out
+
+
 def database_rows_to_mbe_cards(rows):
     """Convert mbe_cards database rows into trap-trainer card dictionaries."""
     cards = []
@@ -583,7 +602,7 @@ def database_rows_to_mbe_cards(rows):
                 "scenario": scenario or "",
                 "q": question or "Choose the best answer.",
                 "ru": rule_hint or shortcut or "",
-                "options": options,
+                "options": normalize_trainer_options(options),
                 "_b": False,
                 "plain": plain or "",
                 "source": source or "App database",
