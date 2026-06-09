@@ -5,10 +5,10 @@ then paste the output into .streamlit/secrets.toml (locally) or into the
 Streamlit Cloud "Secrets" box (when deployed).
 
 Usage:
-    python make_user.py <username> "<Display Name>" "<password>"
+    python scripts/make_user.py <username> "<Display Name>" "<password>"
 
 Example:
-    python make_user.py alice "Alice Smith" "her-temporary-password"
+    python scripts/make_user.py alice "Alice Smith" "her-temporary-password"
 
 To revoke access, delete that user's block from secrets and save.
 """

@@ -11,10 +11,12 @@ Expected document structure (Word paragraph styles):
                      Conclusion          -> conclusion section
 
 Usage:
-    python import_plug_play_docx.py "MEE_Plug_and_Play_Essay_Templates.docx"
+    python scripts/import_plug_play_docx.py "MEE_Plug_and_Play_Essay_Templates.docx"
 
 Re-running is safe: a template with the same subject + title + source is skipped.
 """
+
+import _bootstrap  # noqa: F401
 
 import re
 import sys

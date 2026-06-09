@@ -1,181 +1,997 @@
-﻿import sqlite3
+import sqlite3
+import shutil
+import os
+import time
+from contextlib import closing, contextmanager
 from datetime import datetime, timedelta
+from pathlib import Path
 
-DB_NAME = "mee_reflex.db"
+DEFAULT_DB_NAME = "mee_trainer.db"
+DB_NAME = os.environ.get("MEE_TRAINER_DB", DEFAULT_DB_NAME)
+LEGACY_DB_NAME = "mee_reflex.db"
+PUBLIC_SEED_TABLES = (
+    "questions",
+    "outline_rules",
+    "plug_play_templates",
+    "rule_flashcards",
+)
+PUBLIC_SEED_COUNT_SQL = {
+    "questions": 'SELECT COUNT(*) FROM "questions"',
+    "outline_rules": 'SELECT COUNT(*) FROM "outline_rules"',
+    "plug_play_templates": 'SELECT COUNT(*) FROM "plug_play_templates"',
+    "rule_flashcards": 'SELECT COUNT(*) FROM "rule_flashcards"',
+}
+PUBLIC_SEED_DELETE_SQL = {
+    "questions": 'DELETE FROM "questions"',
+    "outline_rules": 'DELETE FROM "outline_rules"',
+    "plug_play_templates": 'DELETE FROM "plug_play_templates"',
+    "rule_flashcards": 'DELETE FROM "rule_flashcards"',
+}
+PUBLIC_SEED_INSERT_SQL = {
+    "questions": 'INSERT INTO "questions" SELECT * FROM seed."questions"',
+    "outline_rules": 'INSERT INTO "outline_rules" SELECT * FROM seed."outline_rules"',
+    "plug_play_templates": 'INSERT INTO "plug_play_templates" SELECT * FROM seed."plug_play_templates"',
+    "rule_flashcards": 'INSERT INTO "rule_flashcards" SELECT * FROM seed."rule_flashcards"',
+}
+
+_READ_CACHE = {}
+_READ_CACHE_TTL_SECONDS = 45
+
+_INDEX_STATEMENTS = (
+    "CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_active_july ON questions(active_for_july_2026)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_next_review ON questions(next_review_at)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_july_status ON questions(july_2026_status)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_exam_year ON questions(exam_year)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_last_practiced ON questions(last_practiced_at)",
+    "CREATE INDEX IF NOT EXISTS idx_attempts_question_id ON attempts(question_id)",
+    "CREATE INDEX IF NOT EXISTS idx_app_users_username ON app_users(username)",
+    "CREATE INDEX IF NOT EXISTS idx_mbe_cards_card_uid ON mbe_cards(card_uid)",
+    "CREATE INDEX IF NOT EXISTS idx_mbe_cards_subject ON mbe_cards(subject)",
+)
+
+
+def _read_cached(cache_key, loader):
+    now = time.monotonic()
+    entry = _READ_CACHE.get(cache_key)
+    if entry is not None and now - entry[0] < _READ_CACHE_TTL_SECONDS:
+        return entry[1]
+    value = loader()
+    _READ_CACHE[cache_key] = (now, value)
+    return value
+
+
+def invalidate_read_cache():
+    _READ_CACHE.clear()
+SQLITE_TIMEOUT_SECONDS = 30
+SQLITE_BUSY_TIMEOUT_MS = 30000
+
+
+def _connect_sqlite(db_path, *, use_wal=False):
+    """Open SQLite with safe lock waiting instead of bypassing locks."""
+    conn = sqlite3.connect(str(db_path), timeout=SQLITE_TIMEOUT_SECONDS)
+    conn.execute("PRAGMA busy_timeout = 30000")
+    conn.execute("PRAGMA foreign_keys = ON")
+
+    if use_wal:
+        try:
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
+        except sqlite3.DatabaseError:
+            # Some hosted/readonly filesystems may reject WAL; the timeout still helps.
+            pass
+
+    return conn
+
+
+def _table_count_for_path(db_path, table_name):
+    if table_name not in PUBLIC_SEED_COUNT_SQL:
+        return 0
+    try:
+        with closing(_connect_sqlite(db_path)) as conn:
+            row = conn.execute(PUBLIC_SEED_COUNT_SQL[table_name]).fetchone()
+            return int(row[0] or 0)
+    except Exception:
+        return 0
+
+
+def _seed_missing_public_content(db_path, seed_path):
+    """Backfill public study content from the bundled seed DB into an empty runtime DB."""
+    if not db_path.exists() or not seed_path.exists():
+        return
+
+    seed_tables = [
+        table
+        for table in PUBLIC_SEED_TABLES
+        if _table_count_for_path(db_path, table) == 0 and _table_count_for_path(seed_path, table) > 0
+    ]
+    if not seed_tables:
+        return
+
+    with write_transaction(db_path) as conn:
+        conn.execute("ATTACH DATABASE ? AS seed", (str(seed_path),))
+        try:
+            for table in seed_tables:
+                conn.execute(PUBLIC_SEED_DELETE_SQL[table])
+                conn.execute(PUBLIC_SEED_INSERT_SQL[table])
+        finally:
+            conn.execute("DETACH DATABASE seed")
+
+
+def _ensure_database_file():
+    db_path = Path(DB_NAME)
+    legacy_path = Path(LEGACY_DB_NAME)
+
+    if not legacy_path.exists():
+        return
+
+    if DB_NAME != DEFAULT_DB_NAME:
+        return
+
+    if not db_path.exists():
+        shutil.copy2(legacy_path, db_path)
+        return
+
+    _seed_missing_public_content(db_path, legacy_path)
 
 
 def get_connection():
-    return sqlite3.connect(DB_NAME)
+    _ensure_database_file()
+    return _connect_sqlite(DB_NAME, use_wal=True)
+
+
+def fetch_all(query, params=()):
+    """Run a parameterized read query and return all rows."""
+    with closing(get_connection()) as conn:
+        return conn.execute(query, params).fetchall()
+
+
+def fetch_one(query, params=()):
+    """Run a parameterized read query and return one row."""
+    with closing(get_connection()) as conn:
+        return conn.execute(query, params).fetchone()
+
+
+def execute_write(query, params=()):
+    """Run a single parameterized write query and commit it."""
+    with write_transaction() as conn:
+        conn.execute(query, params)
+
+
+@contextmanager
+def write_transaction(db_path=None):
+    """Open a write transaction and always close the connection."""
+    conn = _connect_sqlite(db_path, use_wal=True) if db_path is not None else get_connection()
+    try:
+        yield conn
+        conn.commit()
+        invalidate_read_cache()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def question_exists(exam_name, question_number, subject, source=None):
+    """Return whether a question already exists for the identifying fields."""
+    if source is None:
+        return fetch_one(
+            """
+            SELECT 1
+            FROM questions
+            WHERE exam_name = ? AND question_number = ? AND subject = ?
+            LIMIT 1
+            """,
+            (exam_name, str(question_number), subject),
+        ) is not None
+
+    return fetch_one(
+        """
+        SELECT 1
+        FROM questions
+        WHERE exam_name = ? AND question_number = ? AND subject = ? AND source = ?
+        LIMIT 1
+        """,
+        (exam_name, str(question_number), subject, source),
+    ) is not None
+
+
+def question_import_key(exam_name, question_number):
+    """Return the normalized key importers use to match existing questions."""
+    normalized_number = str(question_number or "").strip().lower().lstrip("0") or "0"
+    return (str(exam_name or "").strip().lower(), normalized_number)
+
+
+def get_question_import_index(include_model_points=False):
+    """Return existing questions keyed by exam name and question number for importers."""
+    if include_model_points:
+        rows = fetch_all("SELECT id, exam_name, question_number, subject, model_points FROM questions")
+    else:
+        rows = fetch_all("SELECT id, exam_name, question_number FROM questions")
+    return {question_import_key(row[1], row[2]): row for row in rows}
 
 
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _add_missing_columns(cursor, table_name, column_definitions):
+    """Add allowlisted columns for legacy databases without repeating migration code."""
+    if table_name not in {"questions", "attempts", "app_users"}:
+        raise ValueError(f"Unsupported migration table: {table_name}")
+
+    for column_name in column_definitions:
+        if not column_name.replace("_", "").isalnum():
+            raise ValueError(f"Unsafe migration column: {column_name}")
+
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+
+    for column_name, ddl in column_definitions.items():
+        if column_name not in existing_columns:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl}")
+
+
+_db_ready = False
+
+
+def ensure_db_initialized():
+    global _db_ready
+    if _db_ready:
+        return
+    init_db()
+    _db_ready = True
+
+
 def init_db():
-    conn = get_connection()
-    c = conn.cursor()
+    with write_transaction() as conn:
+        c = conn.cursor()
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS questions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            exam_name TEXT NOT NULL,
-            question_number TEXT NOT NULL,
-            subject TEXT NOT NULL,
-            question_text TEXT,
-            call_of_question TEXT,
-            tested_issues TEXT,
-            rules TEXT,
-            trigger_facts TEXT,
-            traps TEXT,
-            model_points TEXT,
-            active_for_july_2026 INTEGER DEFAULT 1,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exam_name TEXT NOT NULL,
+                question_number TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                question_text TEXT,
+                call_of_question TEXT,
+                tested_issues TEXT,
+                rules TEXT,
+                trigger_facts TEXT,
+                traps TEXT,
+                model_points TEXT,
+                active_for_july_2026 INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS attempts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            question_id INTEGER NOT NULL,
-            mode TEXT NOT NULL,
-            response_text TEXT,
-            self_score INTEGER,
-            missed_issues TEXT,
-            notes TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(question_id) REFERENCES questions(id)
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question_id INTEGER NOT NULL,
+                mode TEXT NOT NULL,
+                response_text TEXT,
+                self_score INTEGER,
+                missed_issues TEXT,
+                notes TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(question_id) REFERENCES questions(id)
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS outline_rules (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject TEXT,
-            rule_title TEXT,
-            appearance_rate TEXT,
-            rule_text TEXT,
-            pdf_page INTEGER,
-            printed_page TEXT,
-            source_file TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS outline_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT,
+                rule_title TEXT,
+                appearance_rate TEXT,
+                rule_text TEXT,
+                pdf_page INTEGER,
+                printed_page TEXT,
+                source_file TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS plug_play_templates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject TEXT,
-            module_title TEXT,
-            scenario_trigger TEXT,
-            issue_statement TEXT,
-            rule_text TEXT,
-            analysis_template TEXT,
-            conclusion_template TEXT,
-            testing_notes TEXT,
-            pdf_page INTEGER,
-            source_file TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS plug_play_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT,
+                module_title TEXT,
+                scenario_trigger TEXT,
+                issue_statement TEXT,
+                rule_text TEXT,
+                analysis_template TEXT,
+                conclusion_template TEXT,
+                testing_notes TEXT,
+                pdf_page INTEGER,
+                source_file TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS app_users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT,
-            name TEXT,
-            password_hash TEXT NOT NULL,
-            is_admin INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS app_users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT,
+                name TEXT,
+                password_hash TEXT NOT NULL,
+                remember_token_hash TEXT,
+                remember_created_at TEXT,
+                is_admin INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS rule_attempts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject TEXT,
-            rule_title TEXT,
-            source_type TEXT,
-            prompt TEXT,
-            memory_rule TEXT,
-            final_rule TEXT,
-            score INTEGER,
-            missed_elements TEXT,
-            notes TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS rule_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT,
+                rule_title TEXT,
+                source_type TEXT,
+                prompt TEXT,
+                memory_rule TEXT,
+                final_rule TEXT,
+                score INTEGER,
+                missed_elements TEXT,
+                notes TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS rule_flashcards (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject TEXT,
-            rule_title TEXT,
-            rule_text TEXT,
-            source_file TEXT,
-            tags TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS rule_flashcards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT,
+                rule_title TEXT,
+                rule_text TEXT,
+                source_file TEXT,
+                tags TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    # Add new question columns safely if the old database already exists.
-    question_extra_columns = {
-        "exam_year": "INTEGER",
-        "exam_season": "TEXT DEFAULT ''",
-        "secondary_subjects": "TEXT DEFAULT ''",
-        "july_2026_status": "TEXT DEFAULT 'Active standalone MEE'",
-        "priority": "INTEGER DEFAULT 3",
-        "source": "TEXT DEFAULT ''",
-        "last_practiced_at": "TEXT",
-        "next_review_at": "TEXT"
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS mbe_cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_uid TEXT UNIQUE NOT NULL,
+                adv_id TEXT,
+                subject TEXT,
+                subtopic TEXT,
+                title TEXT,
+                scenario TEXT,
+                question TEXT,
+                rule_hint TEXT,
+                options_json TEXT,
+                plain_english TEXT,
+                shortcut TEXT,
+                source TEXT,
+                source_row INTEGER,
+                raw_json TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS mbe_practice_stats (
+                username TEXT PRIMARY KEY,
+                stats_json TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS bridge_drill_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                card_uid TEXT,
+                subject TEXT,
+                subtopic TEXT,
+                rule_draft TEXT,
+                picked_letter TEXT,
+                correct_letter TEXT,
+                draft_score INTEGER,
+                pick_correct INTEGER DEFAULT 0,
+                skipped_draft INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Add new question columns safely if the old database already exists.
+        question_extra_columns = {
+            "exam_year": "INTEGER",
+            "exam_season": "TEXT DEFAULT ''",
+            "secondary_subjects": "TEXT DEFAULT ''",
+            "july_2026_status": "TEXT DEFAULT 'Active standalone MEE'",
+            "priority": "INTEGER DEFAULT 3",
+            "source": "TEXT DEFAULT ''",
+            "last_practiced_at": "TEXT",
+            "next_review_at": "TEXT"
+        }
+
+        _add_missing_columns(c, "questions", question_extra_columns)
+
+        # Add new attempt columns safely if the old database already exists.
+        attempt_extra_columns = {
+            "minutes_spent": "INTEGER DEFAULT 0"
+        }
+
+        _add_missing_columns(c, "attempts", attempt_extra_columns)
+
+        user_extra_columns = {
+            "remember_token_hash": "TEXT",
+            "remember_created_at": "TEXT",
+        }
+        _add_missing_columns(c, "app_users", user_extra_columns)
+
+        for index_sql in _INDEX_STATEMENTS:
+            c.execute(index_sql)
+
+
+def upsert_mbe_cards(cards):
+    """Insert or update MBE drill cards in the app database."""
+    if not cards:
+        return {"inserted": 0, "updated": 0, "skipped": 0}
+
+    from mbe_import_services import (
+        builtin_duplicate_lookup,
+        mbe_card_content_fingerprint,
+        normalize_mbe_subject,
+    )
+
+    inserted = 0
+    updated = 0
+    skipped = 0
+    skipped_builtin = 0
+    timestamp = now()
+    builtin_lookup = builtin_duplicate_lookup()
+
+    with write_transaction() as conn:
+        for card in cards:
+            if not card or not card.get("card_uid"):
+                skipped += 1
+                continue
+            adv_id = str(card.get("adv_id") or "").strip()
+            content_fp = mbe_card_content_fingerprint(
+                subject=card.get("subject"),
+                subtopic=card.get("subtopic"),
+                scenario=card.get("scenario"),
+                question=card.get("question"),
+                options_json=card.get("options_json"),
+            )
+            if (adv_id and adv_id in builtin_lookup["adv_ids"]) or (
+                content_fp in builtin_lookup["content_fps"]
+            ):
+                skipped_builtin += 1
+                continue
+
+            card = {
+                **card,
+                "subject": normalize_mbe_subject(card.get("subject")),
+            }
+
+            existing = conn.execute(
+                "SELECT id FROM mbe_cards WHERE card_uid = ? LIMIT 1",
+                (card.get("card_uid"),),
+            ).fetchone()
+
+            params = (
+                card.get("card_uid"),
+                card.get("adv_id"),
+                card.get("subject"),
+                card.get("subtopic"),
+                card.get("title"),
+                card.get("scenario"),
+                card.get("question"),
+                card.get("rule_hint"),
+                card.get("options_json"),
+                card.get("plain_english"),
+                card.get("shortcut"),
+                card.get("source"),
+                card.get("source_row"),
+                card.get("raw_json"),
+                timestamp,
+                timestamp,
+            )
+
+            conn.execute(
+                """
+                INSERT INTO mbe_cards (
+                    card_uid,
+                    adv_id,
+                    subject,
+                    subtopic,
+                    title,
+                    scenario,
+                    question,
+                    rule_hint,
+                    options_json,
+                    plain_english,
+                    shortcut,
+                    source,
+                    source_row,
+                    raw_json,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(card_uid) DO UPDATE SET
+                    adv_id = excluded.adv_id,
+                    subject = excluded.subject,
+                    subtopic = excluded.subtopic,
+                    title = excluded.title,
+                    scenario = excluded.scenario,
+                    question = excluded.question,
+                    rule_hint = excluded.rule_hint,
+                    options_json = excluded.options_json,
+                    plain_english = excluded.plain_english,
+                    shortcut = excluded.shortcut,
+                    source = excluded.source,
+                    source_row = excluded.source_row,
+                    raw_json = excluded.raw_json,
+                    updated_at = excluded.updated_at
+                """,
+                params,
+            )
+
+            if existing:
+                updated += 1
+            else:
+                inserted += 1
+
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped,
+        "skipped_builtin_duplicate": skipped_builtin,
     }
 
-    c.execute("PRAGMA table_info(questions)")
-    existing_question_columns = {row[1] for row in c.fetchall()}
 
-    for column_name, ddl in question_extra_columns.items():
-        if column_name not in existing_question_columns:
-            c.execute(f"ALTER TABLE questions ADD COLUMN {column_name} {ddl}")
+def delete_mbe_cards_by_ids(card_ids):
+    """Delete MBE cards by primary key id."""
+    ids = [int(card_id) for card_id in (card_ids or []) if card_id is not None]
+    if not ids:
+        return 0
+    deleted = 0
+    with write_transaction() as conn:
+        for card_id in ids:
+            cur = conn.execute("DELETE FROM mbe_cards WHERE id = ?", (card_id,))
+            deleted += int(cur.rowcount or 0)
+    return deleted
 
-    # Add new attempt columns safely if the old database already exists.
-    attempt_extra_columns = {
-        "minutes_spent": "INTEGER DEFAULT 0"
+
+def remove_mbe_cards_duplicating_builtin(*, dry_run=False):
+    """Remove app-database MBE cards that repeat the built-in trainer deck."""
+    from mbe_import_services import find_builtin_duplicate_db_rows
+
+    rows = get_mbe_cards()
+    dupes = find_builtin_duplicate_db_rows(rows)
+    removed = []
+    for row in dupes:
+        removed.append(
+            {
+                "id": row[0],
+                "subject": row[3],
+                "subtopic": row[4],
+                "title": row[5],
+            }
+        )
+    if dry_run or not removed:
+        return {"removed": 0, "dry_run": dry_run, "candidates": removed}
+    deleted = delete_mbe_cards_by_ids([item["id"] for item in removed])
+    return {"removed": deleted, "dry_run": False, "candidates": removed}
+
+
+def consolidate_mbe_card_subjects_and_remove_dupes(*, dry_run=False):
+    """Normalize subject labels (e.g. Criminal Law) and delete within-DB duplicates."""
+    import json
+
+    from mbe_import_services import mbe_card_content_fingerprint, normalize_mbe_subject
+
+    renamed = []
+    with write_transaction() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, subject, raw_json
+            FROM mbe_cards
+            ORDER BY id
+            """
+        ).fetchall()
+        for db_id, subject, raw_json in rows:
+            normalized = normalize_mbe_subject(subject)
+            if normalized == subject:
+                continue
+            renamed.append({"id": db_id, "from": subject, "to": normalized})
+            if dry_run:
+                continue
+            updated_raw = raw_json
+            if raw_json:
+                try:
+                    payload = json.loads(raw_json)
+                    payload["subj"] = normalized
+                    updated_raw = json.dumps(payload, ensure_ascii=False)
+                except Exception:
+                    updated_raw = raw_json
+            conn.execute(
+                """
+                UPDATE mbe_cards
+                SET subject = ?, raw_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (normalized, updated_raw, now(), db_id),
+            )
+
+    rows = get_mbe_cards()
+    seen = {}
+    duplicate_candidates = []
+    for row in rows:
+        (
+            db_id,
+            _card_uid,
+            adv_id,
+            subject,
+            subtopic,
+            title,
+            scenario,
+            question,
+            _rule_hint,
+            options_json,
+            *_rest,
+        ) = row
+        content_fp = mbe_card_content_fingerprint(
+            subject=subject,
+            subtopic=subtopic,
+            scenario=scenario,
+            question=question,
+            options_json=options_json,
+        )
+        if content_fp not in seen:
+            seen[content_fp] = db_id
+            continue
+        duplicate_candidates.append(
+            {
+                "id": db_id,
+                "keep_id": seen[content_fp],
+                "subject": subject,
+                "subtopic": subtopic,
+                "title": (title or question or "")[:72],
+            }
+        )
+
+    removed = 0
+    if duplicate_candidates and not dry_run:
+        removed = delete_mbe_cards_by_ids([item["id"] for item in duplicate_candidates])
+
+    return {
+        "dry_run": dry_run,
+        "renamed": renamed,
+        "renamed_count": len(renamed),
+        "duplicate_candidates": duplicate_candidates,
+        "removed_duplicates": removed,
     }
 
-    c.execute("PRAGMA table_info(attempts)")
-    existing_attempt_columns = {row[1] for row in c.fetchall()}
 
-    for column_name, ddl in attempt_extra_columns.items():
-        if column_name not in existing_attempt_columns:
-            c.execute(f"ALTER TABLE attempts ADD COLUMN {column_name} {ddl}")
+def get_mbe_cards():
+    """Return app-stored MBE cards for injection into the trainer."""
+    return fetch_all(
+        """
+        SELECT
+            id,
+            card_uid,
+            adv_id,
+            subject,
+            subtopic,
+            title,
+            scenario,
+            question,
+            rule_hint,
+            options_json,
+            plain_english,
+            shortcut,
+            source
+        FROM mbe_cards
+        ORDER BY subject, subtopic, id
+        """
+    )
 
-    conn.commit()
-    conn.close()
+
+def count_mbe_cards():
+    row = fetch_one("SELECT COUNT(*) FROM mbe_cards")
+    return int(row[0] or 0) if row else 0
+
+
+def get_mbe_content_quality(limit=12):
+    """Return compact read-only diagnostics for MBE card inventory and practice state."""
+    import json
+
+    from mbe_import_services import mbe_card_content_fingerprint
+
+    rows = fetch_all(
+        """
+        SELECT
+            id,
+            card_uid,
+            adv_id,
+            subject,
+            subtopic,
+            title,
+            scenario,
+            question,
+            options_json,
+            source
+        FROM mbe_cards
+        ORDER BY subject, subtopic, id
+        """
+    )
+
+    by_source = {}
+    by_subject = {}
+    source_rows = {}
+    subject_rows = {}
+    content_seen = {}
+    adv_seen = {}
+    content_dupes = []
+    adv_dupes = []
+
+    for row in rows:
+        (
+            card_id,
+            _card_uid,
+            adv_id,
+            subject,
+            subtopic,
+            title,
+            scenario,
+            question,
+            options_json,
+            source,
+        ) = row
+        subject = subject or "Uncategorized"
+        source = source or "App database"
+        by_source[source] = by_source.get(source, 0) + 1
+        by_subject[subject] = by_subject.get(subject, 0) + 1
+        source_rows.setdefault(source, []).append(card_id)
+        subject_rows.setdefault(subject, []).append(card_id)
+
+        content_fp = mbe_card_content_fingerprint(
+            subject=subject,
+            subtopic=subtopic,
+            scenario=scenario,
+            question=question,
+            options_json=options_json,
+        )
+        if content_fp in content_seen:
+            content_dupes.append((card_id, content_seen[content_fp], subject, subtopic, title or question))
+        else:
+            content_seen[content_fp] = card_id
+
+        adv_id = str(adv_id or "").strip()
+        if adv_id:
+            if adv_id in adv_seen:
+                adv_dupes.append((card_id, adv_seen[adv_id], subject, subtopic, title or question))
+            else:
+                adv_seen[adv_id] = card_id
+
+    practice_rows = []
+    for username, stats_json, updated_at in fetch_all(
+        """
+        SELECT username, stats_json, updated_at
+        FROM mbe_practice_stats
+        ORDER BY username
+        """
+    ):
+        try:
+            blob = json.loads(stats_json or "{}")
+        except Exception:
+            blob = {}
+        stats = blob.get("cardStats") or {}
+        practiced = sum(
+            1
+            for value in stats.values()
+            if isinstance(value, dict) and (value.get("timesSeen") or value.get("practiceHistory"))
+        )
+        snoozed = sum(
+            1
+            for value in stats.values()
+            if isinstance(value, dict) and value.get("snoozedUntil")
+        )
+        practice_rows.append((username, len(stats), practiced, snoozed, updated_at))
+
+    drill_cards = sum(count for source, count in by_source.items() if source != "adaptibar_rules")
+    flashcards = by_source.get("adaptibar_rules", 0)
+
+    return {
+        "summary": {
+            "total_cards": len(rows),
+            "drill_cards": drill_cards,
+            "flashcards": flashcards,
+            "sources": len(by_source),
+            "subjects": len(by_subject),
+            "content_duplicates": len(content_dupes),
+            "adv_id_duplicates": len(adv_dupes),
+        },
+        "by_source": sorted(by_source.items(), key=lambda item: (-item[1], item[0]))[:limit],
+        "by_subject": sorted(by_subject.items(), key=lambda item: item[0])[:limit],
+        "practice_rows": practice_rows[:limit],
+        "duplicate_rows": (content_dupes + adv_dupes)[:limit],
+    }
+
+
+def get_mbe_practice_stats(username):
+    """Return the saved MBE trap-trainer practice blob for a user, or None."""
+    if not username:
+        return None
+    row = fetch_one(
+        "SELECT stats_json FROM mbe_practice_stats WHERE username = ? LIMIT 1",
+        (username,),
+    )
+    if not row or not row[0]:
+        return None
+    try:
+        import json
+
+        return json.loads(row[0])
+    except Exception:
+        return None
+
+
+def _merge_unique_json_items(existing_items, incoming_items):
+    """Merge list-like JSON records without duplicating identical entries."""
+    import json
+
+    merged = []
+    seen = set()
+    for item in list(existing_items or []) + list(incoming_items or []):
+        try:
+            sig = json.dumps(item, sort_keys=True, ensure_ascii=False)
+        except TypeError:
+            sig = str(item)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        merged.append(item)
+    return merged
+
+
+def merge_mbe_practice_stats(existing_blob, incoming_blob):
+    """Merge an incoming MBE practice sync payload with the saved user blob."""
+    if not isinstance(existing_blob, dict):
+        existing_blob = {}
+    if not isinstance(incoming_blob, dict):
+        incoming_blob = {}
+
+    merged = {**existing_blob, **incoming_blob}
+
+    existing_stats = existing_blob.get("cardStats") or {}
+    incoming_stats = incoming_blob.get("cardStats") or {}
+    card_stats = {}
+    for key in set(existing_stats) | set(incoming_stats):
+        old_value = existing_stats.get(key) or {}
+        new_value = incoming_stats.get(key) or {}
+        if isinstance(old_value, dict) and isinstance(new_value, dict):
+            combined = {**old_value, **new_value}
+            combined["practiceHistory"] = _merge_unique_json_items(
+                old_value.get("practiceHistory"),
+                new_value.get("practiceHistory"),
+            )
+            card_stats[key] = combined
+        else:
+            card_stats[key] = new_value or old_value
+    merged["cardStats"] = card_stats
+
+    for list_key in ("errorList", "sessionLog", "masteredCards"):
+        merged[list_key] = _merge_unique_json_items(
+            existing_blob.get(list_key),
+            incoming_blob.get(list_key),
+        )
+
+    return merged
+
+
+def get_mbe_mastery_stats(username):
+    """Return MBE mastery summary for the Streamlit dashboard.
+
+    Joins mbe_cards (for subject names) with the per-user practice JSON blob.
+    Returns:
+      remaining  – active (non-mastered) card count
+      mastered   – mastered card count
+      by_subject – list of (subject, remaining, mastered) sorted by remaining desc
+    """
+    blob = get_mbe_practice_stats(username) or {}
+    card_stats = blob.get("cardStats") or {}
+    if not card_stats:
+        return {"remaining": 0, "mastered": 0, "by_subject": []}
+
+    # Build lookup: adv_id -> subject, card_uid -> subject
+    card_rows = fetch_all("SELECT card_uid, adv_id, subject FROM mbe_cards")
+    uid_to_subj = {row[0]: row[2] for row in card_rows if row[0]}
+    adv_to_subj = {str(row[1]): row[2] for row in card_rows if row[1]}
+
+    subject_map = {}
+    for key, stats in card_stats.items():
+        if not isinstance(stats, dict) or key.startswith("__"):
+            continue
+        # Resolve subject: adv_id lookup, then uid lookup, then parse key
+        subj = adv_to_subj.get(str(key)) or uid_to_subj.get(str(key))
+        if not subj and "|" in key:
+            subj = key.split("|")[0]
+        subj = subj or "Unknown"
+        if subj not in subject_map:
+            subject_map[subj] = {"remaining": 0, "mastered": 0}
+        if stats.get("isMastered"):
+            subject_map[subj]["mastered"] += 1
+        else:
+            subject_map[subj]["remaining"] += 1
+
+    total_remaining = sum(v["remaining"] for v in subject_map.values())
+    total_mastered = sum(v["mastered"] for v in subject_map.values())
+    by_subject = sorted(
+        [(s, v["remaining"], v["mastered"]) for s, v in subject_map.items()],
+        key=lambda row: (-row[1], row[0]),
+    )
+    return {
+        "remaining": total_remaining,
+        "mastered": total_mastered,
+        "by_subject": by_subject,
+    }
+
+
+def save_mbe_practice_stats(username, stats_blob):
+    """Persist the MBE trap-trainer practice blob for a user."""
+    if not username or not isinstance(stats_blob, dict):
+        return False
+
+    import json
+
+    merged_blob = merge_mbe_practice_stats(get_mbe_practice_stats(username), stats_blob)
+    payload = json.dumps(merged_blob, ensure_ascii=False)
+    timestamp = now()
+    with write_transaction() as conn:
+        conn.execute(
+            """
+            INSERT INTO mbe_practice_stats (username, stats_json, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(username) DO UPDATE SET
+                stats_json = excluded.stats_json,
+                updated_at = excluded.updated_at
+            """,
+            (username, payload, timestamp),
+        )
+    invalidate_read_cache()
+    return True
 
 
 def add_outline_rule(subject, rule_title, appearance_rate, rule_text, pdf_page, printed_page, source_file):
-    conn = get_connection()
-    c = conn.cursor()
+    with write_transaction() as conn:
+        existing = conn.execute("""
+            SELECT id
+            FROM outline_rules
+            WHERE source_file = ?
+            AND subject = ?
+            AND rule_title = ?
+            AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
+            LIMIT 1
+        """, (source_file, subject, rule_title, pdf_page, pdf_page)).fetchone()
 
-    c.execute("""
-        SELECT id
-        FROM outline_rules
-        WHERE source_file = ?
-        AND subject = ?
-        AND rule_title = ?
-        AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
-        LIMIT 1
-    """, (source_file, subject, rule_title, pdf_page, pdf_page))
+        if existing:
+            return False
 
-    existing = c.fetchone()
-
-    if existing:
-        conn.close()
-        return False
-
-    c.execute("""
-        INSERT INTO outline_rules (
+        conn.execute("""
+            INSERT INTO outline_rules (
+                subject,
+                rule_title,
+                appearance_rate,
+                rule_text,
+                pdf_page,
+                printed_page,
+                source_file,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
             subject,
             rule_title,
             appearance_rate,
@@ -183,29 +999,13 @@ def add_outline_rule(subject, rule_title, appearance_rate, rule_text, pdf_page, 
             pdf_page,
             printed_page,
             source_file,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        subject,
-        rule_title,
-        appearance_rate,
-        rule_text,
-        pdf_page,
-        printed_page,
-        source_file,
-        now()
-    ))
+            now()
+        ))
 
-    conn.commit()
-    conn.close()
     return True
 
 
 def get_outline_rules(subject=None):
-    conn = get_connection()
-    c = conn.cursor()
-
     query = """
         SELECT
             id,
@@ -227,16 +1027,10 @@ def get_outline_rules(subject=None):
 
     query += " ORDER BY subject, pdf_page, rule_title"
 
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(query, params)
 
 
 def search_outline_rules(query, subject=None, limit=5):
-    conn = get_connection()
-    c = conn.cursor()
-
     search_terms = [
         term.strip()
         for term in str(query or "").replace(";", " ").replace(",", " ").split()
@@ -280,58 +1074,45 @@ def search_outline_rules(query, subject=None, limit=5):
     """
     params.extend([subject, subject, limit])
 
-    c.execute(sql, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(sql, params)
 
 
 def add_rule_flashcard(subject, rule_title, rule_text, source_file, tags=""):
-    conn = get_connection()
-    c = conn.cursor()
+    with write_transaction() as conn:
+        existing = conn.execute("""
+            SELECT id
+            FROM rule_flashcards
+            WHERE source_file = ?
+            AND rule_title = ?
+            LIMIT 1
+        """, (source_file, rule_title)).fetchone()
 
-    c.execute("""
-        SELECT id
-        FROM rule_flashcards
-        WHERE source_file = ?
-        AND rule_title = ?
-        LIMIT 1
-    """, (source_file, rule_title))
+        if existing:
+            return False
 
-    existing = c.fetchone()
-
-    if existing:
-        conn.close()
-        return False
-
-    c.execute("""
-        INSERT INTO rule_flashcards (
+        conn.execute("""
+            INSERT INTO rule_flashcards (
+                subject,
+                rule_title,
+                rule_text,
+                source_file,
+                tags,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
             subject,
             rule_title,
             rule_text,
             source_file,
             tags,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        subject,
-        rule_title,
-        rule_text,
-        source_file,
-        tags,
-        now(),
-    ))
+            now(),
+        ))
 
-    conn.commit()
-    conn.close()
     return True
 
 
-def get_rule_flashcards(subject=None):
-    conn = get_connection()
-    c = conn.cursor()
-
+def _load_rule_flashcards(subject=None):
     query = """
         SELECT
             id,
@@ -351,16 +1132,18 @@ def get_rule_flashcards(subject=None):
 
     query += " ORDER BY subject, rule_title"
 
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(query, params)
+
+
+def get_rule_flashcards(subject=None):
+    subject_key = "" if not subject or subject == "All" else subject
+    return _read_cached(
+        f"rule_flashcards:{subject_key}",
+        lambda: _load_rule_flashcards(subject),
+    )
 
 
 def search_rule_flashcards(query, subject=None, limit=30):
-    conn = get_connection()
-    c = conn.cursor()
-
     sql = """
         SELECT
             id,
@@ -380,9 +1163,7 @@ def search_rule_flashcards(query, subject=None, limit=30):
         pass
 
     sql += " ORDER BY subject, rule_title"
-    c.execute(sql, params)
-    rows = c.fetchall()
-    conn.close()
+    rows = fetch_all(sql, params)
 
     stopwords = {
         "about", "again", "against", "answer", "because", "could", "court",
@@ -565,27 +1346,36 @@ def add_plug_play_template(
     pdf_page,
     source_file
 ):
-    conn = get_connection()
-    c = conn.cursor()
+    with write_transaction() as conn:
+        existing = conn.execute("""
+            SELECT id
+            FROM plug_play_templates
+            WHERE source_file = ?
+            AND subject = ?
+            AND module_title = ?
+            AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
+            LIMIT 1
+        """, (source_file, subject, module_title, pdf_page, pdf_page)).fetchone()
 
-    c.execute("""
-        SELECT id
-        FROM plug_play_templates
-        WHERE source_file = ?
-        AND subject = ?
-        AND module_title = ?
-        AND (pdf_page = ? OR (pdf_page IS NULL AND ? IS NULL))
-        LIMIT 1
-    """, (source_file, subject, module_title, pdf_page, pdf_page))
+        if existing:
+            return False
 
-    existing = c.fetchone()
-
-    if existing:
-        conn.close()
-        return False
-
-    c.execute("""
-        INSERT INTO plug_play_templates (
+        conn.execute("""
+            INSERT INTO plug_play_templates (
+                subject,
+                module_title,
+                scenario_trigger,
+                issue_statement,
+                rule_text,
+                analysis_template,
+                conclusion_template,
+                testing_notes,
+                pdf_page,
+                source_file,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
             subject,
             module_title,
             scenario_trigger,
@@ -596,32 +1386,13 @@ def add_plug_play_template(
             testing_notes,
             pdf_page,
             source_file,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        subject,
-        module_title,
-        scenario_trigger,
-        issue_statement,
-        rule_text,
-        analysis_template,
-        conclusion_template,
-        testing_notes,
-        pdf_page,
-        source_file,
-        now()
-    ))
+            now()
+        ))
 
-    conn.commit()
-    conn.close()
     return True
 
 
 def get_plug_play_templates(subject=None):
-    conn = get_connection()
-    c = conn.cursor()
-
     query = """
         SELECT
             id,
@@ -646,10 +1417,7 @@ def get_plug_play_templates(subject=None):
 
     query += " ORDER BY subject, pdf_page, module_title"
 
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(query, params)
 
 
 def search_plug_play_templates(query, subject=None, limit=5):
@@ -726,71 +1494,6 @@ def search_plug_play_templates(query, subject=None, limit=5):
     return [row for _, row in scored[:limit]]
 
 
-def _unused_sql_search_plug_play_templates(query, subject=None, limit=5):
-    conn = get_connection()
-    c = conn.cursor()
-
-    search_terms = [
-        term.strip()
-        for term in str(query or "").replace(";", " ").replace(",", " ").split()
-        if len(term.strip()) >= 2
-    ]
-
-    sql = """
-        SELECT
-            id,
-            subject,
-            module_title,
-            scenario_trigger,
-            issue_statement,
-            rule_text,
-            analysis_template,
-            conclusion_template,
-            testing_notes,
-            pdf_page,
-            source_file
-        FROM plug_play_templates
-        WHERE 1=1
-    """
-    params = []
-
-    if search_terms:
-        sql += " AND ("
-        term_clauses = []
-
-        for term in search_terms:
-            term_clauses.append("""
-                (
-                    module_title LIKE ?
-                    OR scenario_trigger LIKE ?
-                    OR issue_statement LIKE ?
-                    OR rule_text LIKE ?
-                    OR analysis_template LIKE ?
-                    OR subject LIKE ?
-                )
-            """)
-            like = f"%{term}%"
-            params.extend([like, like, like, like, like, like])
-
-        sql += " OR ".join(term_clauses)
-        sql += ")"
-
-    sql += """
-        ORDER BY
-            CASE WHEN ? IS NOT NULL AND subject = ? THEN 0 ELSE 1 END,
-            subject,
-            pdf_page,
-            module_title
-        LIMIT ?
-    """
-    params.extend([subject, subject, limit])
-
-    c.execute(sql, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
-
 def find_best_plug_play_for_call(subject, call_text, question_text, tested_issues="", limit=3):
     candidates = search_plug_play_templates(
         f"{subject or ''} {call_text or ''} {tested_issues or ''}",
@@ -864,10 +1567,7 @@ def add_question(
     priority=3,
     source=""
 ):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    execute_write("""
         INSERT INTO questions (
             exam_name,
             question_number,
@@ -910,14 +1610,15 @@ def add_question(
         now()
     ))
 
-    conn.commit()
-    conn.close()
 
-
-def get_questions(active_only=False, subject=None, status=None, search=None, due_only=False):
-    conn = get_connection()
-    c = conn.cursor()
-
+def get_questions(
+    active_only=False,
+    subject=None,
+    status=None,
+    search=None,
+    due_only=False,
+    practice_ready_only=False,
+):
     query = """
         SELECT
             id,
@@ -934,6 +1635,13 @@ def get_questions(active_only=False, subject=None, status=None, search=None, due
 
     if active_only:
         query += " AND active_for_july_2026 = 1"
+
+    if practice_ready_only:
+        query += """
+            AND TRIM(COALESCE(question_text, '')) <> ''
+            AND TRIM(COALESCE(call_of_question, '')) <> ''
+            AND TRIM(COALESCE(model_points, '')) <> ''
+        """
 
     if subject and subject != "All":
         query += " AND subject = ?"
@@ -973,17 +1681,101 @@ def get_questions(active_only=False, subject=None, status=None, search=None, due
             question_number ASC
     """
 
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    return fetch_all(query, params)
+
+
+def get_question_bank_rows(
+    subject=None,
+    status=None,
+    topic=None,
+    exam_year=None,
+    active_only=False,
+    created_from=None,
+    created_to=None,
+):
+    """Return rows for the browse/filter Question Bank page."""
+    query = """
+        SELECT
+            id,
+            exam_name,
+            question_number,
+            subject,
+            exam_year,
+            exam_season,
+            july_2026_status,
+            priority,
+            source,
+            next_review_at,
+            created_at,
+            tested_issues
+        FROM questions
+        WHERE 1=1
+    """
+    params = []
+
+    if active_only:
+        query += " AND active_for_july_2026 = 1"
+
+    if subject and subject != "All":
+        query += " AND subject = ?"
+        params.append(subject)
+
+    if status and status != "All":
+        query += " AND july_2026_status = ?"
+        params.append(status)
+
+    if exam_year and exam_year != "All":
+        query += " AND exam_year = ?"
+        params.append(int(exam_year))
+
+    if created_from:
+        query += " AND date(created_at) >= date(?)"
+        params.append(str(created_from))
+
+    if created_to:
+        query += " AND date(created_at) <= date(?)"
+        params.append(str(created_to))
+
+    if topic:
+        query += """
+            AND (
+                tested_issues LIKE ?
+                OR rules LIKE ?
+                OR trigger_facts LIKE ?
+                OR traps LIKE ?
+                OR model_points LIKE ?
+                OR question_text LIKE ?
+                OR call_of_question LIKE ?
+            )
+        """
+        like = f"%{topic}%"
+        params.extend([like, like, like, like, like, like, like])
+
+    query += """
+        ORDER BY
+            exam_year DESC,
+            CASE exam_season WHEN 'July' THEN 2 WHEN 'February' THEN 1 ELSE 0 END DESC,
+            CAST(question_number AS INTEGER) ASC,
+            question_number ASC
+    """
+
+    return fetch_all(query, params)
+
+
+def get_exam_years():
+    return _read_cached("exam_years", lambda: [
+        row[0]
+        for row in fetch_all("""
+            SELECT DISTINCT exam_year
+            FROM questions
+            WHERE exam_year IS NOT NULL
+            ORDER BY exam_year DESC
+        """)
+    ])
 
 
 def get_question_by_id(question_id):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    return fetch_one("""
         SELECT
             id,
             exam_name,
@@ -1010,41 +1802,29 @@ def get_question_by_id(question_id):
         WHERE id = ?
     """, (question_id,))
 
-    row = c.fetchone()
-    conn.close()
-    return row
-
 
 def get_subjects():
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
-        SELECT DISTINCT subject
-        FROM questions
-        WHERE subject IS NOT NULL AND subject != ''
-        ORDER BY subject
-    """)
-
-    rows = [row[0] for row in c.fetchall()]
-    conn.close()
-    return rows
+    return _read_cached("subjects", lambda: [
+        row[0]
+        for row in fetch_all("""
+            SELECT DISTINCT subject
+            FROM questions
+            WHERE subject IS NOT NULL AND subject != ''
+            ORDER BY subject
+        """)
+    ])
 
 
 def get_statuses():
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
-        SELECT DISTINCT july_2026_status
-        FROM questions
-        WHERE july_2026_status IS NOT NULL AND july_2026_status != ''
-        ORDER BY july_2026_status
-    """)
-
-    rows = [row[0] for row in c.fetchall()]
-    conn.close()
-    return rows
+    return _read_cached("statuses", lambda: [
+        row[0]
+        for row in fetch_all("""
+            SELECT DISTINCT july_2026_status
+            FROM questions
+            WHERE july_2026_status IS NOT NULL AND july_2026_status != ''
+            ORDER BY july_2026_status
+        """)
+    ])
 
 
 def review_date_from_score(score):
@@ -1074,11 +1854,23 @@ def save_attempt(
     notes,
     minutes_spent=0
 ):
-    conn = get_connection()
-    c = conn.cursor()
+    practiced_at = now()
+    next_review_at = review_date_from_score(self_score)
 
-    c.execute("""
-        INSERT INTO attempts (
+    with write_transaction() as conn:
+        conn.execute("""
+            INSERT INTO attempts (
+                question_id,
+                mode,
+                response_text,
+                self_score,
+                missed_issues,
+                notes,
+                minutes_spent,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
             question_id,
             mode,
             response_text,
@@ -1086,37 +1878,18 @@ def save_attempt(
             missed_issues,
             notes,
             minutes_spent,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        question_id,
-        mode,
-        response_text,
-        self_score,
-        missed_issues,
-        notes,
-        minutes_spent,
-        now()
-    ))
+            practiced_at
+        ))
 
-    next_review_at = review_date_from_score(self_score)
-
-    c.execute("""
-        UPDATE questions
-        SET last_practiced_at = ?, next_review_at = ?
-        WHERE id = ?
-    """, (now(), next_review_at, question_id))
-
-    conn.commit()
-    conn.close()
+        conn.execute("""
+            UPDATE questions
+            SET last_practiced_at = ?, next_review_at = ?
+            WHERE id = ?
+        """, (practiced_at, next_review_at, question_id))
 
 
 def get_attempts(limit=100):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    return fetch_all("""
         SELECT
             attempts.id,
             attempts.question_id,
@@ -1136,10 +1909,6 @@ def get_attempts(limit=100):
         LIMIT ?
     """, (limit,))
 
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
 
 def save_rule_attempt(
     subject,
@@ -1152,10 +1921,7 @@ def save_rule_attempt(
     missed_elements,
     notes,
 ):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    execute_write("""
         INSERT INTO rule_attempts (
             subject,
             rule_title,
@@ -1182,15 +1948,9 @@ def save_rule_attempt(
         now(),
     ))
 
-    conn.commit()
-    conn.close()
-
 
 def get_rule_attempts(limit=50):
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("""
+    return fetch_all("""
         SELECT
             id,
             subject,
@@ -1208,124 +1968,124 @@ def get_rule_attempts(limit=50):
         LIMIT ?
     """, (limit,))
 
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
 
 def get_dashboard_stats():
-    conn = get_connection()
-    c = conn.cursor()
-
-    c.execute("SELECT COUNT(*) FROM questions")
-    total_questions = c.fetchone()[0]
-
-    c.execute("SELECT COUNT(*) FROM questions WHERE active_for_july_2026 = 1")
-    active_questions = c.fetchone()[0]
-
-    c.execute("SELECT COUNT(*) FROM attempts")
-    total_attempts = c.fetchone()[0]
-
-    c.execute("SELECT ROUND(AVG(self_score), 2) FROM attempts")
-    avg_score = c.fetchone()[0] or 0
-
-    c.execute("SELECT COALESCE(SUM(minutes_spent), 0) FROM attempts")
-    total_minutes = c.fetchone()[0] or 0
-
     today = datetime.now().strftime("%Y-%m-%d")
-    c.execute("""
-        SELECT COUNT(*), COALESCE(SUM(minutes_spent), 0)
-        FROM attempts
-        WHERE date(created_at) = date(?)
-    """, (today,))
-    today_attempts, today_minutes = c.fetchone()
+    cache_key = f"dashboard:{today}"
+    now = time.monotonic()
+    entry = _READ_CACHE.get(cache_key)
+    if entry is not None and now - entry[0] < _READ_CACHE_TTL_SECONDS:
+        return entry[1]
 
-    c.execute("""
-        SELECT COUNT(*)
-        FROM questions
-        WHERE next_review_at IS NOT NULL
-        AND date(next_review_at) <= date(?)
-    """, (today,))
-    due_reviews = c.fetchone()[0]
+    with closing(get_connection()) as conn:
+        c = conn.cursor()
 
-    c.execute("""
-        SELECT COUNT(*)
-        FROM questions
-        WHERE last_practiced_at IS NULL
-    """)
-    unpracticed_questions = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM questions")
+        total_questions = c.fetchone()[0]
 
-    c.execute("""
-        SELECT
-            questions.subject,
-            ROUND(AVG(attempts.self_score), 2),
-            COUNT(*)
-        FROM attempts
-        JOIN questions ON attempts.question_id = questions.id
-        GROUP BY questions.subject
-        ORDER BY AVG(attempts.self_score) ASC
-    """)
-    subject_stats = c.fetchall()
+        c.execute("SELECT COUNT(*) FROM questions WHERE active_for_july_2026 = 1")
+        active_questions = c.fetchone()[0]
 
-    c.execute("""
-        SELECT
-            questions.subject,
-            COUNT(*) AS due_count
-        FROM questions
-        WHERE next_review_at IS NOT NULL
-        AND date(next_review_at) <= date(?)
-        GROUP BY questions.subject
-        ORDER BY due_count DESC, questions.subject ASC
-    """, (today,))
-    due_by_subject = c.fetchall()
+        c.execute("SELECT COUNT(*) FROM attempts")
+        total_attempts = c.fetchone()[0]
 
-    c.execute("""
-        SELECT
-            questions.subject,
-            COUNT(*) AS untouched_count
-        FROM questions
-        WHERE questions.active_for_july_2026 = 1
-        AND questions.last_practiced_at IS NULL
-        GROUP BY questions.subject
-        ORDER BY untouched_count DESC, questions.subject ASC
-    """)
-    untouched_by_subject = c.fetchall()
+        c.execute("SELECT ROUND(AVG(self_score), 2) FROM attempts")
+        avg_score = c.fetchone()[0] or 0
 
-    c.execute("""
-        SELECT
-            questions.id,
-            questions.exam_name,
-            questions.question_number,
-            questions.subject,
-            questions.july_2026_status,
-            questions.priority,
-            questions.next_review_at,
-            questions.last_practiced_at,
-            COALESCE(AVG(attempts.self_score), -1) AS avg_score,
-            COUNT(attempts.id) AS attempt_count
-        FROM questions
-        LEFT JOIN attempts ON attempts.question_id = questions.id
-        WHERE questions.active_for_july_2026 = 1
-        GROUP BY questions.id
-        ORDER BY
-            CASE
-                WHEN questions.next_review_at IS NOT NULL
-                AND date(questions.next_review_at) <= date(?) THEN 0
-                WHEN COUNT(attempts.id) = 0 THEN 1
-                WHEN AVG(attempts.self_score) <= 3 THEN 2
-                ELSE 3
-            END,
-            questions.priority DESC,
-            avg_score ASC,
-            questions.exam_year DESC,
-            questions.question_number ASC
-        LIMIT 8
-    """, (today,))
-    recommended_queue = c.fetchall()
+        c.execute("SELECT COALESCE(SUM(minutes_spent), 0) FROM attempts")
+        total_minutes = c.fetchone()[0] or 0
 
-    conn.close()
+        c.execute("""
+            SELECT COUNT(*), COALESCE(SUM(minutes_spent), 0)
+            FROM attempts
+            WHERE date(created_at) = date(?)
+        """, (today,))
+        today_attempts, today_minutes = c.fetchone()
 
-    return {
+        c.execute("""
+            SELECT COUNT(*)
+            FROM questions
+            WHERE next_review_at IS NOT NULL
+            AND date(next_review_at) <= date(?)
+        """, (today,))
+        due_reviews = c.fetchone()[0]
+
+        c.execute("""
+            SELECT COUNT(*)
+            FROM questions
+            WHERE last_practiced_at IS NULL
+        """)
+        unpracticed_questions = c.fetchone()[0]
+
+        c.execute("""
+            SELECT
+                questions.subject,
+                ROUND(AVG(attempts.self_score), 2),
+                COUNT(*)
+            FROM attempts
+            JOIN questions ON attempts.question_id = questions.id
+            GROUP BY questions.subject
+            ORDER BY AVG(attempts.self_score) ASC
+        """)
+        subject_stats = c.fetchall()
+
+        c.execute("""
+            SELECT
+                questions.subject,
+                COUNT(*) AS due_count
+            FROM questions
+            WHERE next_review_at IS NOT NULL
+            AND date(next_review_at) <= date(?)
+            GROUP BY questions.subject
+            ORDER BY due_count DESC, questions.subject ASC
+        """, (today,))
+        due_by_subject = c.fetchall()
+
+        c.execute("""
+            SELECT
+                questions.subject,
+                COUNT(*) AS untouched_count
+            FROM questions
+            WHERE questions.active_for_july_2026 = 1
+            AND questions.last_practiced_at IS NULL
+            GROUP BY questions.subject
+            ORDER BY untouched_count DESC, questions.subject ASC
+        """)
+        untouched_by_subject = c.fetchall()
+
+        c.execute("""
+            SELECT
+                questions.id,
+                questions.exam_name,
+                questions.question_number,
+                questions.subject,
+                questions.july_2026_status,
+                questions.priority,
+                questions.next_review_at,
+                questions.last_practiced_at,
+                COALESCE(AVG(attempts.self_score), -1) AS avg_score,
+                COUNT(attempts.id) AS attempt_count
+            FROM questions
+            LEFT JOIN attempts ON attempts.question_id = questions.id
+            WHERE questions.active_for_july_2026 = 1
+            GROUP BY questions.id
+            ORDER BY
+                CASE
+                    WHEN questions.next_review_at IS NOT NULL
+                    AND date(questions.next_review_at) <= date(?) THEN 0
+                    WHEN COUNT(attempts.id) = 0 THEN 1
+                    WHEN AVG(attempts.self_score) <= 3 THEN 2
+                    ELSE 3
+                END,
+                questions.priority DESC,
+                avg_score ASC,
+                questions.exam_year DESC,
+                questions.question_number ASC
+            LIMIT 8
+        """, (today,))
+        recommended_queue = c.fetchall()
+
+    result = {
         "total_questions": total_questions,
         "active_questions": active_questions,
         "total_attempts": total_attempts,
@@ -1340,6 +2100,85 @@ def get_dashboard_stats():
         "untouched_by_subject": untouched_by_subject,
         "recommended_queue": recommended_queue
     }
+    _READ_CACHE[cache_key] = (now, result)
+    return result
+
+
+def get_mee_content_quality(limit=12):
+    """Return compact read-only diagnostics for incomplete MEE question rows."""
+    summary = fetch_one(
+        """
+        SELECT
+            COUNT(*) AS total_questions,
+            SUM(CASE WHEN active_for_july_2026 = 1 THEN 1 ELSE 0 END) AS active_questions,
+            SUM(
+                CASE
+                    WHEN active_for_july_2026 = 1
+                    AND TRIM(COALESCE(question_text, '')) <> ''
+                    AND TRIM(COALESCE(call_of_question, '')) <> ''
+                    AND TRIM(COALESCE(model_points, '')) <> ''
+                    THEN 1 ELSE 0
+                END
+            ) AS practice_ready_questions,
+            SUM(CASE WHEN TRIM(COALESCE(question_text, '')) = '' THEN 1 ELSE 0 END) AS missing_prompt,
+            SUM(CASE WHEN TRIM(COALESCE(call_of_question, '')) = '' THEN 1 ELSE 0 END) AS missing_call,
+            SUM(CASE WHEN TRIM(COALESCE(model_points, '')) = '' THEN 1 ELSE 0 END) AS missing_sample_answer,
+            SUM(CASE WHEN TRIM(COALESCE(rules, '')) = '' THEN 1 ELSE 0 END) AS missing_rules,
+            SUM(CASE WHEN TRIM(COALESCE(tested_issues, '')) = '' THEN 1 ELSE 0 END) AS missing_tested_issues,
+            SUM(CASE WHEN TRIM(COALESCE(trigger_facts, '')) = '' THEN 1 ELSE 0 END) AS missing_trigger_facts
+        FROM questions
+        """
+    )
+    rows = fetch_all(
+        """
+        SELECT
+            id,
+            exam_name,
+            question_number,
+            subject,
+            source,
+            TRIM(COALESCE(question_text, '')) = '' AS missing_prompt,
+            TRIM(COALESCE(call_of_question, '')) = '' AS missing_call,
+            TRIM(COALESCE(model_points, '')) = '' AS missing_sample_answer,
+            TRIM(COALESCE(rules, '')) = '' AS missing_rules,
+            TRIM(COALESCE(tested_issues, '')) = '' AS missing_tested_issues,
+            TRIM(COALESCE(trigger_facts, '')) = '' AS missing_trigger_facts
+        FROM questions
+        WHERE
+            TRIM(COALESCE(question_text, '')) = ''
+            OR TRIM(COALESCE(call_of_question, '')) = ''
+            OR TRIM(COALESCE(model_points, '')) = ''
+            OR TRIM(COALESCE(rules, '')) = ''
+            OR TRIM(COALESCE(tested_issues, '')) = ''
+            OR TRIM(COALESCE(trigger_facts, '')) = ''
+        ORDER BY
+            missing_prompt DESC,
+            missing_call DESC,
+            missing_sample_answer DESC,
+            missing_rules DESC,
+            missing_trigger_facts DESC,
+            exam_year DESC,
+            exam_name DESC,
+            question_number ASC
+        LIMIT ?
+        """,
+        (int(limit),),
+    )
+    keys = [
+        "total_questions",
+        "active_questions",
+        "practice_ready_questions",
+        "missing_prompt",
+        "missing_call",
+        "missing_sample_answer",
+        "missing_rules",
+        "missing_tested_issues",
+        "missing_trigger_facts",
+    ]
+    return {
+        "summary": dict(zip(keys, [int(value or 0) for value in (summary or [])])),
+        "rows": rows,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1350,22 +2189,19 @@ def upsert_admin(username, email, name, password_hash):
     """Create or refresh the admin account (used to seed from secrets)."""
     if not username or not password_hash:
         return
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT id FROM app_users WHERE username = ?", (username,))
-    row = c.fetchone()
-    if row:
-        c.execute(
-            "UPDATE app_users SET email = ?, name = ?, password_hash = ?, is_admin = 1 WHERE id = ?",
-            (email, name, password_hash, row[0]),
-        )
-    else:
-        c.execute(
-            "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, 1)",
-            (username, email, name, password_hash),
-        )
-    conn.commit()
-    conn.close()
+
+    with write_transaction() as conn:
+        row = conn.execute("SELECT id FROM app_users WHERE username = ?", (username,)).fetchone()
+        if row:
+            conn.execute(
+                "UPDATE app_users SET email = ?, name = ?, password_hash = ?, is_admin = 1 WHERE id = ?",
+                (email, name, password_hash, row[0]),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, 1)",
+                (username, email, name, password_hash),
+            )
 
 
 def get_app_user(login):
@@ -1373,9 +2209,7 @@ def get_app_user(login):
     if not login:
         return None
     login = str(login).strip().lower()
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
+    row = fetch_one(
         """
         SELECT username, email, name, password_hash, is_admin
         FROM app_users
@@ -1384,8 +2218,31 @@ def get_app_user(login):
         """,
         (login, login),
     )
-    row = c.fetchone()
-    conn.close()
+    if not row:
+        return None
+    return {
+        "username": row[0],
+        "email": row[1],
+        "name": row[2],
+        "password_hash": row[3],
+        "is_admin": bool(row[4]),
+    }
+
+
+def get_app_user_by_remember_token(token_hash):
+    """Look up a user by a hashed remember-me token."""
+    if not token_hash:
+        return None
+
+    row = fetch_one(
+        """
+        SELECT username, email, name, password_hash, is_admin
+        FROM app_users
+        WHERE remember_token_hash = ?
+        LIMIT 1
+        """,
+        (str(token_hash),),
+    )
     if not row:
         return None
     return {
@@ -1398,23 +2255,14 @@ def get_app_user(login):
 
 
 def list_app_users():
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
+    return fetch_all(
         "SELECT username, email, name, is_admin, created_at FROM app_users ORDER BY is_admin DESC, username"
     )
-    rows = c.fetchall()
-    conn.close()
-    return rows
 
 
 def count_app_users():
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM app_users")
-    n = c.fetchone()[0]
-    conn.close()
-    return n
+    row = fetch_one("SELECT COUNT(*) FROM app_users")
+    return row[0]
 
 
 def add_app_user(username, email, name, password_hash, is_admin=False):
@@ -1423,40 +2271,113 @@ def add_app_user(username, email, name, password_hash, is_admin=False):
     email = (email or "").strip().lower()
     if not username or not password_hash:
         return False, "Username and password are required."
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT 1 FROM app_users WHERE LOWER(username) = ?", (username,))
-    if c.fetchone():
-        conn.close()
-        return False, f"Username '{username}' already exists."
-    if email:
-        c.execute("SELECT 1 FROM app_users WHERE LOWER(IFNULL(email,'')) = ?", (email,))
-        if c.fetchone():
-            conn.close()
+
+    with write_transaction() as conn:
+        if conn.execute("SELECT 1 FROM app_users WHERE LOWER(username) = ?", (username,)).fetchone():
+            return False, f"Username '{username}' already exists."
+
+        if email and conn.execute("SELECT 1 FROM app_users WHERE LOWER(IFNULL(email,'')) = ?", (email,)).fetchone():
             return False, f"Email '{email}' is already in use."
-    c.execute(
-        "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, ?)",
-        (username, email, name, password_hash, 1 if is_admin else 0),
-    )
-    conn.commit()
-    conn.close()
+
+        conn.execute(
+            "INSERT INTO app_users (username, email, name, password_hash, is_admin) VALUES (?, ?, ?, ?, ?)",
+            (username, email, name, password_hash, 1 if is_admin else 0),
+        )
+
     return True, f"Added user '{username}'."
 
 
 def delete_app_user(username):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM app_users WHERE LOWER(username) = ?", ((username or "").strip().lower(),))
-    conn.commit()
-    conn.close()
+    execute_write(
+        "DELETE FROM app_users WHERE LOWER(username) = ?",
+        ((username or "").strip().lower(),),
+    )
 
 
 def set_user_password(username, password_hash):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
+    execute_write(
         "UPDATE app_users SET password_hash = ? WHERE LOWER(username) = ?",
         (password_hash, (username or "").strip().lower()),
     )
-    conn.commit()
-    conn.close()
+
+
+def set_user_remember_token(username, token_hash):
+    """Persist a hashed remember-me token for a user."""
+    execute_write(
+        """
+        UPDATE app_users
+        SET remember_token_hash = ?, remember_created_at = ?
+        WHERE LOWER(username) = ?
+        """,
+        (token_hash, now(), (username or "").strip().lower()),
+    )
+
+
+def clear_user_remember_token(username):
+    """Clear a user's persisted remember-me token."""
+    execute_write(
+        """
+        UPDATE app_users
+        SET remember_token_hash = NULL, remember_created_at = NULL
+        WHERE LOWER(username) = ?
+        """,
+        ((username or "").strip().lower(),),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bridge Drill - rule-drafting practice
+# ---------------------------------------------------------------------------
+
+def save_bridge_attempt(
+    username,
+    card_uid,
+    subject,
+    subtopic,
+    rule_draft,
+    picked_letter,
+    correct_letter,
+    draft_score,
+    pick_correct,
+    skipped_draft=False,
+):
+    """Persist one Bridge Drill attempt (rule draft + MBE pick + self-score)."""
+    execute_write(
+        """
+        INSERT INTO bridge_drill_attempts (
+            username, card_uid, subject, subtopic,
+            rule_draft, picked_letter, correct_letter,
+            draft_score, pick_correct, skipped_draft, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            username,
+            card_uid,
+            subject,
+            subtopic,
+            rule_draft,
+            picked_letter,
+            correct_letter,
+            int(draft_score or 0),
+            1 if pick_correct else 0,
+            1 if skipped_draft else 0,
+            now(),
+        ),
+    )
+
+
+def get_bridge_attempts(limit=200):
+    """Return recent Bridge Drill attempts, most recent first."""
+    return fetch_all(
+        """
+        SELECT
+            id, username, card_uid, subject, subtopic,
+            rule_draft, picked_letter, correct_letter,
+            draft_score, pick_correct, skipped_draft, created_at
+        FROM bridge_drill_attempts
+        ORDER BY created_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
