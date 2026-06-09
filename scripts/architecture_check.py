@@ -408,7 +408,8 @@ def check_mbe_invariants(checker):
 
     checker.check(
         "MBE sync writes latest payload to parent storage",
-        'trapSetItem("trapTrainer.practiceSync.latest", sig)' in trainer,
+        'trapSetItem("trapTrainer.practiceSync.latest", JSON.stringify(payload))' in trainer
+        and 'trapSetItem("trapTrainer.practiceSync.lastSig", sig)' in trainer,
     )
     checker.check(
         "MBE sync bridge polls latest practice payload",

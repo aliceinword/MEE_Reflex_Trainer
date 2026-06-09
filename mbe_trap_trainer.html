@@ -2664,7 +2664,8 @@ function inferRuleTested(card, correct, doctrine) {
     "Supplemental Jurisdiction After Federal Claim Dismissed": "A federal court may exercise supplemental jurisdiction over state-law claims that form part of the same case or controversy as a colorable federal claim, even after the federal claim is dismissed; continuing to hear the state claim is discretionary.",
     "Judgment as a Matter of Law / Renewed JMOL": "JMOL is proper only when no reasonable jury could find for the non-moving party on legally sufficient evidence. A renewed JMOL motion after verdict is the vehicle to test sufficiency.",
     "Attorney-Client Privilege / Waiver": "Attorney-client privilege protects confidential communications for the purpose of obtaining legal advice. Voluntary disclosure to a third party (even a family member) waives the privilege as to that communication.",
-    "Larceny / Burglary / Factual Impossibility": "Larceny requires taking and carrying away property of another with intent to permanently deprive. Factual impossibility is not a defense to a completed taking. Burglary requires unlawful entry when the statute so defines it."
+    "Larceny / Burglary / Factual Impossibility": "Larceny requires taking and carrying away property of another with intent to permanently deprive. Factual impossibility is not a defense to a completed taking. Burglary requires unlawful entry when the statute so defines it.",
+    "Best Evidence Rule (Original Document Rule)": "To prove the contents of a writing, recording, or photograph, the original (or an admissible duplicate) must be produced. Testimony about what a document says is inadmissible to prove its contents unless the original is shown to be unavailable through no fault of the proponent."
   };
   if (RULES[doctrine]) return RULES[doctrine];
   // No curated rule for this doctrine - return a CONCISE label instead of the full
@@ -2712,8 +2713,9 @@ function inferDoctrine(card) {
   if (s.includes("rule 60") || s.includes("60(b)")) return "Relief from Judgment";
   if (s.includes("judgment as a matter of law") || s.includes("jmol") || s.includes("rule 50")) return "Judgment as a Matter of Law";
   if (s.includes("crossclaim")) return "Rule 13(g) Crossclaim";
-  if (s.includes("erie") || (s.includes("federal rules of civil procedure") && s.includes("class action"))) return "Erie / Hanna";
+  if (/\berie\b/.test(s) || (s.includes("federal rules of civil procedure") && s.includes("class action"))) return "Erie / Hanna";
   if (s.includes("prior inconsistent")) return "Prior Inconsistent Statement / Impeachment";
+  if (s.includes("best evidence rule") || s.includes("produce the original") || (s.includes("prove") && s.includes("contents") && s.includes("records must be produced"))) return "Best Evidence Rule (Original Document Rule)";
   if (s.includes("business records") || s.includes("drug ledger")) return "Business Records Exception";
   if (s.includes("economic loss") || (s.includes("only lost revenue") && s.includes("no injury"))) return "Economic Loss Doctrine";
   if (s.includes("assumption of risk") || s.includes("assumption-of-risk")) return "Assumption of Risk";
@@ -3237,7 +3239,7 @@ function importTriggerAnalyses(arr) {
 }
 
 /* Enrich cards with trigger analysis (call after parse / load) */
-const TRIGGER_ANALYSIS_VERSION = 5;
+const TRIGGER_ANALYSIS_VERSION = 6;
 
 function enrichCardWithTriggerAnalysis(card) {
   if (!card) return card;
@@ -3567,12 +3569,46 @@ function loadCardStatsMap() {
   } catch (e) { _cardStatsCache = {}; }
   return _cardStatsCache;
 }
+function stripRegenerableTriggerAnalysis(map) {
+  // Cached triggerAnalysis is rebuilt on demand from the card; only
+  // triggerAnalysisOverride holds user edits and must be kept.
+  let removed = 0;
+  for (const key of Object.keys(map || {})) {
+    if (!key || key.startsWith("__")) continue;
+    const entry = map[key];
+    if (!entry || typeof entry !== "object") continue;
+    if (entry.triggerAnalysis || entry.triggerAnalysisVersion) {
+      delete entry.triggerAnalysis;
+      delete entry.triggerAnalysisVersion;
+      removed += 1;
+    }
+  }
+  return removed;
+}
+function compactStoredCardStatsIfNeeded() {
+  // localStorage tops out around 5MB; a bloated stats map makes every write
+  // fail with QuotaExceededError, which silently disables practice saves
+  // and server sync. Compact before that point.
+  try {
+    const raw = trapGetItem(CARD_STATS_KEY);
+    if (!raw || raw.length < 2000000) return;
+    const map = loadCardStatsMap();
+    if (stripRegenerableTriggerAnalysis(map)) {
+      saveCardStatsMap(map, { skipServerSync: true });
+    }
+  } catch (e) {}
+}
 function saveCardStatsMap(map, opts) {
   opts = opts || {};
   try {
     _cardStatsCache = map;
     invalidateContentStatsIndex();
-    const ok = trapSetItem(CARD_STATS_KEY, JSON.stringify(map));
+    let ok = trapSetItem(CARD_STATS_KEY, JSON.stringify(map));
+    if (!ok) {
+      // Storage full: drop regenerable trigger-analysis caches and retry.
+      stripRegenerableTriggerAnalysis(map);
+      ok = trapSetItem(CARD_STATS_KEY, JSON.stringify(map));
+    }
     if (ok && !opts.skipServerSync) scheduleServerStatsSync();
     return ok;
   } catch (e) { return false; }
@@ -7316,6 +7352,7 @@ pomT.textContent = '00:00';
 
 window.runCategoryDebugTests = runCategoryDebugTests;
 try {
+  compactStoredCardStatsIfNeeded();
   if (window.APP_TRAP_PRACTICE_BLOB && Object.keys(window.APP_TRAP_PRACTICE_BLOB).length) {
     mergeImportedPracticeBlob(window.APP_TRAP_PRACTICE_BLOB);
   }

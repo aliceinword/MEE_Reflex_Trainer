@@ -708,6 +708,8 @@ def render_mbe_stats_sync_bridge(username):
         from mbe_stats_sync import render_mbe_stats_sync
 
         sync_payload = render_mbe_stats_sync(key="mbe_stats_sync")
+        if isinstance(sync_payload, dict) and sync_payload.get("__storageDiag"):
+            return
         _save_synced_mbe_practice_stats(username, sync_payload)
     except Exception:
         pass
