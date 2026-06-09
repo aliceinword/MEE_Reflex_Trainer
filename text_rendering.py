@@ -111,9 +111,11 @@ def make_readable_legal_text(text):
 def render_text_block(title, text, class_name="readable", compact=False, empty_message="No text available."):
     """Render a full-width styled text block with paragraph spacing."""
     paragraphs = split_paragraphs(text) or [empty_message]
-    paragraph_margin = "0.65em" if class_name == "question" else "1.2em"
+    paragraph_style = 'style="margin-bottom:1.2em"'
+    if class_name == "question":
+        paragraph_style = 'style="margin-bottom:0.65em"'
     body = "".join(
-        f'<p style="margin-bottom:{paragraph_margin}">{escape_display_text(paragraph)}</p>'
+        f"<p {paragraph_style}>{escape_display_text(paragraph)}</p>"
         for paragraph in paragraphs
     )
 
@@ -186,7 +188,10 @@ def clean_sample_answer_text(text):
     text = re.sub(r"(?i)Condensed sample-answer path:\s*", "Sample Answer:\n", text)
     text = re.sub(r"(?i)\bLegal\s+Problems\s*:", "Legal Problems:", text)
     text = re.sub(r"(?im)^\s*DISCUSSION\s*$", "Discussion:", text)
-    text = re.sub(r"(?i)(?<![A-Za-z])Summary\s+(?=[A-Z])", "Summary:\n", text)
+    # Case-insensitive "Summary" only; lookahead stays case-sensitive so
+    # "summary judgment" is not split into a false "Summary:" section header.
+    text = re.sub(r"(?<![A-Za-z])(?i:Summary)\s+(?=[A-Z])", "Summary:\n", text)
+    text = re.sub(r"(?i)Summary:\s*\n\s*judgment\b", "summary judgment", text)
     text = re.sub(r"(?i)\bFact-based\s*\n*\s*analysis\s*\n*\s*:", "Fact-based analysis:", text)
     text = re.sub(r"(?i)\bRule\s*\(\s*s\s*\)\s*:", "Rule(s):", text)
     text = re.sub(r"(?i)\bShort\s+answer\s*:", "Short answer:", text)
@@ -1392,9 +1397,14 @@ def clean_call_text(call_text):
         text,
         flags=re.IGNORECASE,
     )
+    # A call always ends at "Explain." - if more text with another question
+    # mark follows on the same line, it is a separate call.
+    text = re.sub(r"(?i)(?<=Explain\.)[ \t]+(?=[^\n]*\?)", "\n", text)
     text = re.sub(r"\s+(\d+\([a-z]\)\.)\s*", r"\n\1 ", text, flags=re.IGNORECASE)
     text = re.sub(r"\s+(\d+\.)\s+", r"\n\1 ", text)
-    text = re.sub(r"\s+([a-z]\.)\s+", r"\n\1 ", text)
+    # Letter subparts like "a." start a new line, but "v." in case names
+    # (Son v. Driver) must stay inline.
+    text = re.sub(r"\s+([a-uw-z]\.)\s+", r"\n\1 ", text)
     text = re.sub(r"\n{2,}", "\n", text)
 
     lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -1426,10 +1436,29 @@ def extract_subquestions(call_text):
         r"^[A-Z][A-Za-z]*(?:'s)?(?:\s+[A-Z][A-Za-z]*(?:'s)?)?\?",
     )
 
-    has_numbered_call = any(top_level_pattern.match(line) for line in lines)
+    def looks_like_unnumbered_call_line(line):
+        if call_start_pattern.match(line):
+            return True
+        stripped = line.rstrip()
+        return "?" in line and stripped.endswith(("Explain.", "?"))
 
-    if not has_numbered_call:
-        while lines and not call_start_pattern.match(lines[0]):
+    has_numbered_call = any(top_level_pattern.match(line) for line in lines)
+    numbered_preamble = ""
+
+    if has_numbered_call:
+        # Intro text before "1." (e.g. "Assume for all questions that...:")
+        # is context for the numbered calls, not a call of its own.
+        preamble_lines = []
+        while (
+            lines
+            and not top_level_pattern.match(lines[0])
+            and not numbered_subpart_pattern.match(lines[0])
+            and "?" not in lines[0]
+        ):
+            preamble_lines.append(lines.pop(0))
+        numbered_preamble = " ".join(preamble_lines).strip()
+    else:
+        while lines and not looks_like_unnumbered_call_line(lines[0]):
             lines.pop(0)
         if len(lines) > 1 and lines[0].endswith(":") and not re.search(r"\?", lines[0]):
             shared_assumption = lines.pop(0)
@@ -1476,13 +1505,17 @@ def extract_subquestions(call_text):
             if current:
                 subquestions.append(current)
 
+            question_text = top.group(2).strip()
+            if numbered_preamble:
+                question_text = f"{numbered_preamble} {question_text}".strip()
+                numbered_preamble = ""
             current = {
                 "label": f"Question {top.group(1)}",
-                "text": top.group(2).strip(),
+                "text": question_text,
                 "subparts": [],
             }
 
-        elif not has_numbered_call and call_start_pattern.match(line):
+        elif not has_numbered_call and looks_like_unnumbered_call_line(line):
             if current:
                 subquestions.append(current)
 
