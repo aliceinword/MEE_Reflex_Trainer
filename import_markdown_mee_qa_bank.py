@@ -23,6 +23,7 @@ SUBJECT_NORMALIZATION = {
     "AGENCY & PARTNERSHIP/TORTS": "Agency & Partnership",
     "AGENCY & PARTNERSHIP / TORTS": "Agency & Partnership",
     "CIVIL PROCEDURE": "Civil Procedure",
+    "FEDERAL CIVIL PROCEDURE": "Civil Procedure",
     "CIVIL PROCEDURE/CONFLICT OF LAWS": "Civil Procedure",
     "CIVIL PROCEDURE / CONFLICT OF LAWS": "Civil Procedure",
     "CONSTITUTIONAL LAW": "Constitutional Law",
