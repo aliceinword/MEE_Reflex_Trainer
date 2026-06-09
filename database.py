@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import shutil
 import os
 import time
@@ -28,6 +28,8 @@ _INDEX_STATEMENTS = (
     "CREATE INDEX IF NOT EXISTS idx_questions_last_practiced ON questions(last_practiced_at)",
     "CREATE INDEX IF NOT EXISTS idx_attempts_question_id ON attempts(question_id)",
     "CREATE INDEX IF NOT EXISTS idx_app_users_username ON app_users(username)",
+    "CREATE INDEX IF NOT EXISTS idx_mbe_cards_card_uid ON mbe_cards(card_uid)",
+    "CREATE INDEX IF NOT EXISTS idx_mbe_cards_subject ON mbe_cards(subject)",
 )
 
 
@@ -144,6 +146,7 @@ def write_transaction():
     try:
         yield conn
         conn.commit()
+        invalidate_read_cache()
     except Exception:
         conn.rollback()
         raise
@@ -209,6 +212,17 @@ def _add_missing_columns(cursor, table_name, column_definitions):
     for column_name, ddl in column_definitions.items():
         if column_name not in existing_columns:
             cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl}")
+
+
+_db_ready = False
+
+
+def ensure_db_initialized():
+    global _db_ready
+    if _db_ready:
+        return
+    init_db()
+    _db_ready = True
 
 
 def init_db():
@@ -320,6 +334,53 @@ def init_db():
             )
         """)
 
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS mbe_cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_uid TEXT UNIQUE NOT NULL,
+                adv_id TEXT,
+                subject TEXT,
+                subtopic TEXT,
+                title TEXT,
+                scenario TEXT,
+                question TEXT,
+                rule_hint TEXT,
+                options_json TEXT,
+                plain_english TEXT,
+                shortcut TEXT,
+                source TEXT,
+                source_row INTEGER,
+                raw_json TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS mbe_practice_stats (
+                username TEXT PRIMARY KEY,
+                stats_json TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS bridge_drill_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                card_uid TEXT,
+                subject TEXT,
+                subtopic TEXT,
+                rule_draft TEXT,
+                picked_letter TEXT,
+                correct_letter TEXT,
+                draft_score INTEGER,
+                pick_correct INTEGER DEFAULT 0,
+                skipped_draft INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Add new question columns safely if the old database already exists.
         question_extra_columns = {
             "exam_year": "INTEGER",
@@ -349,6 +410,321 @@ def init_db():
 
         for index_sql in _INDEX_STATEMENTS:
             c.execute(index_sql)
+
+
+def upsert_mbe_cards(cards):
+    """Insert or update MBE drill cards in the app database."""
+    if not cards:
+        return {"inserted": 0, "updated": 0, "skipped": 0}
+
+    from mbe_import_services import (
+        builtin_duplicate_lookup,
+        mbe_card_content_fingerprint,
+        normalize_mbe_subject,
+    )
+
+    inserted = 0
+    updated = 0
+    skipped = 0
+    skipped_builtin = 0
+    timestamp = now()
+    builtin_lookup = builtin_duplicate_lookup()
+
+    with write_transaction() as conn:
+        for card in cards:
+            if not card or not card.get("card_uid"):
+                skipped += 1
+                continue
+            adv_id = str(card.get("adv_id") or "").strip()
+            content_fp = mbe_card_content_fingerprint(
+                subject=card.get("subject"),
+                subtopic=card.get("subtopic"),
+                scenario=card.get("scenario"),
+                question=card.get("question"),
+                options_json=card.get("options_json"),
+            )
+            if (adv_id and adv_id in builtin_lookup["adv_ids"]) or (
+                content_fp in builtin_lookup["content_fps"]
+            ):
+                skipped_builtin += 1
+                continue
+
+            card = {
+                **card,
+                "subject": normalize_mbe_subject(card.get("subject")),
+            }
+
+            existing = conn.execute(
+                "SELECT id FROM mbe_cards WHERE card_uid = ? LIMIT 1",
+                (card.get("card_uid"),),
+            ).fetchone()
+
+            params = (
+                card.get("card_uid"),
+                card.get("adv_id"),
+                card.get("subject"),
+                card.get("subtopic"),
+                card.get("title"),
+                card.get("scenario"),
+                card.get("question"),
+                card.get("rule_hint"),
+                card.get("options_json"),
+                card.get("plain_english"),
+                card.get("shortcut"),
+                card.get("source"),
+                card.get("source_row"),
+                card.get("raw_json"),
+                timestamp,
+                timestamp,
+            )
+
+            conn.execute(
+                """
+                INSERT INTO mbe_cards (
+                    card_uid,
+                    adv_id,
+                    subject,
+                    subtopic,
+                    title,
+                    scenario,
+                    question,
+                    rule_hint,
+                    options_json,
+                    plain_english,
+                    shortcut,
+                    source,
+                    source_row,
+                    raw_json,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(card_uid) DO UPDATE SET
+                    adv_id = excluded.adv_id,
+                    subject = excluded.subject,
+                    subtopic = excluded.subtopic,
+                    title = excluded.title,
+                    scenario = excluded.scenario,
+                    question = excluded.question,
+                    rule_hint = excluded.rule_hint,
+                    options_json = excluded.options_json,
+                    plain_english = excluded.plain_english,
+                    shortcut = excluded.shortcut,
+                    source = excluded.source,
+                    source_row = excluded.source_row,
+                    raw_json = excluded.raw_json,
+                    updated_at = excluded.updated_at
+                """,
+                params,
+            )
+
+            if existing:
+                updated += 1
+            else:
+                inserted += 1
+
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped,
+        "skipped_builtin_duplicate": skipped_builtin,
+    }
+
+
+def delete_mbe_cards_by_ids(card_ids):
+    """Delete MBE cards by primary key id."""
+    ids = [int(card_id) for card_id in (card_ids or []) if card_id is not None]
+    if not ids:
+        return 0
+    placeholders = ",".join("?" for _ in ids)
+    with write_transaction() as conn:
+        cur = conn.execute(
+            f"DELETE FROM mbe_cards WHERE id IN ({placeholders})",
+            ids,
+        )
+        return int(cur.rowcount or 0)
+
+
+def remove_mbe_cards_duplicating_builtin(*, dry_run=False):
+    """Remove app-database MBE cards that repeat the built-in trainer deck."""
+    from mbe_import_services import find_builtin_duplicate_db_rows
+
+    rows = get_mbe_cards()
+    dupes = find_builtin_duplicate_db_rows(rows)
+    removed = []
+    for row in dupes:
+        removed.append(
+            {
+                "id": row[0],
+                "subject": row[3],
+                "subtopic": row[4],
+                "title": row[5],
+            }
+        )
+    if dry_run or not removed:
+        return {"removed": 0, "dry_run": dry_run, "candidates": removed}
+    deleted = delete_mbe_cards_by_ids([item["id"] for item in removed])
+    return {"removed": deleted, "dry_run": False, "candidates": removed}
+
+
+def consolidate_mbe_card_subjects_and_remove_dupes(*, dry_run=False):
+    """Normalize subject labels (e.g. Criminal Law) and delete within-DB duplicates."""
+    import json
+
+    from mbe_import_services import mbe_card_content_fingerprint, normalize_mbe_subject
+
+    renamed = []
+    with write_transaction() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, subject, raw_json
+            FROM mbe_cards
+            ORDER BY id
+            """
+        ).fetchall()
+        for db_id, subject, raw_json in rows:
+            normalized = normalize_mbe_subject(subject)
+            if normalized == subject:
+                continue
+            renamed.append({"id": db_id, "from": subject, "to": normalized})
+            if dry_run:
+                continue
+            updated_raw = raw_json
+            if raw_json:
+                try:
+                    payload = json.loads(raw_json)
+                    payload["subj"] = normalized
+                    updated_raw = json.dumps(payload, ensure_ascii=False)
+                except Exception:
+                    updated_raw = raw_json
+            conn.execute(
+                """
+                UPDATE mbe_cards
+                SET subject = ?, raw_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (normalized, updated_raw, now(), db_id),
+            )
+
+    rows = get_mbe_cards()
+    seen = {}
+    duplicate_candidates = []
+    for row in rows:
+        (
+            db_id,
+            _card_uid,
+            adv_id,
+            subject,
+            subtopic,
+            title,
+            scenario,
+            question,
+            _rule_hint,
+            options_json,
+            *_rest,
+        ) = row
+        content_fp = mbe_card_content_fingerprint(
+            subject=subject,
+            subtopic=subtopic,
+            scenario=scenario,
+            question=question,
+            options_json=options_json,
+        )
+        if content_fp not in seen:
+            seen[content_fp] = db_id
+            continue
+        duplicate_candidates.append(
+            {
+                "id": db_id,
+                "keep_id": seen[content_fp],
+                "subject": subject,
+                "subtopic": subtopic,
+                "title": (title or question or "")[:72],
+            }
+        )
+
+    removed = 0
+    if duplicate_candidates and not dry_run:
+        removed = delete_mbe_cards_by_ids([item["id"] for item in duplicate_candidates])
+
+    return {
+        "dry_run": dry_run,
+        "renamed": renamed,
+        "renamed_count": len(renamed),
+        "duplicate_candidates": duplicate_candidates,
+        "removed_duplicates": removed,
+    }
+
+
+def get_mbe_cards():
+    """Return app-stored MBE cards for injection into the trainer."""
+    return fetch_all(
+        """
+        SELECT
+            id,
+            card_uid,
+            adv_id,
+            subject,
+            subtopic,
+            title,
+            scenario,
+            question,
+            rule_hint,
+            options_json,
+            plain_english,
+            shortcut,
+            source
+        FROM mbe_cards
+        ORDER BY subject, subtopic, id
+        """
+    )
+
+
+def count_mbe_cards():
+    row = fetch_one("SELECT COUNT(*) FROM mbe_cards")
+    return int(row[0] or 0) if row else 0
+
+
+def get_mbe_practice_stats(username):
+    """Return the saved MBE trap-trainer practice blob for a user, or None."""
+    if not username:
+        return None
+    row = fetch_one(
+        "SELECT stats_json FROM mbe_practice_stats WHERE username = ? LIMIT 1",
+        (username,),
+    )
+    if not row or not row[0]:
+        return None
+    try:
+        import json
+
+        return json.loads(row[0])
+    except Exception:
+        return None
+
+
+def save_mbe_practice_stats(username, stats_blob):
+    """Persist the MBE trap-trainer practice blob for a user."""
+    if not username or not isinstance(stats_blob, dict):
+        return False
+
+    import json
+
+    payload = json.dumps(stats_blob, ensure_ascii=False)
+    timestamp = now()
+    with write_transaction() as conn:
+        conn.execute(
+            """
+            INSERT INTO mbe_practice_stats (username, stats_json, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(username) DO UPDATE SET
+                stats_json = excluded.stats_json,
+                updated_at = excluded.updated_at
+            """,
+            (username, payload, timestamp),
+        )
+    invalidate_read_cache()
+    return True
 
 
 def add_outline_rule(subject, rule_title, appearance_rate, rule_text, pdf_page, printed_page, source_file):
@@ -1344,6 +1720,11 @@ def get_rule_attempts(limit=50):
 
 def get_dashboard_stats():
     today = datetime.now().strftime("%Y-%m-%d")
+    cache_key = f"dashboard:{today}"
+    now = time.monotonic()
+    entry = _READ_CACHE.get(cache_key)
+    if entry is not None and now - entry[0] < _READ_CACHE_TTL_SECONDS:
+        return entry[1]
 
     with closing(get_connection()) as conn:
         c = conn.cursor()
@@ -1453,7 +1834,7 @@ def get_dashboard_stats():
         """, (today,))
         recommended_queue = c.fetchall()
 
-    return {
+    result = {
         "total_questions": total_questions,
         "active_questions": active_questions,
         "total_attempts": total_attempts,
@@ -1468,6 +1849,8 @@ def get_dashboard_stats():
         "untouched_by_subject": untouched_by_subject,
         "recommended_queue": recommended_queue
     }
+    _READ_CACHE[cache_key] = (now, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1611,4 +1994,62 @@ def clear_user_remember_token(username):
         WHERE LOWER(username) = ?
         """,
         ((username or "").strip().lower(),),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bridge Drill - rule-drafting practice
+# ---------------------------------------------------------------------------
+
+def save_bridge_attempt(
+    username,
+    card_uid,
+    subject,
+    subtopic,
+    rule_draft,
+    picked_letter,
+    correct_letter,
+    draft_score,
+    pick_correct,
+    skipped_draft=False,
+):
+    """Persist one Bridge Drill attempt (rule draft + MBE pick + self-score)."""
+    execute_write(
+        """
+        INSERT INTO bridge_drill_attempts (
+            username, card_uid, subject, subtopic,
+            rule_draft, picked_letter, correct_letter,
+            draft_score, pick_correct, skipped_draft, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            username,
+            card_uid,
+            subject,
+            subtopic,
+            rule_draft,
+            picked_letter,
+            correct_letter,
+            int(draft_score or 0),
+            1 if pick_correct else 0,
+            1 if skipped_draft else 0,
+            now(),
+        ),
+    )
+
+
+def get_bridge_attempts(limit=200):
+    """Return recent Bridge Drill attempts, most recent first."""
+    return fetch_all(
+        """
+        SELECT
+            id, username, card_uid, subject, subtopic,
+            rule_draft, picked_letter, correct_letter,
+            draft_score, pick_correct, skipped_draft, created_at
+        FROM bridge_drill_attempts
+        ORDER BY created_at DESC
+        LIMIT ?
+        """,
+        (limit,),
     )

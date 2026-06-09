@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Shared practice-mode components for MEE drills."""
 
+from app_state import get_state, set_state
 from database import find_best_outline_rules_for_question, find_best_plug_play_for_call, save_attempt
 from text_rendering import (
     extract_fact_pattern_only,
@@ -292,15 +293,41 @@ MICRO-CONCLUSION:
 """
 
 
-def render_plug_play_support(qd, *, expanded=True):
-    """Render matched Plug & Play templates for active answer drafting."""
-    plug_matches = find_best_plug_play_for_call(
+def _cached_plug_play_matches(qd, *, limit=2):
+    cache_key = f"_plug_play_{qd.get('id')}_{limit}"
+    cached = get_state(cache_key)
+    if cached is not None:
+        return cached
+    matches = find_best_plug_play_for_call(
         qd.get("subject", ""),
         qd.get("call_of_question", ""),
         qd.get("question_text", ""),
         qd.get("tested_issues", ""),
-        limit=2,
+        limit=limit,
     )
+    set_state(cache_key, matches)
+    return matches
+
+
+def _cached_outline_rule_matches(qd, *, limit=3):
+    cache_key = f"_outline_rules_{qd.get('id')}_{limit}"
+    cached = get_state(cache_key)
+    if cached is not None:
+        return cached
+    matches = find_best_outline_rules_for_question(
+        qd.get("subject", ""),
+        qd.get("tested_issues", ""),
+        qd.get("rules", ""),
+        qd.get("traps", ""),
+        limit=limit,
+    )
+    set_state(cache_key, matches)
+    return matches
+
+
+def render_plug_play_support(qd, *, expanded=True):
+    """Render matched Plug & Play templates for active answer drafting."""
+    plug_matches = _cached_plug_play_matches(qd, limit=2)
 
     with render_expander("Plug & Play Template - use while answering", expanded=expanded):
         if not plug_matches:
@@ -379,20 +406,8 @@ def render_answer_bank_tabs(
 
         if include_rule_support:
             with tabs[tab_index]:
-                outline_matches = find_best_outline_rules_for_question(
-                    qd.get("subject", ""),
-                    qd.get("tested_issues", ""),
-                    qd.get("rules", ""),
-                    qd.get("traps", ""),
-                    limit=3,
-                )
-                plug_matches = find_best_plug_play_for_call(
-                    qd.get("subject", ""),
-                    qd.get("call_of_question", ""),
-                    qd.get("question_text", ""),
-                    qd.get("tested_issues", ""),
-                    limit=2,
-                )
+                outline_matches = _cached_outline_rule_matches(qd, limit=3)
+                plug_matches = _cached_plug_play_matches(qd, limit=2)
 
                 if outline_matches:
                     render_section_heading("Attack Outline Rules", level=4)

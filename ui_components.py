@@ -44,11 +44,16 @@ def render_app_header():
     return
 
 
+@st.cache_data(show_spinner=False)
+def _read_logo_svg(path_str, mtime):
+    with open(path_str, encoding="utf-8") as logo_file:
+        return logo_file.read()
+
+
 def render_sidebar_logo():
     logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.svg")
     try:
-        with open(logo_path, "r", encoding="utf-8") as logo_file:
-            logo_svg = logo_file.read()
+        logo_svg = _read_logo_svg(logo_path, os.path.getmtime(logo_path))
     except Exception:
         return
 
@@ -461,6 +466,14 @@ def render_selectbox(label, options, *, key=None, index=0, caption=None):
     return result
 
 
+def render_radio(label, options, *, key=None, horizontal=False, label_visibility="visible"):
+    """Render a radio group through the shared control layer."""
+    kwargs = {"horizontal": horizontal, "label_visibility": label_visibility}
+    if key is not None:
+        kwargs["key"] = key
+    return st.radio(label, options, **kwargs)
+
+
 def render_checkbox(label, *, value=False, key=None, caption=None):
     """Render a checkbox through the shared control layer."""
     kwargs = {"value": value}
@@ -532,11 +545,16 @@ def render_download_button(label, *, data, file_name, mime=None, key=None, use_c
     return st.download_button(label, **kwargs)
 
 
+@st.cache_data(show_spinner=False)
+def _read_html_embed_file(path_str, mtime):
+    return Path(path_str).read_text(encoding="utf-8")
+
+
 def render_html_file_embed(path, *, height=EMBEDDED_TOOL_HEIGHT, missing_message=None, scrolling=True):
     """Render a local HTML tool in an iframe."""
     html_path = Path(path)
     try:
-        html = html_path.read_text(encoding="utf-8")
+        html = _read_html_embed_file(str(html_path.resolve()), html_path.stat().st_mtime)
     except FileNotFoundError:
         render_error(missing_message or f"{html_path.name} was not found.")
         return

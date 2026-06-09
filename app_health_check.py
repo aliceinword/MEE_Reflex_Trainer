@@ -29,6 +29,12 @@ ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / DB_NAME
 
 
+def _db_connect(path, **kwargs):
+    """Open SQLite read-only with immutable=1 (bypasses journal, works on CIFS/OneDrive mounts)."""
+    uri = Path(path).resolve().as_uri() + '?immutable=1'
+    return sqlite3.connect(uri, uri=True, **kwargs)
+
+
 @contextmanager
 def temporary_database_copy(prefix: str):
     """Point database.DB_NAME at a disposable copy of the real database."""
@@ -155,6 +161,10 @@ def check_app_shell(checker: HealthCheck) -> None:
     checker.check("MEE Question Bank is in primary navigation", "MEE Question Bank" in nav_pages)
     checker.check("MEE practice page is in primary navigation", "MEE Muscle Ladder" in nav_pages)
     checker.check("MBE is separated from MEE navigation", "MBE Drills" in nav_pages)
+    checker.check(
+        "MBE bulk upload is in MBE Practice navigation",
+        "MBE Drills Question Bulk Upload" in nav_pages,
+    )
     nav_groups = [group for group, _pages in NAV_GROUPS]
     checker.check("MEE Advanced Tools group is in navigation", "MEE Advanced Tools" in nav_groups)
     checker.check("Import Questions is in MEE Advanced Tools navigation", "Import Questions" in nav_pages)
@@ -198,7 +208,7 @@ def check_database(checker: HealthCheck) -> None:
         and health_source.count("temporary_database_copy(") >= 3,
     )
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = _db_connect(DB_PATH)
     try:
         integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
         checker.check("SQLite integrity", integrity == "ok", str(integrity))
@@ -1222,7 +1232,7 @@ def check_shared_question_save_path(checker: HealthCheck) -> None:
         }])
         bulk_count = import_services.save_questions_from_dataframe(bulk_df)
 
-        temp_conn = sqlite3.connect(temp_db)
+        temp_conn = _db_connect(temp_db)
         try:
             temp_row = temp_conn.execute(
                 """
@@ -1243,7 +1253,7 @@ def check_shared_question_save_path(checker: HealthCheck) -> None:
         finally:
             temp_conn.close()
 
-        real_conn = sqlite3.connect(DB_PATH)
+        real_conn = _db_connect(DB_PATH)
         try:
             real_count = real_conn.execute(
                 "SELECT COUNT(*) FROM questions WHERE exam_name = ? AND question_number = ?",
@@ -1283,7 +1293,7 @@ Rule Outline: A safe import test writes to the configured database path only.
 """
 
     with temporary_database_copy("mee_import_health_") as temp_db:
-        before_real = sqlite3.connect(DB_PATH)
+        before_real = _db_connect(DB_PATH)
         try:
             real_before_count = before_real.execute(
                 "SELECT COUNT(*) FROM questions WHERE exam_name = ? AND question_number = ?",
@@ -1294,7 +1304,7 @@ Rule Outline: A safe import test writes to the configured database path only.
 
         records, report = run_markdown_text_import(sample_text, apply=True, allow_truncated=False)
 
-        temp_conn = sqlite3.connect(temp_db)
+        temp_conn = _db_connect(temp_db)
         try:
             temp_row = temp_conn.execute(
                 """
@@ -1307,7 +1317,7 @@ Rule Outline: A safe import test writes to the configured database path only.
         finally:
             temp_conn.close()
 
-        after_real = sqlite3.connect(DB_PATH)
+        after_real = _db_connect(DB_PATH)
         try:
             real_after_count = after_real.execute(
                 "SELECT COUNT(*) FROM questions WHERE exam_name = ? AND question_number = ?",
@@ -1465,7 +1475,7 @@ def check_outline_rule_save_path(checker: HealthCheck) -> None:
             finally:
                 conn.close()
 
-            real_conn = sqlite3.connect(DB_PATH)
+            real_conn = _db_connect(DB_PATH)
             try:
                 real_count = real_conn.execute(
                     """
@@ -1524,7 +1534,7 @@ def check_rule_flashcard_save_path(checker: HealthCheck) -> None:
             finally:
                 conn.close()
 
-            real_conn = sqlite3.connect(DB_PATH)
+            real_conn = _db_connect(DB_PATH)
             try:
                 real_count = real_conn.execute(
                     """
@@ -1593,7 +1603,7 @@ def check_plug_play_template_save_path(checker: HealthCheck) -> None:
             finally:
                 conn.close()
 
-            real_conn = sqlite3.connect(DB_PATH)
+            real_conn = _db_connect(DB_PATH)
             try:
                 real_count = real_conn.execute(
                     """
@@ -1650,7 +1660,7 @@ def check_admin_upsert_path(checker: HealthCheck) -> None:
             finally:
                 conn.close()
 
-            real_conn = sqlite3.connect(DB_PATH)
+            real_conn = _db_connect(DB_PATH)
             try:
                 real_count = real_conn.execute(
                     "SELECT COUNT(*) FROM app_users WHERE username = ?",
@@ -1728,7 +1738,7 @@ def check_app_user_save_path(checker: HealthCheck) -> None:
             finally:
                 conn.close()
 
-            real_conn = sqlite3.connect(DB_PATH)
+            real_conn = _db_connect(DB_PATH)
             try:
                 real_count = real_conn.execute(
                     "SELECT COUNT(*) FROM app_users WHERE username = ?",

@@ -115,6 +115,7 @@ def _check_nav(checker: LayoutSmoke, page: str, at: AppTest) -> None:
         "MEE Question Bank",
         "MEE Muscle Ladder",
         "MBE Drills",
+        "MBE Drills Question Bulk Upload",
         "Import Questions",
         "Manual Entry",
         "Settings",
@@ -318,16 +319,22 @@ def check_mbe(checker: LayoutSmoke) -> None:
     at = _run_page(page)
     _check_no_exceptions(checker, page, at)
     _check_nav(checker, page, at)
-    _check_required_labels(
-        checker,
-        page,
-        "tab",
-        _labels(at.tabs),
-        ["MBE Drills", "MBE Drills Question Bulk Upload"],
-    )
     checker.check(
         "MBE Drills opens without extra Streamlit title",
         "MBE Drills - Trap Trainer" not in _page_text(at),
+    )
+
+
+def check_mbe_bulk_upload(checker: LayoutSmoke) -> None:
+    page = "MBE Drills Question Bulk Upload"
+    at = _run_page(page)
+    _check_no_exceptions(checker, page, at)
+    _check_nav(checker, page, at)
+    _check_required_text(
+        checker,
+        page,
+        at,
+        ["MBE Drills Question Bulk Upload", "Templates", "Upload Check"],
     )
 
 
@@ -348,6 +355,7 @@ def main() -> None:
         check_manual_entry(checker)
         check_settings(checker)
         check_mbe(checker)
+        check_mbe_bulk_upload(checker)
 
     checker.finish()
 

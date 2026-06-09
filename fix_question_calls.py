@@ -11,6 +11,7 @@ Usage:
 """
 
 import sqlite3
+from pathlib import Path
 
 DB = "mee_trainer.db"
 SOURCE = "MEE Question Bank (my import)"

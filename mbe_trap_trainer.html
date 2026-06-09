@@ -28,8 +28,8 @@
   .top h1{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
   .top .who{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sec)}
   .mono{font-family:'IBM Plex Mono',monospace}
-  .pom{position:fixed;right:18px;bottom:18px;z-index:50;background:var(--box2);color:var(--ink);border-radius:10px;padding:12px 14px;border:1px solid var(--box-bd);box-shadow:0 6px 20px rgba(17,24,39,.10);font-family:'IBM Plex Mono',monospace;min-width:140px}
-  .pom .t{font-size:26px;font-weight:600;text-align:center;line-height:1;color:var(--ink)}
+  .pom{position:fixed;right:18px;top:96px;z-index:500;background:var(--box2);color:var(--ink);border-radius:10px;padding:10px 12px;border:1px solid var(--box-bd);box-shadow:0 6px 20px rgba(17,24,39,.10);font-family:'IBM Plex Mono',monospace;min-width:122px}
+  .pom .t{font-size:22px;font-weight:600;text-align:center;line-height:1;color:var(--ink)}
   .pom .lbl{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--btn);text-align:center;margin-bottom:4px}
   .pom .row{display:flex;gap:6px;margin-top:8px;justify-content:center}
   .pom button{font-family:inherit;font-size:10px;background:var(--btn);color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer}
@@ -156,10 +156,16 @@
   .active-badge{background:var(--no);color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700}
   .focus-shell .toolbar,.focus-shell .date-filter-row,.focus-shell .stat-row{display:none!important}
   .ab-compare{display:grid;gap:10px;margin:10px 0}
-  .ab-col{border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.5}
+  .ab-col{border-radius:10px;padding:14px 16px;font-size:16px;line-height:1.65;color:var(--ink)}
   .ab-yours{background:var(--no-bg);border-left:4px solid var(--no)}
   .ab-correct{background:var(--ok-bg);border-left:4px solid var(--ok)}
   .ab-diff{background:var(--hi);border-left:4px solid var(--warn);font-weight:600}
+  .ab-lbl{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+  .ab-yours .ab-lbl{color:var(--no)}
+  .ab-correct .ab-lbl{color:var(--ok)}
+  .ab-diff .ab-lbl{color:#B45309;font-weight:600}
+  .ab-choice{font-weight:700;margin-bottom:12px;line-height:1.45}
+  .ab-explain{font-family:'IBM Plex Serif',Georgia,serif;font-size:1.12em;line-height:1.78}
 
   .trigger-bold {
     font-weight: 800;
@@ -367,21 +373,122 @@
   .inp,.ta,.sel{font-size:15.5px;padding:12px 14px}
   .form-row label{font-size:12px}
 
-  body.drill-screen{padding:clamp(6px,.65vw,10px)}
-  body.drill-screen .wrap{height:calc(100vh - clamp(12px,1.3vw,20px))}
+  /* Drill screen: reading-first — question expands to use full page width */
+  body.drill-screen{
+    padding:clamp(8px,1vw,18px) clamp(10px,2.5vw,40px);
+    overflow:visible !important;
+  }
+  body.drill-screen .footer{display:none}
+  body.drill-screen .wrap{
+    max-width:100% !important;
+    width:100%;
+    height:auto !important;
+    min-height:0 !important;
+  }
   body.drill-screen .top{display:none}
-  body.drill-screen #app{overflow:hidden;display:flex;flex-direction:column;gap:8px}
-  body.drill-screen .prog-wrap{margin-bottom:2px;flex:0 0 auto}
-  body.drill-screen .prog-meta{font-size:12px;align-items:center;gap:8px}
-  body.drill-screen .qcard.panel{flex:0 1 auto;padding:clamp(12px,1.15vw,18px) clamp(14px,1.6vw,24px);margin-bottom:0;max-height:34vh;overflow:auto}
-  body.drill-screen .qtitle{font-size:clamp(16px,1.08vw,21px);line-height:1.42;margin-bottom:8px}
-  body.drill-screen .qmeta{font-size:11px;margin-bottom:5px}
-  body.drill-screen .attack{margin-top:8px}
-  body.drill-screen .opts{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:8px;margin:0;overflow:auto;padding-right:2px}
-  body.drill-screen .opt{min-height:0;font-size:clamp(14px,.95vw,17px);line-height:1.42;padding:12px 14px}
-  body.drill-screen .opt .key{min-width:28px;height:28px;font-size:13px}
-  body.drill-screen #fb{flex:0 0 auto}
-  body.drill-screen .fb{margin-top:2px}
+  body.drill-screen #app{
+    overflow:visible !important;
+    display:block !important;
+    width:100%;
+    max-width:100%;
+  }
+  body.drill-screen .prog-wrap{margin-bottom:14px}
+  body.drill-screen .prog-meta{
+    font-size:clamp(17px,1.25vw,21px);
+    line-height:1.45;
+    align-items:center;
+    gap:12px;
+    color:var(--ink);
+    flex-wrap:wrap;
+  }
+  body.drill-screen .prog-meta .streak{font-size:clamp(16px,1.15vw,20px);font-weight:700}
+  body.drill-screen .prog-meta .btn-sm{
+    font-size:clamp(15px,1.05vw,18px) !important;
+    padding:10px 14px !important;
+  }
+  body.drill-screen .qcard.panel{
+    width:100%;
+    max-width:none !important;
+    max-height:none !important;
+    height:auto !important;
+    overflow:visible !important;
+    padding:clamp(18px,1.6vw,32px) clamp(20px,2.8vw,48px);
+    margin-bottom:20px;
+  }
+  body.drill-screen .qmeta{
+    font-size:clamp(16px,1.15vw,20px);
+    line-height:1.55;
+    letter-spacing:.03em;
+    margin-bottom:12px;
+    color:var(--ink);
+    text-transform:none;
+  }
+  body.drill-screen .qmeta .date-meta{
+    font-size:clamp(15px,1.05vw,18px);
+    line-height:1.5;
+    margin-top:6px;
+    color:var(--sec);
+  }
+  body.drill-screen .call-box{
+    padding:clamp(16px,1.4vw,26px) clamp(18px,2vw,32px);
+    margin-bottom:22px;
+  }
+  body.drill-screen .call-text{
+    font-size:clamp(22px,2vw,30px) !important;
+    line-height:1.42 !important;
+  }
+  body.drill-screen .facts-label{
+    font-size:13px !important;
+    margin-bottom:12px !important;
+  }
+  body.drill-screen .facts-text{
+    font-family:'IBM Plex Serif',Georgia,serif;
+    font-size:clamp(20px,1.8vw,28px) !important;
+    line-height:1.82 !important;
+    max-width:none !important;
+  }
+  body.drill-screen .qtitle{font-size:clamp(18px,1.4vw,24px);line-height:1.5;margin-bottom:10px}
+  body.drill-screen .attack{margin-top:12px}
+  body.drill-screen .opts{
+    display:flex !important;
+    flex-direction:column !important;
+    grid-template-columns:none !important;
+    gap:12px !important;
+    margin:0 0 10px !important;
+    overflow:visible !important;
+    max-height:none !important;
+    min-height:0 !important;
+  }
+  body.drill-screen .opt{
+    width:100% !important;
+    min-height:0;
+    font-size:clamp(17px,1.25vw,22px) !important;
+    line-height:1.55 !important;
+    padding:clamp(15px,1.2vw,20px) clamp(18px,1.6vw,26px) !important;
+  }
+  body.drill-screen .opt .key{min-width:34px;height:34px;font-size:15px}
+  body.drill-screen #fb,
+  body.drill-screen .fb{width:100%;max-width:none !important;margin-top:8px}
+  body.drill-screen .fb-box,
+  body.drill-screen .trigger-analysis{
+    font-size:clamp(20px,1.75vw,28px) !important;
+    line-height:1.82 !important;
+    padding:clamp(16px,1.4vw,24px) clamp(18px,1.6vw,28px) !important;
+  }
+  body.drill-screen .fb-box strong,
+  body.drill-screen .fb-plain strong{font-size:12px !important;margin-bottom:10px !important}
+  body.drill-screen .ab-col{
+    font-size:clamp(18px,1.45vw,24px) !important;
+    line-height:1.72 !important;
+    padding:clamp(16px,1.4vw,24px) clamp(18px,1.6vw,28px) !important;
+  }
+  body.drill-screen .ab-lbl{font-size:12px !important;margin-bottom:10px !important}
+  body.drill-screen .ab-choice{font-size:clamp(18px,1.35vw,23px) !important;margin-bottom:14px !important}
+  body.drill-screen .ab-explain{
+    font-family:'IBM Plex Serif',Georgia,serif !important;
+    font-size:clamp(20px,1.75vw,28px) !important;
+    line-height:1.82 !important;
+  }
   body.drill-screen .rule-modal{max-height:calc(100vh - 28px);overflow:auto}
 
   body:not(.drill-screen) #app{height:100%;overflow:auto;padding-right:2px}
@@ -413,8 +520,15 @@
   }
 
   @media (max-width: 860px){
-    body.drill-screen .opts{grid-template-columns:1fr}
-    body.drill-screen .qcard.panel{max-height:38vh}
+    body.drill-screen{padding:8px 12px}
+    body.drill-screen .qcard.panel{padding:16px 14px}
+    body.drill-screen .prog-meta{font-size:16px !important}
+    body.drill-screen .prog-meta .streak{font-size:15px !important}
+    body.drill-screen .qmeta{font-size:15px !important}
+    body.drill-screen .qmeta .date-meta{font-size:14px !important}
+    body.drill-screen .call-text{font-size:20px !important}
+    body.drill-screen .facts-text{font-size:19px !important;line-height:1.75 !important}
+    body.drill-screen .opt{font-size:16px !important;padding:14px 14px !important}
   }
 
   /* trigger-word analysis polish (no-ops if these classes aren't present) */
@@ -449,12 +563,13 @@
   .call-box{background:linear-gradient(135deg, rgba(36,86,230,.09), rgba(91,91,214,.07));border:1px solid rgba(36,86,230,.22);border-left:4px solid var(--btn);border-radius:12px;padding:12px 15px;margin-bottom:14px}
   .call-tag{display:block;font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--btn);margin-bottom:5px}
   .call-text{font-size:16px;font-weight:700;color:var(--ink);line-height:1.4}
-  .facts-label{font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--sec);margin-bottom:5px}
-  .facts-text{font-size:14px;line-height:1.62;color:var(--ink);font-weight:400}
+  .facts-label{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--sec);margin-bottom:8px}
+  .facts-text{font-family:'IBM Plex Serif',Georgia,serif;font-size:18px;line-height:1.72;color:var(--ink);font-weight:400;margin-bottom:4px}
   /* larger, more readable question + answers */
   .call-text{font-size:19px !important;line-height:1.45 !important}
-  .facts-text{font-size:16.5px !important;line-height:1.7 !important}
-  .facts-label, .call-tag{font-size:10px !important}
+  .facts-text{font-size:20px !important;line-height:1.75 !important}
+  .facts-label{font-size:12px !important;margin-bottom:10px !important}
+  .call-tag{font-size:10px !important}
   .qtitle{font-size:17px !important;line-height:1.6 !important}
   .opts .opt{font-size:16px !important;line-height:1.5 !important;padding:14px 16px !important}
   .opts .opt .key{font-size:14px !important}
@@ -477,7 +592,7 @@
   .cov-topics{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
   .cov-topic{font-size:10.5px;color:var(--sec);background:rgba(0,0,0,.045);border-radius:6px;padding:2px 7px;line-height:1.5}
   /* let question + feedback expand fully, no internal scroll, use the page width */
-  .app, #app, .wrap, .container, main { width: 100% !important; max-width: min(1760px, 100%) !important; }
+  .app, #app, .wrap, .container, main { width: 100% !important; max-width: 100% !important; }
   #fb, .fb, .fb-box, .ab-compare, .ab-col, .trigger-analysis,
   .call-box, .facts-text, .qcard, .qtitle, .opts, .lec-nav {
     max-height: none !important;
@@ -547,7 +662,6 @@
   }
   /* ================= END AESTHETIC UPGRADE ================= */
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -1621,6 +1735,19 @@ function getCardFingerprint(c) {
   ].join('||');
 }
 
+function getCardContentFingerprint(c) {
+  if (!c) return '';
+  const norm = (str) => (str || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+  const correctOpt = (c.options || []).find(o => o.ok) || {};
+  return [
+    norm(c.subj),
+    norm(c.sub),
+    norm(c.scenario),
+    norm(c.q),
+    norm(correctOpt.t)
+  ].join('||');
+}
+
 function builtinQuestionIds() {
   const ids = new Set();
   BUILTIN.forEach(c => {
@@ -1912,10 +2039,21 @@ function renderDupeCheck() {
 window.runDupeCheck = runDupeCheck;
 window.runRuleOverlapCheck = runRuleOverlapCheck;
 
+function cardStatAliases(card) {
+  const keys = [];
+  const primary = cardKey(card);
+  if (primary) keys.push(primary);
+  if (card && card.advId) keys.push(String(card.advId));
+  if (card && card.id) keys.push(String(card.id));
+  if (card && card.dbId != null) keys.push("DB" + card.dbId);
+  return [...new Set(keys.filter(Boolean))];
+}
 function getCardStats(card) {
-  const id = cardKey(card);
   const all = loadCardStats();
-  return all[id] || {};
+  for (const id of cardStatAliases(card)) {
+    if (all[id]) return all[id];
+  }
+  return {};
 }
 
 function saveCardStatsForCard(card, patch) {
@@ -2428,7 +2566,7 @@ function resolveTriggerAnalysis(card) {
 
 function extractSharedRuleFactPhrases(ruleText, stem){
   if(!ruleText || !stem) return [];
-  const STOP = new Set(("the a an and or of to in for on with without by within into onto as is are was were be been being not no nor any all under over from at this that these those there here their its his her your our which who whom whose when where what how why whether between among after before during including would could should must may shall will than then them they because therefore however thus only also such other another each both either neither some most more less very much many few about upon out off per via court case rule party parties plaintiff defendant defendants claim claims action however because correct incorrect answer question facts here there when").split(/\s+/));
+  const STOP = new Set(("the a an and or of to in for on with without by within into onto as is are was were be been being not no nor any all under over from at this that these those there here their its his her your our which who whom whose when where what how why whether between among after before during including would could should must may shall will than then them they because therefore however thus only also such other another each both either neither some most more less very much many few about upon out off per via court case rule party parties plaintiff defendant defendants claim claims action class however because correct incorrect answer question facts here there when").split(/\s+/));
   const ruleWords = new Set(
     String(ruleText).toLowerCase().replace(/[^a-z0-9 ]+/g," ").split(/\s+/).filter(w => w.length >= 5 && !STOP.has(w))
   );
@@ -2547,24 +2685,44 @@ function extractLegallySignificantPhrases(text) {
   return out;
 }
 
+function isUnsafeTriggerPhrase(phrase) {
+  const p = String(phrase || "").trim();
+  if (p.length < 3) return true;
+  return /^(class|action|rules?|federal|law|court|claim|party|state)$/i.test(p);
+}
+
 function boldTriggerPhrases(text, phrases) {
   if (!text) return "";
-  let escapedText = esc(text);
+  const plain = String(text);
   const cleanPhrases = [...new Set(
     (phrases || [])
       .map(p => String(p || "").trim())
-      .filter(p => p.length >= 3)
+      .filter(p => !isUnsafeTriggerPhrase(p))
   )].sort((a, b) => b.length - a.length);
 
+  const spans = [];
   for (const phrase of cleanPhrases) {
-    const escapedPhrase = esc(phrase);
-    const pattern = escapedPhrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(pattern, "gi");
-    escapedText = escapedText.replace(re, match => {
-      return `<strong class="trigger-bold">${match}</strong>`;
-    });
+    let match;
+    while ((match = re.exec(plain)) !== null) {
+      const start = match.index;
+      const end = start + match[0].length;
+      if (spans.some(s => start < s.end && end > s.start)) continue;
+      spans.push({ start, end });
+    }
   }
-  return escapedText;
+
+  spans.sort((a, b) => a.start - b.start);
+  let html = "";
+  let pos = 0;
+  for (const span of spans) {
+    html += esc(plain.slice(pos, span.start));
+    html += `<strong class="trigger-bold">${esc(plain.slice(span.start, span.end))}</strong>`;
+    pos = span.end;
+  }
+  html += esc(plain.slice(pos));
+  return html;
 }
 
 function getHighlightedQuestionHTML(card) {
@@ -2737,7 +2895,7 @@ function importTriggerAnalyses(arr) {
 }
 
 /* Enrich cards with trigger analysis (call after parse / load) */
-const TRIGGER_ANALYSIS_VERSION = 4;
+const TRIGGER_ANALYSIS_VERSION = 5;
 
 function enrichCardWithTriggerAnalysis(card) {
   if (!card) return card;
@@ -2771,11 +2929,125 @@ const ERROR_LIST_KEY = "trapTrainer.errorList.v1";
 const SESSION_LOG_KEY = "trapTrainer.sessionLog.v1";
 const MASTERED_KEY = "trapTrainer.masteredCards.v1";
 const SCHEDULER_SETTINGS_KEY = "trapTrainer.schedulerSettings.v1";
+const UI_STATE_KEY = "trapTrainer.uiState.v1";
+
+let _trapLsRoot = null;
+function trapLsRoot() {
+  if (_trapLsRoot) return _trapLsRoot;
+  const fallbacks = [];
+  if (window.top && window.top !== window) fallbacks.push(window.top);
+  if (window.parent && window.parent !== window) fallbacks.push(window.parent);
+  fallbacks.push(window);
+  for (const win of fallbacks) {
+    try {
+      const store = win.localStorage;
+      store.getItem("__trapTrainerProbe");
+      _trapLsRoot = store;
+      return _trapLsRoot;
+    } catch (e) {}
+  }
+  _trapLsRoot = window.localStorage;
+  return _trapLsRoot;
+}
+function trapGetItem(key) {
+  try { return trapLsRoot().getItem(key); } catch (e) { return null; }
+}
+function trapSetItem(key, value) {
+  try { trapLsRoot().setItem(key, value); return true; } catch (e) { return false; }
+}
+function trapRemoveItem(key) {
+  try { trapLsRoot().removeItem(key); return true; } catch (e) { return false; }
+}
+function mergeStoredJsonObjects(parentRaw, iframeRaw) {
+  let parentObj = {};
+  let iframeObj = {};
+  try { parentObj = parentRaw ? JSON.parse(parentRaw) : {}; } catch (e) { parentObj = {}; }
+  try { iframeObj = iframeRaw ? JSON.parse(iframeRaw) : {}; } catch (e) { iframeObj = {}; }
+  return { ...iframeObj, ...parentObj };
+}
+function migrateIframeStorageToParent() {
+  let iframeStore;
+  try { iframeStore = window.localStorage; } catch (e) { return; }
+  const parentStore = trapLsRoot();
+  if (iframeStore === parentStore) return;
+  const keys = [
+    LS_KEY, ADAPTIBAR_SCORES_KEY, LS_CARD_STATS_KEY, CARD_STATS_KEY,
+    ERROR_LIST_KEY, SESSION_LOG_KEY, MASTERED_KEY, SCHEDULER_SETTINGS_KEY,
+    LS_SESSION_KEY, LS_LAST_SESSION_SHOWN_KEY, UI_STATE_KEY,
+    "trapTrainer.cardStats.migratedV2", "trapTrainer.adaptiPerf.v1",
+    "trapTrainer.futureChanges.v1"
+  ];
+  for (const key of keys) {
+    try {
+      const fromIframe = iframeStore.getItem(key);
+      const fromParent = parentStore.getItem(key);
+      if (!fromIframe) continue;
+      if (!fromParent) {
+        parentStore.setItem(key, fromIframe);
+      } else if (key === CARD_STATS_KEY || key === LS_CARD_STATS_KEY) {
+        parentStore.setItem(key, JSON.stringify(mergeStoredJsonObjects(fromParent, fromIframe)));
+      }
+    } catch (e) {}
+  }
+}
+migrateIframeStorageToParent();
+
+function loadUiState() {
+  try {
+    const raw = trapGetItem(UI_STATE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+function saveUiState(patch) {
+  const next = { ...loadUiState(), ...(patch || {}) };
+  trapSetItem(UI_STATE_KEY, JSON.stringify(next));
+  return next;
+}
+function restoreUiState() {
+  const ui = loadUiState();
+  if (Array.isArray(ui.selectedSubjects)) {
+    let picks = ui.selectedSubjects.filter(s => subjects().includes(s));
+    if (picks.length === subjects().length) picks = [];
+    state.selected = new Set(picks);
+  } else if (state.selected === null) {
+    state.selected = new Set();
+  }
+  if (ui.dateFilter && DATE_FILTERS[ui.dateFilter]) state.dateFilter = ui.dateFilter;
+  if (typeof ui.skipAnswered24 === "boolean") state.skipAnswered24 = ui.skipAnswered24;
+}
 
 const MASTERY_THRESHOLD = 5;
 const REVIEW_INTERVALS_DAYS = [1, 2, 4, 7, 14];
+const REPEAT_BLOCK_DAYS = 2;
+const STALE_PRACTICE_DAYS = 14;
+const MIN_STALE_SESSION_FRACTION = 0.2;
 
 function nowISO() { return new Date().toISOString(); }
+function localTodayISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function localDateISOFromValue(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function isPracticedTodayStats(stats) {
+  stats = stats || {};
+  const today = localTodayISO();
+  if (stats.lastPracticedDate === today) return true;
+  if (localDateISOFromValue(stats.lastPracticedAt) === today) return true;
+  return (stats.practiceHistory || []).some(entry =>
+    entry.practicedDate === today || localDateISOFromValue(entry.at || entry.practicedAt) === today
+  );
+}
 function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -2800,62 +3072,143 @@ function loadSessionSettings() {
     dailyNew: 5
   };
   try {
-    const r = localStorage.getItem(SCHEDULER_SETTINGS_KEY);
+    const r = trapGetItem(SCHEDULER_SETTINGS_KEY);
     return r ? { ...defaults, ...JSON.parse(r) } : defaults;
   } catch (e) { return defaults; }
 }
 function saveSessionSettings(s) {
-  try { localStorage.setItem(SCHEDULER_SETTINGS_KEY, JSON.stringify(s)); return true; } catch (e) { return false; }
+  try { return trapSetItem(SCHEDULER_SETTINGS_KEY, JSON.stringify(s)); } catch (e) { return false; }
 }
 
 function migrateCardStatsStorage() {
   try {
-    if (localStorage.getItem("trapTrainer.cardStats.migratedV2")) return;
+    if (trapGetItem("trapTrainer.cardStats.migratedV2")) return;
     const merged = {};
-    const v1 = localStorage.getItem(LS_CARD_STATS_KEY);
-    const v2 = localStorage.getItem(CARD_STATS_KEY);
+    const v1 = trapGetItem(LS_CARD_STATS_KEY);
+    const v2 = trapGetItem(CARD_STATS_KEY);
     if (v1) Object.assign(merged, JSON.parse(v1));
     if (v2) Object.assign(merged, JSON.parse(v2));
-    localStorage.setItem(CARD_STATS_KEY, JSON.stringify(merged));
-    localStorage.setItem("trapTrainer.cardStats.migratedV2", "1");
+    trapSetItem(CARD_STATS_KEY, JSON.stringify(merged));
+    trapSetItem("trapTrainer.cardStats.migratedV2", "1");
   } catch (e) {}
 }
 migrateCardStatsStorage();
 
-function loadCardStatsMap() {
+let _statsSyncTimer = null;
+function buildPracticeSyncPayload() {
+  return {
+    version: 2,
+    syncedAt: nowISO(),
+    cardStats: loadCardStatsMap(),
+    errorList: loadErrorList(),
+    sessionLog: loadSessionLog(),
+    masteredCards: loadMasteredCards(),
+    schedulerSettings: loadSessionSettings(),
+    uiState: loadUiState()
+  };
+}
+function pushPracticeStatsToServer() {
   try {
-    const r = localStorage.getItem(CARD_STATS_KEY);
-    return r ? JSON.parse(r) : {};
-  } catch (e) { return {}; }
+    const payload = buildPracticeSyncPayload();
+    const sig = JSON.stringify(payload);
+    if (window.__lastPracticeSyncSig === sig) return;
+    window.__lastPracticeSyncSig = sig;
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "mbeTrapStatsSync", payload }, "*");
+    }
+  } catch (e) {}
 }
-function saveCardStatsMap(map) {
-  try { localStorage.setItem(CARD_STATS_KEY, JSON.stringify(map)); return true; } catch (e) { return false; }
+function scheduleServerStatsSync() {
+  clearTimeout(_statsSyncTimer);
+  _statsSyncTimer = setTimeout(pushPracticeStatsToServer, 600);
 }
+function mergeImportedPracticeBlob(blob) {
+  if (!blob || typeof blob !== "object") return;
+  const blobStamp = blob.syncedAt || blob.exportedAt || JSON.stringify(blob.cardStats || {}).length;
+  const lastMerged = trapGetItem("__trapTrainerBlobMergedAt");
+  if (blobStamp && lastMerged === String(blobStamp)) return;
+  const statsMap = loadCardStatsMap();
+  let changed = false;
+  for (const [key, incomingStats] of Object.entries(blob.cardStats || {})) {
+    if (!key || key.startsWith("__") || !incomingStats) continue;
+    const merged = mergeCardStatRecords(statsMap[key], incomingStats);
+    if (JSON.stringify(merged) !== JSON.stringify(statsMap[key] || {})) {
+      statsMap[key] = merged;
+      changed = true;
+    }
+  }
+  if (changed) saveCardStatsMap(statsMap, { skipServerSync: true });
+  trapSetItem("__trapTrainerBlobMergedAt", String(blobStamp));
+  if (Array.isArray(blob.errorList) && blob.errorList.length) {
+    const mergedErrors = mergeErrorLists(loadErrorList(), blob.errorList);
+    if (mergedErrors.length) saveErrorList(mergedErrors);
+  }
+  if (Array.isArray(blob.sessionLog) && blob.sessionLog.length) {
+    const mergedLog = (loadSessionLog() || []).concat(blob.sessionLog).slice(-200);
+    saveSessionLog(mergedLog);
+  }
+  if (blob.schedulerSettings) saveSessionSettings({ ...loadSessionSettings(), ...blob.schedulerSettings });
+  if (blob.uiState) saveUiState(blob.uiState);
+}
+function mergeErrorLists(existing, incoming) {
+  const out = (existing || []).slice();
+  const seen = new Set(out.map(item => [item.key, item.at, item.status].join("|")));
+  for (const item of incoming || []) {
+    if (!item) continue;
+    const sig = [item.key, item.at, item.status].join("|");
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    out.push(item);
+  }
+  return out;
+}
+let _cardStatsCache = null;
+function loadCardStatsMap() {
+  if (_cardStatsCache !== null) return _cardStatsCache;
+  try {
+    const r = trapGetItem(CARD_STATS_KEY);
+    _cardStatsCache = r ? JSON.parse(r) : {};
+  } catch (e) { _cardStatsCache = {}; }
+  return _cardStatsCache;
+}
+function saveCardStatsMap(map, opts) {
+  opts = opts || {};
+  try {
+    _cardStatsCache = map;
+    const ok = trapSetItem(CARD_STATS_KEY, JSON.stringify(map));
+    if (ok && !opts.skipServerSync) scheduleServerStatsSync();
+    return ok;
+  } catch (e) { return false; }
+}
+function invalidateCardStatsCache() { _cardStatsCache = null; }
 function loadCardStats() { return loadCardStatsMap(); }
 function saveCardStats(stats) { return saveCardStatsMap(stats); }
 
 function loadErrorList() {
-  try { const r = localStorage.getItem(ERROR_LIST_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
+  try { const r = trapGetItem(ERROR_LIST_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
 }
 function saveErrorList(list) {
-  try { localStorage.setItem(ERROR_LIST_KEY, JSON.stringify(list)); return true; } catch (e) { return false; }
+  try {
+    const ok = trapSetItem(ERROR_LIST_KEY, JSON.stringify(list));
+    if (ok) scheduleServerStatsSync();
+    return ok;
+  } catch (e) { return false; }
 }
 function loadSessionLog() {
-  try { const r = localStorage.getItem(SESSION_LOG_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
+  try { const r = trapGetItem(SESSION_LOG_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
 }
 function saveSessionLog(log) {
-  try { localStorage.setItem(SESSION_LOG_KEY, JSON.stringify(log)); return true; } catch (e) { return false; }
+  try { return trapSetItem(SESSION_LOG_KEY, JSON.stringify(log)); } catch (e) { return false; }
 }
 function loadMasteredCards() {
-  try { const r = localStorage.getItem(MASTERED_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
+  try { const r = trapGetItem(MASTERED_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
 }
 function saveMasteredCards(list) {
-  try { localStorage.setItem(MASTERED_KEY, JSON.stringify(list)); return true; } catch (e) { return false; }
+  try { return trapSetItem(MASTERED_KEY, JSON.stringify(list)); } catch (e) { return false; }
 }
 function loadLastSessionShownKeys() {
-  try { const r = localStorage.getItem(LS_LAST_SESSION_SHOWN_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
+  try { const r = trapGetItem(LS_LAST_SESSION_SHOWN_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
 }
-
 const DATE_FILTERS = {
   all: "All dates",
   notPracticed: "Not practiced in app yet",
@@ -2940,10 +3293,12 @@ function passesDateFilter(card, filter) {
   const adaptibarDate = card.mostRecentImportedMissAt || card.dateAnswered || card.firstMissedAt || "";
   const adaptibarDays = daysSinceISO(adaptibarDate);
   switch (filter) {
+    case "skipAnswered24":
+      return !answeredRecently(card, 24);
     case "notPracticed":
       return !hasPractice;
     case "practicedToday":
-      return stats.lastPracticedDate === new Date().toISOString().slice(0, 10);
+      return isPracticedTodayStats(stats);
     case "practicedThisWeek":
       return hasPractice && lastPracticedDays <= 7;
     case "stale14":
@@ -2982,7 +3337,6 @@ function missAgeStatus(card) {
 function getDateSummary(cards) {
   cards = cards || allCards();
   let oldUnchecked = 0, recentMisses = 0, practicedToday = 0, stale14 = 0, neverPracticed = 0;
-  const today = new Date().toISOString().slice(0, 10);
   for (const card of cards) {
     const stats = getCardStats(card);
     const missedDate = card.mostRecentImportedMissAt || card.dateAnswered || card.firstMissedAt;
@@ -2991,7 +3345,7 @@ function getDateSummary(cards) {
     const hasPractice = !!(stats.practiceHistory && stats.practiceHistory.length);
     if (missedDays >= 30 && practicedDays === Infinity) oldUnchecked++;
     if (missedDays <= 14) recentMisses++;
-    if (stats.lastPracticedDate === today) practicedToday++;
+    if (isPracticedTodayStats(stats)) practicedToday++;
     if (hasPractice && practicedDays >= 14) stale14++;
     if (!hasPractice) neverPracticed++;
   }
@@ -3253,9 +3607,20 @@ function buildTrapComparisonHTML(chosen, correct, card) {
   const saves = correct.why || ta.correctAnswerRule || "This answer follows the governing rule.";
   const diff = ta.oneSentenceTakeaway || "The threshold fact controls which doctrine applies.";
   return `<div class="ab-compare">
-    <div class="ab-col ab-yours"><strong>Your answer (wrong)</strong><b>${esc(chosen.t)}</b><br>${esc(tempting)}</div>
-    <div class="ab-col ab-correct"><strong>Correct answer</strong><b>${esc(correct.t)}</b><br>${esc(saves)}</div>
-    <div class="ab-col ab-diff"><strong>The difference that decides it</strong>${esc(diff)}</div>
+    <div class="ab-col ab-yours">
+      <span class="ab-lbl">Your answer (wrong)</span>
+      <div class="ab-choice">${esc(chosen.t)}</div>
+      <div class="ab-explain">${esc(tempting)}</div>
+    </div>
+    <div class="ab-col ab-correct">
+      <span class="ab-lbl">Correct answer</span>
+      <div class="ab-choice">${esc(correct.t)}</div>
+      <div class="ab-explain">${esc(saves)}</div>
+    </div>
+    <div class="ab-col ab-diff">
+      <span class="ab-lbl">The difference that decides it</span>
+      <div class="ab-explain">${esc(diff)}</div>
+    </div>
   </div>`;
 }
 
@@ -3326,9 +3691,9 @@ function exportAnkiTriggerCSV() {
 
 function saveFutureChange(note) {
   try {
-    const list = JSON.parse(localStorage.getItem(FUTURE_CHANGES_KEY) || "[]");
+    const list = JSON.parse(trapGetItem(FUTURE_CHANGES_KEY) || "[]");
     list.unshift({ at: nowISO(), note: String(note || "").trim() });
-    localStorage.setItem(FUTURE_CHANGES_KEY, JSON.stringify(list.slice(0, 100)));
+    trapSetItem(FUTURE_CHANGES_KEY, JSON.stringify(list.slice(0, 100)));
   } catch (e) {}
 }
 
@@ -3376,9 +3741,16 @@ function renderLearningDashboard() {
 }
 
 function setCardStats(card, stats) {
-  const id = cardKey(card);
   const all = loadCardStatsMap();
-  all[id] = { ...(all[id] || {}), ...(stats || {}) };
+  const merged = { ...(stats || {}) };
+  const aliases = cardStatAliases(card);
+  const primary = aliases[0] || cardKey(card);
+  const existing = getCardStats(card);
+  const next = { ...existing, ...merged };
+  all[primary] = next;
+  for (const alias of aliases.slice(1)) {
+    if (alias && alias !== primary) all[alias] = { ...(all[alias] || {}), ...next };
+  }
   saveCardStatsMap(all);
 }
 
@@ -3415,10 +3787,83 @@ function lastAnsweredTime(card){
 function answeredRecently(card, hours){
   try{
     const s = getCardStats(card) || {};
-    const t = s.lastAnsweredAt ? Date.parse(s.lastAnsweredAt) : (s.lastShown || 0);
-    if(!t) return false;
-    return (Date.now() - t) < hours*3600*1000;
+    const history = s.practiceHistory || [];
+    if (!history.length && !s.lastAnsweredAt && !s.lastPracticedAt) return false;
+    let t = s.lastAnsweredAt ? Date.parse(s.lastAnsweredAt) : 0;
+    if (!Number.isFinite(t) || t <= 0) t = s.lastPracticedAt ? Date.parse(s.lastPracticedAt) : 0;
+    if (!Number.isFinite(t) || t <= 0) return false;
+    return (Date.now() - t) < hours * 3600 * 1000;
   }catch(e){ return false; }
+}
+
+function isSpacingBlocked(card, errorKeys) {
+  errorKeys = errorKeys || new Set();
+  const stats = getCardStats(card);
+  const key = cardKey(card);
+  if (errorKeys.has(key) && isErrorItemDue(card)) return false;
+  if (isDue(stats) && stats.lastSeenAt) return false;
+  if (!stats.lastPracticedAt) return false;
+  return daysSinceISO(stats.lastPracticedAt) < REPEAT_BLOCK_DAYS;
+}
+function isDrillAvailableNow(card, errorKeys) {
+  errorKeys = errorKeys || new Set(loadErrorList().filter(x => x.status !== "resolved").map(x => x.key));
+  const stats = getCardStats(card);
+  const key = cardKey(card);
+  if (stats.isMastered) return false;
+  if (isSnoozed(card)) return false;
+  if (state.skipAnswered24 !== false && answeredRecently(card, 24)) return false;
+  if (errorKeys.has(key) && !isErrorItemDue(card)) return false;
+  if (isSpacingBlocked(card, errorKeys)) return false;
+  return true;
+}
+function shouldSkipQueuedCard(card) {
+  const stats = getCardStats(card);
+  if (stats.isMastered) return true;
+  if (isSnoozed(card)) return true;
+  if (state.skipAnswered24 !== false && answeredRecently(card, 24)) return true;
+  return false;
+}
+function advanceToNextAvailableQueuedCard() {
+  while (state.queue && state.i < state.queue.length && shouldSkipQueuedCard(state.queue[state.i])) {
+    state.queue.splice(state.i, 1);
+  }
+}
+function isSubjectFocusedSelection() {
+  const n = state.selected ? state.selected.size : 0;
+  return n > 0 && n < subjects().length;
+}
+function countSpacingBlocked(pool, errorKeys) {
+  errorKeys = errorKeys || new Set(loadErrorList().filter(x => x.status !== "resolved").map(x => x.key));
+  return dedupeCards(pool).filter(c => {
+    if (getCardStats(c).isMastered || isSnoozed(c)) return false;
+    return isSpacingBlocked(c, errorKeys);
+  }).length;
+}
+
+function getRetrievalTier(card, errorKeys) {
+  const stats = getCardStats(card);
+  const key = cardKey(card);
+  if (errorKeys.has(key) && isErrorItemDue(card)) return "error";
+  const practicedDays = daysSinceISO(stats.lastPracticedAt);
+  const hasPractice = !!(stats.practiceHistory && stats.practiceHistory.length);
+  if (!stats.lastSeenAt) return "unseen";
+  if (isDue(stats)) return "due";
+  if (!hasPractice) return "unpracticed";
+  if (practicedDays >= STALE_PRACTICE_DAYS) {
+    const missedDays = daysSinceISO(card.mostRecentImportedMissAt || card.dateAnswered || card.firstMissedAt);
+    if (missedDays >= 30) return "old_miss";
+    return "stale";
+  }
+  return "normal";
+}
+
+function persistInProgressSession() {
+  const session = state.currentSession;
+  if (!session || !session.questionsShown || !session.questionsShown.length) return;
+  try {
+    trapSetItem(LS_LAST_SESSION_SHOWN_KEY, JSON.stringify(session.questionsShown));
+    trapSetItem(LS_SESSION_KEY, String(Date.now()));
+  } catch (e) {}
 }
 
 function dedupeCards(cards){
@@ -3437,13 +3882,11 @@ function staleAnsweredFirst(a, b){
 
 function finalizeQueue(pool, requestedSize, sorter){
   const max = requestedSize || (pool ? pool.length : 0);
+  const errorKeys = new Set(loadErrorList().filter(x => x.status !== "resolved").map(x => x.key));
   const unique = dedupeCards(pool || []);
-  const available = unique.filter(c => !isSnoozed(c));
-  const preferred = available.filter(c => !answeredRecently(c, 12));
-  const recent = available.filter(c => answeredRecently(c, 12)).sort(staleAnsweredFirst);
-  const orderedPreferred = sorter ? preferred.sort(sorter) : preferred;
-  const queue = dedupeCards(orderedPreferred.concat(recent));
-  return queue.slice(0, max);
+  const available = unique.filter(c => isDrillAvailableNow(c, errorKeys));
+  const preferred = sorter ? available.slice().sort(sorter) : available;
+  return preferred.slice(0, max);
 }
 
 function isErrorItemDue(card) {
@@ -3477,6 +3920,7 @@ function snoozeCard(card, days, btnEl){
       item.snoozedAt = nowISO();
       saveErrorList(list);
     }
+    pushPracticeStatsToServer();
   } catch (e) {}
   if (btnEl) {
     btnEl.textContent = "\u{1F515} Snoozed 2 wks";
@@ -3574,7 +4018,7 @@ function recordCardAnswer(card, correct, chosenOption, meta) {
   stats.lastConfidence = meta.confidence || null;
 
   const now = nowISO();
-  const today = now.slice(0, 10);
+  const today = localTodayISO();
   stats.practiceHistory = stats.practiceHistory || [];
   stats.practiceHistory.push({
     at: now,
@@ -3646,6 +4090,7 @@ function recordCardAnswer(card, correct, chosenOption, meta) {
 
   updateDoctrineStats(card, correct, meta);
   setCardStats(card, stats);
+  pushPracticeStatsToServer();
   if (state.currentSession) {
     state.currentSession.questionsAnswered = (state.currentSession.questionsAnswered || 0) + 1;
     if (correct) state.currentSession.correct = (state.currentSession.correct || 0) + 1;
@@ -3680,8 +4125,8 @@ function finishCurrentSession() {
   if (log.length > 200) log.length = 200;
   saveSessionLog(log);
   try {
-    localStorage.setItem(LS_LAST_SESSION_SHOWN_KEY, JSON.stringify(session.questionsShown || []));
-    localStorage.setItem(LS_SESSION_KEY, String(Date.now()));
+    trapSetItem(LS_LAST_SESSION_SHOWN_KEY, JSON.stringify(session.questionsShown || []));
+    trapSetItem(LS_SESSION_KEY, String(Date.now()));
   } catch (e) {}
   state.currentSession = null;
   return session;
@@ -3728,32 +4173,57 @@ function getSchedulerSummary() {
 function buildSessionQueue(pool, opts) {
   opts = opts || {};
   const settings = loadSessionSettings();
+  const subjectFocused = isSubjectFocusedSelection();
+  const useDailyCaps = (settings.dailyReview || opts.dailyReview) && !subjectFocused && !opts.focusMission;
   const cfg = opts.reviewOnly
     ? { maxQuestions: pool.length, maxErrorQuestions: 999, maxNewQuestions: 999, maxDue: 999 }
-    : (settings.dailyReview || opts.dailyReview)
+    : useDailyCaps
       ? { maxQuestions: opts.maxQuestions || settings.dailyDue + settings.dailyErrors + settings.dailyNew, maxErrorQuestions: settings.dailyErrors, maxNewQuestions: settings.dailyNew, maxDue: settings.dailyDue }
       : { maxQuestions: opts.maxQuestions || settings.maxQuestions, maxErrorQuestions: settings.maxErrorQuestions, maxNewQuestions: settings.maxNewQuestions, maxDue: opts.maxQuestions || settings.maxQuestions };
 
+  const eligibleCount = dedupeCards(pool).filter(c => !getCardStats(c).isMastered && !isSnoozed(c)).length;
+  if (subjectFocused && !opts.reviewOnly && !useDailyCaps) {
+    cfg.maxQuestions = eligibleCount;
+    cfg.maxNewQuestions = eligibleCount;
+    cfg.maxDue = eligibleCount;
+    cfg.maxErrorQuestions = eligibleCount;
+  }
+
   const errorKeys = new Set(loadErrorList().filter(x => x.status !== "resolved").map(x => x.key));
   const lastSessionKeys = new Set(loadLastSessionShownKeys());
+  const minStale = Math.max(3, Math.floor(cfg.maxQuestions * MIN_STALE_SESSION_FRACTION));
 
+  const allowRecent = (state.dateFilter || "all") === "practicedToday";
+  const relaxSpacing = false;
   const active = dedupeCards(pool).filter(c => {
     if (getCardStats(c).isMastered) return false;
     if (isSnoozed(c)) return false;
+    if (state.skipAnswered24 !== false && answeredRecently(c, 24)) return false;
     const key = cardKey(c);
     if (errorKeys.has(key) && !isErrorItemDue(c)) return false;
+    if (!allowRecent && !relaxSpacing && isSpacingBlocked(c, errorKeys)) return false;
     return true;
   });
-  const notRecent = active.filter(c => !answeredRecently(c, 12));
-  const recentFallback = active.filter(c => answeredRecently(c, 12));
-  const primary = notRecent.filter(c => !lastSessionKeys.has(cardKey(c)));
-  const fallback = notRecent.filter(c => lastSessionKeys.has(cardKey(c)));
-  primary.sort((a, b) => queuePriorityScore(b) - queuePriorityScore(a));
-  fallback.sort((a, b) => queuePriorityScore(b) - queuePriorityScore(a));
-  recentFallback.sort(staleAnsweredFirst);
+
+  const buckets = {
+    error: [], due: [], unseen: [], unpracticed: [], stale: [], old_miss: [], normal: []
+  };
+  active.forEach(card => {
+    const tier = getRetrievalTier(card, errorKeys);
+    if (buckets[tier]) buckets[tier].push(card);
+    else buckets.normal.push(card);
+  });
+
+  function sortBucket(cards) {
+    const fresh = cards.filter(c => !lastSessionKeys.has(cardKey(c)));
+    const repeat = cards.filter(c => lastSessionKeys.has(cardKey(c)));
+    fresh.sort((a, b) => queuePriorityScore(b) - queuePriorityScore(a));
+    repeat.sort((a, b) => queuePriorityScore(b) - queuePriorityScore(a));
+    return fresh.concat(repeat);
+  }
 
   const queue = [];
-  let newCount = 0, errorCount = 0, dueCount = 0;
+  let newCount = 0, errorCount = 0, dueCount = 0, staleCount = 0;
 
   function classify(card) {
     const stats = getCardStats(card);
@@ -3779,38 +4249,61 @@ function buildSessionQueue(pool, opts) {
     return true;
   }
 
-  for (const c of primary) tryAdd(c);
-  for (const c of fallback) tryAdd(c);
-  for (const c of recentFallback) tryAdd(c);
-
-  if (!queue.length && active.length) {
-    return dedupeCards(active.sort(staleAnsweredFirst)).slice(0, cfg.maxQuestions);
+  function fillFrom(cards, maxPick) {
+    let picked = 0;
+    for (const c of sortBucket(cards)) {
+      if (queue.length >= cfg.maxQuestions) break;
+      if (maxPick != null && picked >= maxPick) break;
+      if (tryAdd(c)) picked++;
+    }
   }
+
+  fillFrom(buckets.error, cfg.maxErrorQuestions);
+  fillFrom(buckets.due, cfg.maxDue);
+
+  const neglected = sortBucket(buckets.unpracticed.concat(buckets.old_miss, buckets.stale));
+  for (const c of neglected) {
+    if (queue.length >= cfg.maxQuestions) break;
+    if (staleCount >= minStale) break;
+    if (tryAdd(c)) staleCount++;
+  }
+
+  fillFrom(buckets.unseen, cfg.maxNewQuestions);
+  fillFrom(buckets.old_miss, null);
+  fillFrom(buckets.stale, null);
+  fillFrom(buckets.unpracticed, null);
+  fillFrom(buckets.normal, null);
+
+  if (queue.length < cfg.maxQuestions) {
+    const leftovers = sortBucket(active.filter(c => !queue.some(q => cardKey(q) === cardKey(c))));
+    fillFrom(leftovers, cfg.maxQuestions - queue.length);
+  }
+
   return queue;
 }
 
 function resetSchedulingHistory() {
   if (!confirm("Reset scheduling history? This will NOT delete cards, but it will clear correct/wrong counts, error list, sessions, and mastered archive.")) return;
-  localStorage.removeItem(CARD_STATS_KEY);
-  localStorage.removeItem(ERROR_LIST_KEY);
-  localStorage.removeItem(SESSION_LOG_KEY);
-  localStorage.removeItem(MASTERED_KEY);
-  localStorage.removeItem(LS_LAST_SESSION_SHOWN_KEY);
-  localStorage.removeItem("trapTrainer.cardStats.migratedV2");
+  trapRemoveItem(CARD_STATS_KEY);
+  trapRemoveItem(ERROR_LIST_KEY);
+  trapRemoveItem(SESSION_LOG_KEY);
+  trapRemoveItem(MASTERED_KEY);
+  trapRemoveItem(LS_LAST_SESSION_SHOWN_KEY);
+  trapRemoveItem("trapTrainer.cardStats.migratedV2");
   renderStart();
 }
 
 function loadAdaptibarScores(){
   try{
-    let r=localStorage.getItem(ADAPTIBAR_SCORES_KEY);
+    let r=trapGetItem(ADAPTIBAR_SCORES_KEY);
     if(!r){
-      r=localStorage.getItem('trapTrainer.adaptiPerf.v1');
-      if(r) localStorage.setItem(ADAPTIBAR_SCORES_KEY,r);
+      r=trapGetItem('trapTrainer.adaptiPerf.v1');
+      if(r) trapSetItem(ADAPTIBAR_SCORES_KEY,r);
     }
     return r?JSON.parse(r):{};
   }catch(e){return {};}
 }
-function saveAdaptibarScores(scores){try{localStorage.setItem(ADAPTIBAR_SCORES_KEY,JSON.stringify(scores));return true;}catch(e){return false;}}
+function saveAdaptibarScores(scores){try{return trapSetItem(ADAPTIBAR_SCORES_KEY,JSON.stringify(scores));}catch(e){return false;}}
 
 function getCardStat(id){return loadCardStatsMap()[id]||defaultCardStats();}
 
@@ -3841,17 +4334,24 @@ function queuePriorityScore(card){
   score += (stats.wrongCount || stats.timesWrong || 0) * 50;
   if (card.needsCategoryReview) score += 200;
   if (lastSessionKeys.includes(key)) score -= 2000;
-  if (stats.lastSeenAt && new Date(stats.lastSeenAt).getTime() >= startOfToday()) score -= 1500;
 
   const missedDate = card.mostRecentImportedMissAt || card.dateAnswered || card.firstMissedAt;
   const missedDays = daysSinceISO(missedDate);
   const practicedDays = daysSinceISO(stats.lastPracticedAt);
+  const hasPractice = !!(stats.practiceHistory && stats.practiceHistory.length);
 
-  if (!stats.practiceHistory || stats.practiceHistory.length === 0) score += 60;
-  if (missedDays >= 30 && practicedDays >= 14) score += 25;
-  if (missedDays <= 14) score += 35;
-  if (stats.lastAnsweredCorrect === true && practicedDays <= 7) score -= 50;
-  if (stats.lastAnsweredCorrect === false && practicedDays <= 1) score -= 30;
+  if (!hasPractice) score += 4200;
+  else if (practicedDays >= STALE_PRACTICE_DAYS) score += 3800;
+  else if (practicedDays >= 7) score += 900;
+
+  if (missedDays >= 30 && practicedDays === Infinity) score += 5000;
+  else if (missedDays >= 30 && practicedDays >= STALE_PRACTICE_DAYS) score += 3200;
+
+  if (practicedDays === 0) score -= 4000;
+  else if (practicedDays === 1) score -= 2500;
+  else if (practicedDays < REPEAT_BLOCK_DAYS) score -= 1200;
+
+  if (stats.lastAnsweredCorrect === false && practicedDays <= 3) score += 400;
 
   return score;
 }
@@ -3917,30 +4417,129 @@ function renderScoreDashboard(){
 }
 
 function loadUser(){
+  const appCards = Array.isArray(window.APP_MBE_CARDS)
+    ? window.APP_MBE_CARDS.filter(c => c && c.q).map(c => ({...c, _db: true, _b: false}))
+    : [];
+  let localCards = [];
+  try {
+    const r = trapGetItem(LS_KEY);
+    localCards = r ? JSON.parse(r).filter(c => c && c.q) : [];
+  } catch(e) { localCards = []; }
+  if (window.APP_MBE_CARD_STORE === 'database') {
+    migrateLocalStatsToDatabaseCards(appCards, localCards);
+    return appCards;
+  }
   try{
-    const r=localStorage.getItem(LS_KEY);
-    return r?JSON.parse(r).filter(c=>c&&c.q):[];
-  }catch(e){return[];}
+    const seen = new Set(appCards.map(getCardFingerprint));
+    const merged = appCards.slice();
+    for (const card of localCards) {
+      const key = getCardFingerprint(card);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(card);
+    }
+    return merged;
+  }catch(e){return appCards;}
 }
 function initUserCards(){
   const raw=loadUser();
   const migrated=migrateCardCategories(raw);
-  let changed=false;
+  let dirty=false;
   for(let i=0;i<migrated.length;i++){
     const b=raw[i]||{};
     const m=migrated[i];
-    if(b.subj!==m.subj||b.sub!==m.sub||b.mbeKey!==m.mbeKey||b.needsCategoryReview!==m.needsCategoryReview) changed=true;
+    if(b.subj!==m.subj||b.sub!==m.sub||b.mbeKey!==m.mbeKey||b.needsCategoryReview!==m.needsCategoryReview) dirty=true;
   }
-  if(changed){try{localStorage.setItem(LS_KEY,JSON.stringify(migrated));}catch(e){}}
   const enriched = migrated.map(c => {
-    try { enrichCardWithTriggerAnalysis(c); } catch (e) { console.warn('trigger enrich failed', c && c.id, e); }
+    try {
+      const stats = getCardStats(c);
+      if (stats.triggerAnalysis && stats.triggerAnalysisVersion === TRIGGER_ANALYSIS_VERSION) {
+        c.triggerAnalysis = stats.triggerAnalysis;
+      } else {
+        enrichCardWithTriggerAnalysis(c);
+        dirty = true;
+      }
+    } catch (e) { console.warn('trigger enrich failed', c && c.id, e); }
     return c;
   });
-  return enriched;
+  return { cards: enriched, dirty };
 }
 let _allCardsCache = null;
 function invalidateAllCardsCache(){ _allCardsCache = null; }
-function saveUser(){invalidateAllCardsCache();try{localStorage.setItem(LS_KEY,JSON.stringify(userCards));return true;}catch(e){return false;}}
+function saveUser(){
+  invalidateAllCardsCache();
+  try{
+    trapSetItem(LS_KEY,JSON.stringify(userCards.filter(c => !c._db)));
+    return true;
+  }catch(e){return false;}
+}
+
+function latestISO(a, b) {
+  if (!a) return b || null;
+  if (!b) return a || null;
+  return Date.parse(a) >= Date.parse(b) ? a : b;
+}
+
+function mergePracticeHistory(a, b) {
+  const out = [];
+  const seen = new Set();
+  for (const item of (a || []).concat(b || [])) {
+    if (!item) continue;
+    const key = [item.at, item.selectedAnswerText, item.correctAnswerText, item.sessionId].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+function mergeCardStatRecords(existing, incoming) {
+  existing = existing || {};
+  incoming = incoming || {};
+  const merged = { ...incoming, ...existing };
+  ["timesSeen","timesCorrect","timesWrong","wrongCount","masteryCorrectCount","luckyCorrectCount"].forEach(k => {
+    merged[k] = Math.max(Number(existing[k] || 0), Number(incoming[k] || 0));
+  });
+  merged.practiceHistory = mergePracticeHistory(existing.practiceHistory, incoming.practiceHistory);
+  merged.lastAnsweredAt = latestISO(existing.lastAnsweredAt, incoming.lastAnsweredAt);
+  merged.lastPracticedAt = latestISO(existing.lastPracticedAt, incoming.lastPracticedAt);
+  merged.lastSeenAt = latestISO(existing.lastSeenAt, incoming.lastSeenAt);
+  merged.firstPracticedAt = existing.firstPracticedAt || incoming.firstPracticedAt || null;
+  merged.lastPracticedDate = localDateISOFromValue(merged.lastPracticedAt) || existing.lastPracticedDate || incoming.lastPracticedDate || null;
+  merged.lastAnsweredCorrect = existing.lastAnsweredAt && incoming.lastAnsweredAt
+    ? (Date.parse(existing.lastAnsweredAt) >= Date.parse(incoming.lastAnsweredAt) ? existing.lastAnsweredCorrect : incoming.lastAnsweredCorrect)
+    : (existing.lastAnsweredCorrect ?? incoming.lastAnsweredCorrect ?? null);
+  merged.isInErrorList = !!(existing.isInErrorList || incoming.isInErrorList);
+  merged.isMastered = !!(existing.isMastered || incoming.isMastered);
+  return merged;
+}
+
+function migrateLocalStatsToDatabaseCards(appCards, localCards) {
+  if (!Array.isArray(appCards) || !appCards.length || !Array.isArray(localCards) || !localCards.length) return;
+  const statsMap = loadCardStatsMap();
+  const migrated = statsMap.__dbCardStatsMigrated || {};
+  const dbByContent = new Map();
+  appCards.forEach(card => dbByContent.set(getCardContentFingerprint(card), card));
+  let changed = false;
+
+  for (const oldCard of localCards) {
+    const target = dbByContent.get(getCardContentFingerprint(oldCard));
+    if (!target) continue;
+    const oldKey = cardKey(oldCard);
+    const newKey = cardKey(target);
+    if (!oldKey || !newKey || oldKey === newKey || !statsMap[oldKey]) continue;
+    const migrationKey = `${oldKey}=>${newKey}`;
+    if (migrated[migrationKey]) continue;
+    statsMap[newKey] = mergeCardStatRecords(statsMap[newKey], statsMap[oldKey]);
+    migrated[migrationKey] = nowISO();
+    changed = true;
+  }
+
+  if (changed) {
+    statsMap.__dbCardStatsMigrated = migrated;
+    saveCardStatsMap(statsMap);
+  }
+}
 
 /* ============================ BULK CSV / EXCEL IMPORT ============================ */
 const BULK_HEADERS = ["Subject","Subtopic","Scenario","Question","Option A","Option B","Option C","Option D","Correct (A-D)","Trap (A-D)","Why Correct","Why Trap Is Wrong","Plain English","Shortcut"];
@@ -4188,11 +4787,24 @@ function renderBulkImport(note){
   document.getElementById("bulkBack").onclick=()=>{bulkParsed=null;renderStart();};
 }
 /* ========================== END BULK CSV / EXCEL IMPORT ========================== */
-let userCards=initUserCards();
-saveUser();
+const _userInit = initUserCards();
+let userCards = _userInit.cards;
+if (_userInit.dirty) saveUser();
 function withCategory(c){const x={...c};applyCategoryToCard(x); return x;}
 function allCards(){
-  if(!_allCardsCache) _allCardsCache = BUILTIN.map(withCategory).concat(userCards.map(withCategory));
+  if(!_allCardsCache) {
+    const merged = [];
+    const seen = new Set();
+    for (const card of BUILTIN.map(withCategory).concat(userCards.map(withCategory))) {
+      const key = getCardFingerprint(card);
+      const contentKey = getCardContentFingerprint(card);
+      if (seen.has(key) || seen.has(contentKey)) continue;
+      seen.add(key);
+      seen.add(contentKey);
+      merged.push(card);
+    }
+    _allCardsCache = merged;
+  }
   return _allCardsCache;
 }
 // Single source of truth for the 7 top-level MBE subjects (per AdaptiBar structure)
@@ -4214,7 +4826,21 @@ function subjects(){return MBE_TOP_SUBJECTS.slice();}
   - Export/import preserves subj, sub, mbeKey, rawSubject, rawSubtopic, and needsCategoryReview (migrate + JSON roundtrip)
 */
 function fullName(s){return s;}
-function countIn(s){return allCards().filter(c=>c.subj===s).length;}
+function cardMatchesSelectedSubject(card) {
+  if (!state.selected || !state.selected.size) return false;
+  return state.selected.has(normalizeMBESubject(card.subj));
+}
+function cardMatchesSubjectDashboard(card, subject) {
+  if (normalizeMBESubject(card.subj) !== subject) return false;
+  if (!passesDateFilter(card, state.dateFilter || "all")) return false;
+  const active = getActiveSubtopicFilters();
+  if (active.length) {
+    const scoped = active.filter(k => k.split(" / ")[0] === subject);
+    if (scoped.length && !scoped.includes(cardMbeKey(card))) return false;
+  }
+  return true;
+}
+function countIn(s){return allCards().filter(c=>normalizeMBESubject(c.subj)===s).length;}
 function cardsNeedingReview(){return userCards.filter(c=>c.needsCategoryReview);}
 function weaknessByMbeKey(cards){
   const scores=loadAdaptibarScores();
@@ -4328,8 +4954,31 @@ function parseAdaptiBar(raw){
   return { cards, skippedCorrect };
 }
 
-if(window.pdfjsLib){try{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}}
+let _pdfjsPromise=null;
+const PDFJS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+function loadPdfJS(){
+  if(window.pdfjsLib){
+    try{pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER_URL;}catch(e){}
+    return Promise.resolve(window.pdfjsLib);
+  }
+  if(_pdfjsPromise) return _pdfjsPromise;
+  _pdfjsPromise=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=PDFJS_URL;
+    s.onload=()=>{
+      if(window.pdfjsLib){
+        try{pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER_URL;}catch(e){}
+        res(window.pdfjsLib);
+      } else rej(new Error('pdfjs missing'));
+    };
+    s.onerror=()=>rej(new Error('pdfjs load failed'));
+    document.head.appendChild(s);
+  });
+  return _pdfjsPromise;
+}
 async function extractPdfText(arrayBuffer, onProgress){
+  await loadPdfJS();
   if(!window.pdfjsLib) throw new Error('pdfjs-not-loaded');
   const pdf=await pdfjsLib.getDocument({data:arrayBuffer}).promise;
   let out='';
@@ -4348,8 +4997,8 @@ async function extractPdfText(arrayBuffer, onProgress){
   return out;
 }
 
-let state = { mode:'drill', selected:null, seen:new Set(), subFilter:new Set(), mbeKeyFilter:new Set(),
-  expandedSubjects: new Set(), currentSession: null, dateFilter: "all", cardSortMode: "missNewest",
+let state = { mode:'drill', selected:new Set(), seen:new Set(), subFilter:new Set(), mbeKeyFilter:new Set(),
+  expandedSubjects: new Set(), currentSession: null, dateFilter: "all", skipAnswered24: true, cardSortMode: "missNewest",
   queue:[], i:0, locked:false, ruleRehearsalPending:false, postAnswerPending:false,
   focusMode:false, studyLock:false, thresholdMode:false, ruleTransferMode:false, oldMissRecheck:false,
   correct:0, streak:0, bestStreak:0, dodged:0, missed:[], perSubj:{}, perMbeKey:{} };
@@ -4362,9 +5011,114 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 function esc(s){const d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
 
 function syncSelected(){
-  if(state.selected===null) state.selected=new Set(subjects());
+  if (state.selected === null) state.selected = new Set();
   subjects().forEach(s=>{if(!state.seen.has(s)) state.seen.add(s);});
   [...state.selected].forEach(s=>{if(!subjects().includes(s))state.selected.delete(s);});
+  pruneSubtopicFilters();
+}
+function pruneSubtopicFilters() {
+  if (!state.mbeKeyFilter || !state.mbeKeyFilter.size) return;
+  [...state.mbeKeyFilter].forEach(k => {
+    const subj = (k.split(" / ")[0] || "").trim();
+    if (!state.selected || !state.selected.has(subj)) state.mbeKeyFilter.delete(k);
+  });
+}
+function getActiveSubtopicFilters() {
+  if (!state.mbeKeyFilter || !state.mbeKeyFilter.size) return [];
+  pruneSubtopicFilters();
+  return [...state.mbeKeyFilter];
+}
+function cardMatchesSubtopicFilter(d) {
+  const active = getActiveSubtopicFilters();
+  if (active.length) return active.includes(cardMbeKey(d));
+  if (state.subFilter && state.subFilter.size) return state.subFilter.has((d.sub || "").trim());
+  return true;
+}
+function effectiveDateFilterForDrill() {
+  return state.dateFilter || "all";
+}
+function buildDrillCandidatePool(opts, dateFilterOverride) {
+  opts = opts || {};
+  const dateFilter = dateFilterOverride || effectiveDateFilterForDrill();
+  const errorKeys = new Set(loadErrorList().filter(x => x.status !== "resolved").map(x => x.key));
+  pruneSubtopicFilters();
+  let pool = allCards().filter(d =>
+    cardMatchesSelectedSubject(d) &&
+    cardMatchesSubtopicFilter(d) &&
+    passesDateFilter(d, dateFilter) &&
+    !isCardSnoozed(d)
+  );
+  if (opts.reviewOnly) pool = pool.filter(d => d.needsCategoryReview && !d._b);
+  else if (opts.activeWeakness) pool = pool.filter(d => getCardStats(d).activeWeakness || missAgeStatus(d) === "recent_active_weakness");
+  else if (opts.oldMissRecheck) pool = pool.filter(d => {
+    const s = getCardStats(d);
+    const missedDays = daysSinceISO(d.mostRecentImportedMissAt || d.dateAnswered || d.firstMissedAt);
+    const practicedDays = daysSinceISO(s.lastPracticedAt);
+    return missedDays >= 30 && !s.isMastered && practicedDays >= 14;
+  });
+  else if (opts.dangerOnly) pool = pool.filter(d => getCardStats(d).dangerError);
+  else pool = pool.filter(d => !getCardStats(d).isMastered);
+  if (!opts.reviewOnly && !opts.activeWeakness && !opts.oldMissRecheck && !opts.dangerOnly) {
+    pool = pool.filter(d => isDrillAvailableNow(d, errorKeys));
+  }
+  return pool;
+}
+function explainDrillPoolEmpty(opts) {
+  opts = opts || {};
+  if (!state.selected || state.selected.size === 0) {
+    return "Select at least one subject checkbox above (for example Torts), then start the drill again.";
+  }
+  const activeSub = getActiveSubtopicFilters();
+  const selectedSubjects = [...state.selected];
+  const bySubject = allCards().filter(d => cardMatchesSelectedSubject(d));
+  if (activeSub.length) {
+    const subMatch = bySubject.filter(d => activeSub.includes(cardMbeKey(d)) && !getCardStats(d).isMastered);
+    if (!subMatch.length) {
+      return `Subtopic checkboxes are filtering everything out. Expand ${selectedSubjects.join(", ")} and uncheck subtopics, or only tick ones with a count greater than 0.`;
+    }
+  }
+  const df = state.dateFilter || "all";
+  if (df !== "all") {
+    const withoutDate = bySubject.filter(d => {
+      if (activeSub.length && !activeSub.includes(cardMbeKey(d))) return false;
+      return !isCardSnoozed(d) && !getCardStats(d).isMastered;
+    });
+    if (withoutDate.length) {
+      return `Date filter is "${DATE_FILTERS[df] || df}" and removed all ${withoutDate.length} available card(s). Set Date filter to "All dates".`;
+    }
+  }
+  const mastered = bySubject.filter(d => getCardStats(d).isMastered).length;
+  if (mastered) {
+    return `All ${mastered} matching card(s) are in Mastered Archive. Open Mastered Archive to restore cards you still want to drill.`;
+  }
+  const snoozed = bySubject.filter(d => isCardSnoozed(d)).length;
+  if (snoozed) {
+    return `${snoozed} card(s) are snoozed. Wait for snooze to expire or clear it from a card's feedback screen.`;
+  }
+  if (opts.reviewOnly) return "No imported cards need category review.";
+  if (opts.oldMissRecheck) return "No old misses need recheck.";
+  if (opts.dangerOnly) return "No danger errors flagged yet.";
+  return "No cards match that filter yet. Pick another subject or subtopic.";
+}
+function previewDrillPool(opts) {
+  let pool = buildDrillCandidatePool(opts);
+  if (pool.length || !isSubjectFocusedSelection()) return pool;
+  if (getActiveSubtopicFilters().length) {
+    const saved = state.mbeKeyFilter;
+    state.mbeKeyFilter = new Set();
+    pool = buildDrillCandidatePool(opts);
+    state.mbeKeyFilter = saved;
+  }
+  return pool;
+}
+function recoverDrillPoolForSubjectFocus(opts) {
+  let pool = buildDrillCandidatePool(opts);
+  if (pool.length || !isSubjectFocusedSelection()) return pool;
+  if (getActiveSubtopicFilters().length) {
+    state.mbeKeyFilter = new Set();
+    pool = buildDrillCandidatePool(opts);
+  }
+  return pool;
 }
 
 function toggleSubjectExpand(subj) {
@@ -4381,7 +5135,6 @@ function toggleSubtopicFilter(mbeKey, checked) {
   if (!state.mbeKeyFilter) state.mbeKeyFilter = new Set();
   if (checked) {
     state.mbeKeyFilter.add(mbeKey);
-    // Auto-include the parent subject
     const subj = mbeKey.split(' / ')[0];
     if (state.selected && !state.selected.has(subj)) {
       state.selected.add(subj);
@@ -4389,6 +5142,7 @@ function toggleSubtopicFilter(mbeKey, checked) {
   } else {
     state.mbeKeyFilter.delete(mbeKey);
   }
+  pruneSubtopicFilters();
   renderStart();
 }
 
@@ -4405,12 +5159,15 @@ function toggleSubjectSelection(subj, checked) {
       });
     }
   }
+  saveUiState({ selectedSubjects: [...state.selected] });
   renderStart();
 }
 
 /* ---------- START ---------- */
 function renderStart(){
   setViewportMode('start');
+  invalidateCardStatsCache();
+  if (state.currentSession) persistInProgressSession();
   syncSelected();
   if (!state.expandedSubjects) state.expandedSubjects = new Set();
   if (!state.mbeKeyFilter) state.mbeKeyFilter = new Set();
@@ -4428,23 +5185,52 @@ function renderStart(){
   const selArr=[...state.selected];
   // Note: mbeKeyFilter (precise subtopic selection) is managed independently via the tree below
   if(selArr.length!==1){state.subFilter=new Set();} // legacy only
-  const matchSub = d => {
-    if(state.mbeKeyFilter.size) return state.mbeKeyFilter.has(cardMbeKey(d));
-    if(state.subFilter.size) return state.subFilter.has((d.sub||'').trim());
-    return true;
-  };
   const dateFilter = state.dateFilter || "all";
   const all = allCards();
-  const baseMatches = d => state.selected.has(d.subj) && matchSub(d);
+  const errorKeysForCounts = new Set(loadErrorList().filter(x => x.status !== "resolved").map(x => x.key));
+  const baseMatches = d => cardMatchesSelectedSubject(d) && cardMatchesSubtopicFilter(d);
   const cardMatches = d => baseMatches(d) && passesDateFilter(d, dateFilter);
-  const matchingCards = all.filter(cardMatches);
+  const matchingCards = state.selected.size
+    ? all.filter(d => cardMatches(d) && isDrillAvailableNow(d, errorKeysForCounts))
+    : [];
   const n = matchingCards.length;
-  const matchPool = matchingCards.filter(d => !getCardStats(d).isMastered);
-  const sessionSize = buildSessionQueue(matchPool, {}).length;
+  const matchPool = state.selected.size ? previewDrillPool({}) : [];
+  const sessionSize = matchPool.length ? buildSessionQueue(matchPool, {}).length : 0;
+  const availableMatchPoolCount = dedupeCards(matchPool).filter(d => isDrillAvailableNow(d, errorKeysForCounts)).length;
   const summary = getSchedulerSummary();
-  const dateSummary = getDateSummary(matchingCards);
+  const dateSummary = getDateSummary(all);
   const settings = loadSessionSettings();
   const uc = userCards.length;
+  const activeSubFilters = getActiveSubtopicFilters();
+  const subjectOnlyCount = all.filter(d => cardMatchesSelectedSubject(d) && isDrillAvailableNow(d, errorKeysForCounts)).length;
+  const spacingBlockedCount = countSpacingBlocked(matchPool);
+  const subjectFocused = isSubjectFocusedSelection();
+  const sessionHint = (subjectOnlyCount > 0 && sessionSize < subjectOnlyCount && !subjectFocused && spacingBlockedCount > 0) ? `
+    <div class="panel" style="margin-top:10px;padding:10px 14px;border-left:4px solid var(--sec)">
+      <p style="font-size:13px;margin:0"><b>${sessionSize}</b> card${sessionSize !== 1 ? "s" : ""} queued this session from <b>${subjectOnlyCount}</b> in your selection. <b>${spacingBlockedCount}</b> were practiced in the last ${REPEAT_BLOCK_DAYS} days and are on cooldown. Tick only the subject(s) you want to drill to include them again, or turn off <b>Daily Review Mode</b> if it is limiting the session.</p>
+    </div>` : (settings.dailyReview && subjectFocused && sessionSize <= settings.dailyNew) ? `
+    <div class="panel" style="margin-top:10px;padding:10px 14px;border-left:4px solid var(--sec)">
+      <p style="font-size:13px;margin:0">Daily Review Mode is on, but with specific subjects selected you get a full <b>${settings.maxQuestions}</b>-card session from that subject instead of the 5-new / 15-due daily cap.</p>
+    </div>` : "";
+  const drillFilterNote = (dateFilter !== "all" || state.skipAnswered24 !== false) ? `
+    <div class="panel" style="margin-top:10px;padding:10px 14px;border-left:4px solid var(--sec)">
+      <p style="font-size:13px;margin:0">Drill queue uses your active filters${dateFilter !== "all" ? `: <b>${esc(DATE_FILTERS[dateFilter] || dateFilter)}</b>` : ""}${state.skipAnswered24 !== false ? `${dateFilter !== "all" ? " and" : ":"} <b>skip answered in past 24 hours</b>` : ""}.</p>
+    </div>` : "";
+  const noSubjectHint = state.selected.size === 0 ? `
+    <div class="panel" style="margin-top:10px;padding:10px 14px;border-left:4px solid var(--warn)">
+      <p style="font-size:13px;margin:0"><b>Select at least one subject</b> using the checkboxes below before starting a drill or lecture.</p>
+    </div>` : "";
+  const filterHint = (sessionSize === 0 && n === 0 && subjectOnlyCount > 0) ? `
+    <div class="panel" style="margin-top:10px;padding:10px 14px;border-left:4px solid var(--warn)">
+      <p style="font-size:13px;margin:0">${activeSubFilters.length
+        ? `Subtopic checkboxes are filtering everything out (${activeSubFilters.length} checked, 0 matches). Expand <b>${esc([...state.selected].join(", "))}</b> and uncheck subtopics, or pick ones with a count &gt; 0.`
+        : dateFilter !== "all"
+          ? `Date filter is <b>${esc(DATE_FILTERS[dateFilter] || dateFilter)}</b> — no cards match. Set Date filter to <b>All dates</b>.`
+          : `Cards exist in the bank but none are drillable right now (mastered, snoozed, or scheduling). Check Mastered Archive or clear snoozes.`}</p>
+    </div>` : (sessionSize === 0 && n === 0 && state.selected.size > 0 && !subjectOnlyCount) ? `
+    <div class="panel" style="margin-top:10px;padding:10px 14px;border-left:4px solid var(--warn)">
+      <p style="font-size:13px;margin:0">Your subject selection matches 0 cards in the bank. Check that the right subjects are ticked.</p>
+    </div>` : "";
   const dateFilterOptions = Object.keys(DATE_FILTERS).map(k =>
     `<option value="${k}" ${dateFilter === k ? "selected" : ""}>${esc(DATE_FILTERS[k])}</option>`
   ).join("");
@@ -4453,8 +5239,12 @@ function renderStart(){
   let treeHtml = `<div class="topic-tree">`;
   subs.forEach(s => {
     const isExpanded = state.expandedSubjects.has(s);
-    const subjectCards = all.filter(c => c.subj === s);
-    const subjectCount = subjectCards.length;
+    const subjectInBank = all.filter(c => cardMatchesSubjectDashboard(c, s));
+    const subjectCount = subjectInBank.length;
+    const subjectAvailableCount = subjectInBank.filter(c => isDrillAvailableNow(c, errorKeysForCounts)).length;
+    const subjectCountLabel = subjectAvailableCount === subjectCount
+      ? `${subjectCount} in bank`
+      : `${subjectAvailableCount} ready / ${subjectCount} in bank`;
     const isSelected = state.selected.has(s);
     const subList = subtopicsFor(s);
 
@@ -4463,14 +5253,17 @@ function renderStart(){
       subHtml = `<div class="subtopic-list">`;
       subList.forEach(st => {
         const key = `${s} / ${st}`;
-        const count = subjectCards.filter(c => (c.sub || '').trim() === st).length;
+        const subCards = subjectInBank.filter(c => cardMbeKey(c) === key);
+        const count = subCards.length;
+        const availableCount = subCards.filter(c => isDrillAvailableNow(c, errorKeysForCounts)).length;
+        const subCountLabel = availableCount === count ? `${count}` : `${availableCount}/${count}`;
         const checked = state.mbeKeyFilter.has(key) ? 'checked' : '';
         subHtml += `
           <div class="subtopic-row">
             <input type="checkbox" ${checked} style="margin-right:6px;"
                    onchange="toggleSubtopicFilter('${key.replace(/'/g, "\\'")}', this.checked)">
             <span style="flex:1;">${esc(st)}</span>
-            <span class="sc" style="font-size:10px; color:var(--sec);">${count}</span>
+            <span class="sc" style="font-size:10px; color:var(--sec);" title="${availableCount} available / ${count} total">${subCountLabel}</span>
           </div>`;
       });
       subHtml += `</div>`;
@@ -4487,7 +5280,7 @@ function renderStart(){
             ${esc(s)}
           </div>
           <div class="topic-row-count">
-            ${subjectCount} question${subjectCount !== 1 ? 's' : ''}
+            ${subjectCountLabel}
           </div>
           <span style="font-size:12px; color:var(--btn);">${isExpanded ? '▼' : '▶'}</span>
         </div>
@@ -4527,11 +5320,13 @@ function renderStart(){
     <div class="date-filter-row">
       <label style="font-size:12px;color:var(--sec)">Date filter:</label>
       <select id="dateFilterSelect">${dateFilterOptions}</select>
+      <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-left:8px;">
+        <input type="checkbox" id="skipAnswered24Toggle" ${state.skipAnswered24 !== false ? "checked" : ""}>
+        Skip answered in past 24 hours
+      </label>
     </div>
     <div style="display:flex;gap:8px;margin:6px 0 10px;flex-wrap:wrap;align-items:center;">
-      <button class="btn btn-ghost btn-sm" onclick="state.selected=new Set(subjects());state.mbeKeyFilter=new Set();state.subFilter=new Set();renderStart();">All subjects</button>
-      <button class="btn btn-ghost btn-sm" onclick="state.selected=new Set(['Civil Procedure','Real Property']);state.mbeKeyFilter=new Set();state.subFilter=new Set();renderStart();">Just the two red ones</button>
-      ${reviewCount ? `<button class="btn btn-ghost btn-sm" onclick="state.selected=new Set(subjects());state.mbeKeyFilter=new Set();state.subFilter=new Set();state.mode='drill';startRun({reviewOnly:true});">Review ${reviewCount} uncategorized</button>` : ''}
+      ${reviewCount ? `<button class="btn btn-ghost btn-sm" onclick="startReviewUncategorized()">Review ${reviewCount} uncategorized</button>` : ''}
       <button class="btn btn-ghost btn-sm" id="errorListBtn">Error List</button>
       <button class="btn btn-ghost btn-sm" id="masteredBtn">Mastered Archive</button>
       <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-left:4px;">
@@ -4540,7 +5335,7 @@ function renderStart(){
       </label>
       <button class="btn btn-ghost btn-sm" id="resetSchedBtn" style="color:var(--no)">Reset Scheduling History</button>
     </div>
-    <div style="font-size:12.5px;color:var(--sec);margin-bottom:6px">Main Topics (click a topic to expand and see its subtopics with question counts in the bank):</div>
+    <div style="font-size:12.5px;color:var(--sec);margin-bottom:6px">Main Topics: tick the subject you want, then click it to choose subtopics.</div>
     ${treeHtml}
       </div>
       <div class="ube-home-side">
@@ -4548,10 +5343,14 @@ function renderStart(){
     ${scoreDash}
       </div>
     </div>
+    ${noSubjectHint}
+    ${drillFilterNote}
+    ${filterHint}
+    ${sessionHint}
     <div class="start-actions">
       <button class="btn btn-primary" id="goMission">🎯 Start Today's Mission</button>
-      <button class="btn btn-primary" id="goDrill">⚔ Start drill → ${sessionSize || n} card${(sessionSize||n)!==1?'s':''}${sessionSize && sessionSize < n ? ` <span style="font-size:11px;font-weight:400">(${n} in filter)</span>` : ''}</button>
-      <button class="btn btn-ghost" id="goLecture">📖 Lecture → ${sessionSize || n} card${(sessionSize||n)!==1?'s':''}</button>
+      <button class="btn btn-primary" id="goDrill">Start drill -> ${sessionSize} card${sessionSize !== 1 ? 's' : ''} this session${subjectOnlyCount ? ` <span style="font-size:11px;font-weight:400">(${availableMatchPoolCount} available / ${subjectOnlyCount} in bank${n !== subjectOnlyCount ? ` - ${n} match filter` : ''})</span>` : n ? ` <span style="font-size:11px;font-weight:400">(${availableMatchPoolCount} available / ${n} match filter)</span>` : ''}</button>
+      <button class="btn btn-ghost" id="goLecture">📖 Lecture → ${n} selected card${n!==1?'s':''}</button>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" id="goThreshold">🚧 Threshold Gate</button>
@@ -4587,6 +5386,11 @@ function renderStart(){
   document.getElementById('addBtn').onclick=()=>renderAdd();
   document.getElementById('advBtn').onclick=renderAdaptiImport;
   document.getElementById('myBtn').onclick=renderMyCards;
+  const allCardsBtn = document.createElement('button');
+  allCardsBtn.className = 'btn btn-ghost btn-sm';
+  allCardsBtn.textContent = `All cards (${allCards().length})`;
+  allCardsBtn.onclick = renderAllCardsLibrary;
+  document.getElementById('myBtn').insertAdjacentElement('afterend', allCardsBtn);
   document.getElementById('expBtn').onclick=exportCards;
   document.getElementById('impBtn').onclick=()=>document.getElementById('importFile').click();
   document.getElementById('bulkBtn').onclick=()=>{bulkParsed=null;renderBulkImport();};
@@ -4610,6 +5414,13 @@ function renderStart(){
   const dateFilterSelect = document.getElementById('dateFilterSelect');
   if (dateFilterSelect) dateFilterSelect.onchange = () => {
     state.dateFilter = dateFilterSelect.value;
+    saveUiState({ dateFilter: state.dateFilter });
+    renderStart();
+  };
+  const skipAnswered24Toggle = document.getElementById('skipAnswered24Toggle');
+  if (skipAnswered24Toggle) skipAnswered24Toggle.onchange = () => {
+    state.skipAnswered24 = !!skipAnswered24Toggle.checked;
+    saveUiState({ skipAnswered24: state.skipAnswered24 });
     renderStart();
   };
 }
@@ -4641,7 +5452,12 @@ function renderErrorList() {
   ].map(([v, l]) => `<option value="${v}" ${sortMode === v ? "selected" : ""}>${esc(l)}</option>`).join("");
 
   app.innerHTML = `
-    <h2>Error List</h2>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="min-width:0;flex:1">
+        <h2 style="font-size:18px;margin-bottom:4px">Error List</h2>
+      </div>
+      <button class="btn btn-primary btn-sm" id="backErrTop" type="button">Back to MBE Dashboard</button>
+    </div>
     <div class="hint">
       These are questions you missed. They are scheduled for another day so you learn the rule, not the memorized answer.
     </div>
@@ -4672,10 +5488,11 @@ function renderErrorList() {
 
     <div class="start-actions">
       <button class="btn btn-primary" id="drillErrors">Drill Due Errors</button>
-      <button class="btn btn-ghost" id="backErr">← Back</button>
+      <button class="btn btn-ghost" id="backErr">Back to MBE Dashboard</button>
     </div>
   `;
 
+  document.getElementById("backErrTop").onclick = renderStart;
   document.getElementById("backErr").onclick = renderStart;
   document.getElementById("drillErrors").onclick = startErrorReview;
   const errDateFilter = document.getElementById("errDateFilter");
@@ -4789,33 +5606,28 @@ function startRun(opts){
   state.oldMissRecheck = !!opts.oldMissRecheck;
   state.focusMode = !!opts.focusMission;
   state.studyLock = !!opts.focusMission;
-  const sf=([...state.selected].length===1)?state.subFilter:new Set();
-  const matchSub = d => {
-    if(state.mbeKeyFilter.size) return state.mbeKeyFilter.has(cardMbeKey(d));
-    if(sf.size) return sf.has((d.sub||'').trim());
-    return true;
-  };
-  let pool=allCards().filter(d=>state.selected.has(d.subj) && matchSub(d) && passesDateFilter(d, state.dateFilter || "all") && !isCardSnoozed(d));
-  if(opts.reviewOnly) pool=pool.filter(d=>d.needsCategoryReview&&!d._b);
-  else if(opts.activeWeakness) pool=pool.filter(d=>getCardStats(d).activeWeakness || missAgeStatus(d)==='recent_active_weakness');
-  else if(opts.oldMissRecheck) pool=pool.filter(d=>{
-    const s=getCardStats(d);
-    const missedDays=daysSinceISO(d.mostRecentImportedMissAt||d.dateAnswered||d.firstMissedAt);
-    const practicedDays=daysSinceISO(s.lastPracticedAt);
-    return missedDays>=30 && !s.isMastered && practicedDays>=14;
-  });
-  else if(opts.dangerOnly) pool=pool.filter(d=>getCardStats(d).dangerError);
-  else pool=pool.filter(d=>!getCardStats(d).isMastered);
+  if (!state.selected || state.selected.size === 0) {
+    alert("Select at least one subject checkbox above (for example Torts), then start the drill again.");
+    renderStart();
+    return;
+  }
+  let pool = recoverDrillPoolForSubjectFocus(opts);
 
   if(opts.reviewOnly || opts.activeWeakness || opts.oldMissRecheck || opts.dangerOnly) {
     const settings = loadSessionSettings();
     const requested = opts.maxQuestions || (opts.reviewOnly ? pool.length : settings.maxQuestions);
     pool = finalizeQueue(pool, requested, (a,b)=>queuePriorityScore(b)-queuePriorityScore(a));
+  } else if(state.mode === 'lecture') {
+    pool = finalizeQueue(pool, pool.length, (a,b)=>queuePriorityScore(b)-queuePriorityScore(a));
   } else {
     pool = buildSessionQueue(pool, opts);
   }
 
-  if(pool.length===0){alert(opts.reviewOnly?'No imported cards need category review.':opts.oldMissRecheck?'No old misses need recheck.':opts.dangerOnly?'No danger errors flagged yet.':'No cards match that filter yet. Pick another subject or subtopic.');return;}
+  if (pool.length === 0) {
+    alert(explainDrillPoolEmpty(opts));
+    renderStart();
+    return;
+  }
 
   state.currentSession = newSession();
   if (opts.focusMission) state.currentSession.focusMission = true;
@@ -4832,10 +5644,34 @@ function startRun(opts){
 
 function startTodaysMission() {
   const settings = loadSessionSettings();
+  const previousSelected = new Set(state.selected || []);
+  const previousMbeKeyFilter = new Set(state.mbeKeyFilter || []);
+  const previousSubFilter = new Set(state.subFilter || []);
+  const previousDateFilter = state.dateFilter || "all";
   state.selected = new Set(subjects());
   state.mbeKeyFilter = new Set();
   state.dateFilter = "all";
   startRun({ focusMission: true, dailyReview: true, maxQuestions: (settings.dailyDue || 15) + (settings.dailyErrors || 5) + (settings.dailyNew || 5) });
+  state.selected = previousSelected;
+  state.mbeKeyFilter = previousMbeKeyFilter;
+  state.subFilter = previousSubFilter;
+  state.dateFilter = previousDateFilter;
+  saveUiState({ selectedSubjects: [...state.selected], dateFilter: state.dateFilter });
+}
+
+function startReviewUncategorized() {
+  const previousSelected = new Set(state.selected || []);
+  const previousMbeKeyFilter = new Set(state.mbeKeyFilter || []);
+  const previousSubFilter = new Set(state.subFilter || []);
+  state.selected = new Set(subjects());
+  state.mbeKeyFilter = new Set();
+  state.subFilter = new Set();
+  state.mode = 'drill';
+  startRun({ reviewOnly: true });
+  state.selected = previousSelected;
+  state.mbeKeyFilter = previousMbeKeyFilter;
+  state.subFilter = previousSubFilter;
+  saveUiState({ selectedSubjects: [...state.selected] });
 }
 
 function startThresholdGate() {
@@ -5141,7 +5977,7 @@ function revealDrillFeedback(pending) {
     fb += buildTrapComparisonHTML(chosen, rule, d);
     if (chosen.trap) fb += `<div class="dodged" style="background:var(--no-bg);border-left-color:var(--no);color:#7f1d1d"><span class="big">⚠</span><span>This is the <strong>exact answer you picked on the real test.</strong></span></div>`;
   } else {
-    fb += `<div class="fb-box fb-rule"><strong>The rule</strong>${esc(rule.why) || '(the correct answer)'}</div>`;
+    fb += `<div class="fb-box fb-rule"><strong>The rule</strong><div class="ab-explain">${esc(rule.why) || '(the correct answer)'}</div></div>`;
   }
   const doctrine = getCardDoctrine(d);
   if (MEE_BRIDGE[doctrine]) fb += `<div class="fb-box fb-ru"><strong>MEE/MPT Bridge</strong>${esc(MEE_BRIDGE[doctrine])}</div>`;
@@ -5189,6 +6025,12 @@ function attackSeqHTML(subj){
 function renderDrill(){
   setViewportMode('drill');
   clearRuleRehearsalModal();
+  advanceToNextAvailableQueuedCard();
+  if (state.i >= state.queue.length) {
+    if(state.focusMode){state.studyLock=false;state.focusMode=false;}
+    renderEnd();
+    return;
+  }
   const d=state.queue[state.i];const opts=shuffle(d.options);state.locked=false;
   markCardShown(d);
   const pct=Math.round((state.i)/state.queue.length*100);
@@ -5246,6 +6088,7 @@ function flagCardForLater(card, btnEl){
 }
 function nextCard(){
   state.i++;
+  advanceToNextAvailableQueuedCard();
   if(state.i>=state.queue.length){
     if(state.focusMode){state.studyLock=false;state.focusMode=false;}
     renderEnd();
@@ -5312,10 +6155,9 @@ function renderLecture(){
     <div class="qcard panel"><div class="qmeta">${renderCardMeta(d)}</div>
       ${questionBlockHTML(d)}</div>
     ${d.plain?`<div class="fb-plain"><strong>In plain English</strong>${esc(d.plain)}</div>`:''}
-    <div class="fb-box fb-rule"><strong>The answer + rule</strong><b>${esc(correct.t)}.</b> ${esc(correct.why)}</div>
-    <div class="fb-box fb-trap"><strong>The trap</strong><b>${esc(trap.t)}.</b> ${esc(trap.why)}</div>
+    <div class="fb-box fb-rule"><strong>The answer + rule</strong><div class="ab-choice">${esc(correct.t)}</div><div class="ab-explain">${esc(correct.why)}</div></div>
+    <div class="fb-box fb-trap"><strong>The trap</strong><div class="ab-choice">${esc(trap.t)}</div><div class="ab-explain">${esc(trap.why)}</div></div>
     ${d.ru?`<div class="fb-box fb-ru"><strong>Shortcut</strong>${esc(d.ru)}</div>`:''}
-    ${renderTriggerAnalysisBox(d)}
     <div class="lec-nav"><button class="btn btn-ghost" id="prev" ${state.i===0?'disabled style=opacity:.4':''}>← Prev</button>
       <button class="btn btn-primary" id="next">${state.i+1<state.queue.length?'Next →':'Done — drill it ⚔'}</button></div>`;
   document.getElementById('prev').onclick=()=>{if(state.i>0){state.i--;renderLecture();}};
@@ -5353,11 +6195,23 @@ function renderAdaptiImport(note){
     <div id="advPreview" style="margin-top:16px"></div>`;
   document.getElementById('advBack').onclick=renderStart;
   document.getElementById('advFileBtn').onclick=()=>document.getElementById('advFile').click();
-  document.getElementById('advPdfBtn').onclick=()=>document.getElementById('advPdf').click();
   const statusEl=()=>document.getElementById('advStatus');
-  document.getElementById('advPdf').onchange=function(e){
+  document.getElementById('advPdfBtn').onclick=async()=>{
+    statusEl().textContent='Loading PDF reader…';
+    try{
+      await loadPdfJS();
+      statusEl().textContent='';
+      document.getElementById('advPdf').click();
+    }catch(e){
+      statusEl().innerHTML='<span style="color:var(--orange)">PDF reader didn\u2019t load (no internet?). Paste the text instead.</span>';
+    }
+  };
+  document.getElementById('advPdf').onchange=async function(e){
     const f=e.target.files[0];if(!f)return;
-    if(!window.pdfjsLib){statusEl().innerHTML='<span style="color:var(--orange)">PDF reader didn\u2019t load (no internet?). Paste the text instead.</span>';this.value='';return;}
+    statusEl().textContent='Loading PDF reader…';
+    try{await loadPdfJS();}catch(err){
+      statusEl().innerHTML='<span style="color:var(--orange)">PDF reader didn\u2019t load (no internet?). Paste the text instead.</span>';this.value='';return;
+    }
     statusEl().textContent='Reading PDF…';
     const r=new FileReader();
     r.onload=async()=>{
@@ -5431,7 +6285,7 @@ function renderAdaptiImport(note){
         }
       }
       const saved=saveUser();
-      state.selected=null;state.seen=new Set();
+      state.selected=new Set();state.seen=new Set();
       renderAdaptiImport((saved?'✓ ':'(saved in memory — Export to keep a backup) ')+`Imported ${addedCount} new card${addedCount!==1?'s':''}. Merged ${mergedCount} repeat attempt${mergedCount!==1?'s':''}.${skippedBuiltin?` Skipped ${skippedBuiltin} already in built-in deck.`:''} Paste another report or go Back.`);
     };
   }
@@ -5568,6 +6422,7 @@ function renderCategoryFix(cardId,returnToDrill){
 
 /* ---------- MY CARDS ---------- */
 function renderMyCards(){
+  setViewportMode('start');
   const sortMode = state.cardSortMode || "missNewest";
   const dateFilter = state.dateFilter || "all";
   let cards = userCards.filter(c => passesDateFilter(c, dateFilter));
@@ -5593,8 +6448,13 @@ function renderMyCards(){
   }).join('')
     : `<div class="ml-item" style="color:var(--mut)">No cards match this filter.</div>`;
   app.innerHTML=`
-    <h2 style="font-size:18px;margin-bottom:4px">My cards (${userCards.length})</h2>
-    <div style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Your imported misses with AdaptiBar dates and app practice history.</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="min-width:0;flex:1">
+        <h2 style="font-size:18px;margin-bottom:4px">My cards (${userCards.length})</h2>
+        <div style="color:var(--mut);font-size:12.5px;line-height:1.5">Your imported misses with AdaptiBar dates and app practice history.</div>
+      </div>
+      <button class="btn btn-primary btn-sm" id="back2Top" type="button">Back to MBE Dashboard</button>
+    </div>
     <div class="date-filter-row">
       <label style="font-size:12px;color:var(--sec)">Date filter:</label>
       <select id="myDateFilter">${Object.keys(DATE_FILTERS).map(k => `<option value="${k}" ${dateFilter === k ? "selected" : ""}>${esc(DATE_FILTERS[k])}</option>`).join("")}</select>
@@ -5607,8 +6467,9 @@ function renderMyCards(){
       <button class="btn btn-ghost" id="exp2">⬇ Export backup</button>
       <button class="btn btn-ghost" id="imp2">⬆ Import</button>
       <button class="btn btn-ghost" id="dupeCheck">🔍 Dupe & rule check</button>
-      <button class="btn btn-ghost" id="back2">← Back</button>
+      <button class="btn btn-ghost" id="back2">Back to MBE Dashboard</button>
     </div>`;
+  const goBackToStart = () => renderStart();
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     if(confirm('Delete this card?')){userCards=userCards.filter(c=>c.id!==b.dataset.del);saveUser();renderMyCards();}});
   document.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>renderCategoryFix(b.dataset.fix,false));
@@ -5616,11 +6477,70 @@ function renderMyCards(){
   document.getElementById('exp2').onclick=exportCards;
   document.getElementById('imp2').onclick=()=>document.getElementById('importFile').click();
   document.getElementById('dupeCheck').onclick=renderDupeCheck;
-  document.getElementById('back2').onclick=renderStart;
+  document.getElementById('back2Top').onclick = goBackToStart;
+  document.getElementById('back2').onclick = goBackToStart;
   const myDateFilter = document.getElementById('myDateFilter');
   if (myDateFilter) myDateFilter.onchange = () => { state.dateFilter = myDateFilter.value; renderMyCards(); };
   const mySortMode = document.getElementById('mySortMode');
   if (mySortMode) mySortMode.onchange = () => { state.cardSortMode = mySortMode.value; renderMyCards(); };
+}
+
+function renderAllCardsLibrary(){
+  setViewportMode('start');
+  const cards = allCards();
+  const subjectsList = ["All"].concat(subjects());
+  const selectedSubject = state.librarySubject || "All";
+  const query = (state.libraryQuery || "").trim().toLowerCase();
+  const filtered = cards.filter(c => {
+    const subjectMatch = selectedSubject === "All" || normalizeMBESubject(c.subj) === selectedSubject;
+    const haystack = [c.advId, c.id, c.subj, c.sub, c.title, c.q, c.scenario, c.ru, c.plain].join(" ").toLowerCase();
+    return subjectMatch && (!query || haystack.includes(query));
+  });
+  const importedCount = userCards.length;
+  const builtinCount = BUILTIN.length;
+  const subjectOptions = subjectsList.map(s => `<option value="${esc(s)}" ${selectedSubject === s ? "selected" : ""}>${esc(s)}</option>`).join("");
+  const rows = filtered.map(c => {
+    const isImported = userCards.includes(c) || !c._b;
+    const source = isImported ? "Imported" : "Built-in";
+    const key = c.advId ? `Q#${c.advId}` : (c.id || cardMbeKey(c));
+    return `<div class="ml-item">
+      <span class="id">${esc(key)}</span>
+      <span><strong>${esc(c.title || c.q || "Untitled card")}</strong><br>
+        <span class="date-meta">${esc(source)} | ${esc(normalizeMBESubject(c.subj))} | ${esc(normalizeMBESubtopic(c.subj, c.sub) || c.sub || "Uncategorized")}</span>
+        ${c.scenario ? `<br><span class="date-meta">${esc(String(c.scenario).slice(0, 220))}${String(c.scenario).length > 220 ? "..." : ""}</span>` : ""}
+      </span>
+    </div>`;
+  }).join("") || `<div class="ml-item" style="color:var(--mut)">No cards match this search.</div>`;
+  app.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="min-width:0;flex:1">
+        <h2 style="font-size:18px;margin-bottom:4px">All MBE cards (${cards.length})</h2>
+        <div style="color:var(--mut);font-size:12.5px;line-height:1.5">${builtinCount} built-in + ${importedCount} imported cards saved in this browser.</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="libraryBackTop" type="button">← Go back</button>
+    </div>
+    <div class="date-filter-row">
+      <label style="font-size:12px;color:var(--sec)">Subject:</label>
+      <select id="librarySubject">${subjectOptions}</select>
+      <label style="font-size:12px;color:var(--sec)">Search:</label>
+      <input class="inp" id="libraryQuery" value="${esc(state.libraryQuery || "")}" placeholder="doctrine, fact, question number" style="max-width:360px">
+      <button class="btn btn-ghost btn-sm" id="libraryClear">Clear</button>
+    </div>
+    <div style="color:var(--mut);font-size:12px;margin:8px 0 10px">Showing ${filtered.length} card${filtered.length===1?"":"s"}.</div>
+    <div class="cards-list">${rows}</div>
+    <div class="start-actions">
+      <button class="btn btn-ghost" id="libraryMine">Imported cards only</button>
+      <button class="btn btn-ghost" id="libraryExport">Export backup</button>
+      <button class="btn btn-ghost" id="libraryBack">← Go back</button>
+    </div>`;
+  const goBackToStart = () => renderStart();
+  document.getElementById("librarySubject").onchange = e => { state.librarySubject = e.target.value; renderAllCardsLibrary(); };
+  document.getElementById("libraryQuery").onchange = e => { state.libraryQuery = e.target.value; renderAllCardsLibrary(); };
+  document.getElementById("libraryClear").onclick = () => { state.libraryQuery = ""; state.librarySubject = "All"; renderAllCardsLibrary(); };
+  document.getElementById("libraryMine").onclick = renderMyCards;
+  document.getElementById("libraryExport").onclick = exportCards;
+  document.getElementById("libraryBackTop").onclick = goBackToStart;
+  document.getElementById("libraryBack").onclick = goBackToStart;
 }
 
 /* ---------- EXPORT / IMPORT ---------- */
@@ -5672,14 +6592,14 @@ document.getElementById('importFile').onchange=function(e){
       } else {
         userCards = incoming;
       }
-      localStorage.setItem(CARD_STATS_KEY, JSON.stringify(parsed.cardStats || {}));
-      localStorage.setItem(ERROR_LIST_KEY, JSON.stringify(parsed.errorList || []));
-      localStorage.setItem(SESSION_LOG_KEY, JSON.stringify(parsed.sessionLog || []));
-      localStorage.setItem(MASTERED_KEY, JSON.stringify(parsed.masteredCards || []));
+      trapSetItem(CARD_STATS_KEY, JSON.stringify(parsed.cardStats || {}));
+      trapSetItem(ERROR_LIST_KEY, JSON.stringify(parsed.errorList || []));
+      trapSetItem(SESSION_LOG_KEY, JSON.stringify(parsed.sessionLog || []));
+      trapSetItem(MASTERED_KEY, JSON.stringify(parsed.masteredCards || []));
       if (parsed.schedulerSettings) saveSessionSettings(parsed.schedulerSettings);
       saveUser();
       userCards = initUserCards();
-      state.selected = null;
+      state.selected = new Set();
       state.seen = new Set();
       alert('Full backup imported — cards and scheduling history restored.');
       renderStart();
@@ -5716,7 +6636,7 @@ document.getElementById('importFile').onchange=function(e){
     }
 
     userCards = mode ? userCards.concat(fresh) : fresh;
-    saveUser();state.selected=null;state.seen=new Set();
+    saveUser();state.selected=new Set();state.seen=new Set();
     let msg = `Imported ${fresh.length} new card(s).`;
     if (internalDupCount > 0 || existingDupCount > 0) {
       msg += ` Skipped ${internalDupCount} duplicate(s) inside the file`;
@@ -5872,7 +6792,22 @@ pomT.textContent = '00:00';
 
 window.runCategoryDebugTests = runCategoryDebugTests;
 try {
-  renderStart();
+  if (window.APP_TRAP_PRACTICE_BLOB && Object.keys(window.APP_TRAP_PRACTICE_BLOB).length) {
+    mergeImportedPracticeBlob(window.APP_TRAP_PRACTICE_BLOB);
+  }
+  restoreUiState();
+  if (window.APP_MBE_START_MODE === 'flashcards') {
+    syncSelected();
+    if (state.selected && state.selected.size) {
+      state.mode = 'lecture';
+      startRun();
+    } else {
+      renderStart();
+    }
+  } else {
+    renderStart();
+  }
+  setTimeout(pushPracticeStatsToServer, 900);
 } catch (e) {
   console.error(e);
   app.innerHTML = `<div class="panel" style="border-color:var(--no)"><strong>Trap Trainer failed to start</strong><p>${esc(String(e.message || e))}</p><p class="hint">Open DevTools (F12) → Console for details. Your cards are still in localStorage.</p><button class="btn btn-sm" onclick="location.reload()">Reload</button></div>`;

@@ -10,11 +10,12 @@ from pathlib import Path
 import streamlit as st
 
 from app_state import is_authenticated, set_auth_user
+from app_state import ensure_state
 from database import (
     clear_user_remember_token,
+    count_app_users,
     get_app_user,
     get_app_user_by_remember_token,
-    list_app_users,
     set_user_remember_token,
     upsert_admin,
 )
@@ -134,10 +135,12 @@ def require_login():
     if os.environ.get("MEE_DISABLE_AUTH") == "1":
         return
 
-    seed_admin_from_secrets()
+    if not ensure_state("_admin_seeded", False):
+        seed_admin_from_secrets()
+        ensure_state("_admin_seeded", True)
 
     # If no accounts exist at all, run open so local use still works.
-    if not list_app_users():
+    if not count_app_users():
         return
 
     if is_authenticated():

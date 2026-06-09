@@ -8,6 +8,7 @@ from app_state import (
     ensure_current_page,
     ensure_reading_mode,
     get_authed_display_name,
+    get_authed_user,
     get_current_page,
     is_admin,
     is_authenticated,
@@ -30,7 +31,7 @@ from ui_components import (
 
 NAV_GROUPS = [
     ("MEE Practice", ["Home", "MEE Question Bank", "MEE Muscle Ladder"]),
-    ("MBE Practice", ["MBE Drills"]),
+    ("MBE Practice", ["MBE Drills", "Bridge Drill", "Rule Recall", "Flashcards Drill", "MBE Drills Question Bulk Upload"]),
     ("MEE Advanced Tools", ["Import Questions", "Manual Entry"]),
     ("App", ["Settings"]),
 ]
@@ -63,6 +64,11 @@ MENU_ALIASES = {
     "MBE": "MBE Drills",
     "MBE Practice": "MBE Drills",
     "Trap Trainer": "MBE Drills",
+    "MBE Flashcards": "Flashcards Drill",
+    "Flashcards": "Flashcards Drill",
+    "Flashcard Drill": "Flashcards Drill",
+    "MBE Bulk Upload": "MBE Drills Question Bulk Upload",
+    "MBE Question Bulk Upload": "MBE Drills Question Bulk Upload",
 }
 
 ADVANCED_TOOL_PAGES = {

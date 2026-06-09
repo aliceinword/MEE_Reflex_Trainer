@@ -124,7 +124,7 @@ def audit_status(subquestion_count, points, model_points_length, has_structured_
 
 
 def load_questions(db_path):
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(Path(db_path).resolve().as_uri() + '?immutable=1', uri=True)
     try:
         cur = conn.cursor()
         cur.execute(
