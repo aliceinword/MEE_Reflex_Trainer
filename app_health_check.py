@@ -972,13 +972,14 @@ def check_layout_width_styles(checker: HealthCheck) -> None:
     checker.check("reading styles govern sample-answer width", ".sample-answer-box," in styles and "max-width: min({max_width}px, 100%)" in styles)
     checker.check("embedded HTML tools use shared contained height", "EMBEDDED_TOOL_HEIGHT = 860" in ui_components)
     checker.check(
-        "MBE page uses full-page viewport HTML embed",
+        "MBE page uses single-scroll HTML embed",
         "FULL_PAGE_EMBED_HEIGHT" in ui_components
-        and "FULL_PAGE_EMBED_HEIGHT" in mbe_pages
         and "render_page_title(" not in mbe_pages
         and "height=2400" not in mbe_pages
-        and "height: calc(100vh" in styles
-        and "height: calc(100vh" in mbe_pages
+        and "height=4200" in mbe_pages
+        and "scrolling=False" in mbe_pages
+        and "overflow: hidden !important" in mbe_pages
+        and "overflow: auto !important" not in mbe_pages
         and 'div[data-testid="stElementContainer"]:has(iframe)' in mbe_pages
         and 'iframe[srcdoc]' in mbe_pages
         and ".full-page-embed" in styles,
