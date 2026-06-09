@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 
+import _bootstrap  # noqa: F401
+
 import argparse
 import re
 import shutil
-import sqlite3
 from datetime import datetime
 from pathlib import Path
+
+from database import fetch_all, fetch_one, write_transaction
 
 DB_PATH = Path("mee_trainer.db")
 
@@ -229,12 +232,7 @@ def main():
 
     backup_path = None if args.dry_run else backup_database()
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-
-    cur.execute("SELECT COUNT(*) FROM questions")
-    total_questions = cur.fetchone()[0]
+    total_questions = fetch_one("SELECT COUNT(*) FROM questions")[0]
 
     query = """
         SELECT id, exam_name, question_number, subject, call_of_question,
@@ -248,18 +246,31 @@ def main():
         query += " LIMIT ?"
         params.append(args.limit)
 
-    rows = cur.execute(query, params).fetchall()
+    rows = fetch_all(query, params)
     populated = 0
     skipped = 0
+    updates = []
 
     for row in rows:
+        (
+            question_id,
+            exam_name,
+            question_number,
+            subject,
+            call_of_question,
+            tested_issues,
+            rules,
+            trigger_facts,
+            model_points,
+            _existing_traps,
+        ) = row
         traps = generate_traps(
-            row["subject"],
-            row["call_of_question"],
-            row["tested_issues"],
-            row["rules"],
-            row["trigger_facts"],
-            row["model_points"],
+            subject,
+            call_of_question,
+            tested_issues,
+            rules,
+            trigger_facts,
+            model_points,
         )
 
         if not traps:
@@ -270,18 +281,18 @@ def main():
 
         if args.dry_run:
             print("=" * 80)
-            print(f"{row['id']} | {row['exam_name']} Q{row['question_number']} | {row['subject']}")
+            print(f"{question_id} | {exam_name} Q{question_number} | {subject}")
             print(traps)
         else:
-            cur.execute("UPDATE questions SET traps = ? WHERE id = ?", (traps, row["id"]))
+            updates.append((traps, question_id))
 
     if args.dry_run:
         backup_name = "not created in dry run"
     else:
-        conn.commit()
+        with write_transaction() as conn:
+            for traps, question_id in updates:
+                conn.execute("UPDATE questions SET traps = ? WHERE id = ?", (traps, question_id))
         backup_name = str(backup_path)
-
-    conn.close()
 
     print("\nSummary")
     print(f"total questions checked: {total_questions}")

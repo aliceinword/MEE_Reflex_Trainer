@@ -23,6 +23,8 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+*.backup*.db
+*_backup_*.db
 
 # Public seed DB intentionally bundled for shared/demo deployments.
 !mee_reflex.db
@@ -39,4 +41,5 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp

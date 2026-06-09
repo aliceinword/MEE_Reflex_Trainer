@@ -13,11 +13,13 @@ Answers (issues, rules, traps, model points) are intentionally left blank so
 they can be filled in later from a separate answer document.
 
 Usage:
-    python import_questions_bank.py "MEE_Question_Extraction_By_Compiled_Topics.md"
+    python scripts/import_questions_bank.py "MEE_Question_Extraction_By_Compiled_Topics.md"
 
 Re-running is safe: a question with the same exam + number + subject + source
 is skipped.
 """
+
+import _bootstrap  # noqa: F401
 
 import re
 import sys

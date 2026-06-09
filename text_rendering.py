@@ -1397,14 +1397,9 @@ def clean_call_text(call_text):
         text,
         flags=re.IGNORECASE,
     )
-    # A call always ends at "Explain." - if more text with another question
-    # mark follows on the same line, it is a separate call.
-    text = re.sub(r"(?i)(?<=Explain\.)[ \t]+(?=[^\n]*\?)", "\n", text)
     text = re.sub(r"\s+(\d+\([a-z]\)\.)\s*", r"\n\1 ", text, flags=re.IGNORECASE)
     text = re.sub(r"\s+(\d+\.)\s+", r"\n\1 ", text)
-    # Letter subparts like "a." start a new line, but "v." in case names
-    # (Son v. Driver) must stay inline.
-    text = re.sub(r"\s+([a-uw-z]\.)\s+", r"\n\1 ", text)
+    text = re.sub(r"\s+([a-z]\.)\s+", r"\n\1 ", text)
     text = re.sub(r"\n{2,}", "\n", text)
 
     lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -1443,21 +1438,8 @@ def extract_subquestions(call_text):
         return "?" in line and stripped.endswith(("Explain.", "?"))
 
     has_numbered_call = any(top_level_pattern.match(line) for line in lines)
-    numbered_preamble = ""
 
-    if has_numbered_call:
-        # Intro text before "1." (e.g. "Assume for all questions that...:")
-        # is context for the numbered calls, not a call of its own.
-        preamble_lines = []
-        while (
-            lines
-            and not top_level_pattern.match(lines[0])
-            and not numbered_subpart_pattern.match(lines[0])
-            and "?" not in lines[0]
-        ):
-            preamble_lines.append(lines.pop(0))
-        numbered_preamble = " ".join(preamble_lines).strip()
-    else:
+    if not has_numbered_call:
         while lines and not looks_like_unnumbered_call_line(lines[0]):
             lines.pop(0)
         if len(lines) > 1 and lines[0].endswith(":") and not re.search(r"\?", lines[0]):
@@ -1505,13 +1487,9 @@ def extract_subquestions(call_text):
             if current:
                 subquestions.append(current)
 
-            question_text = top.group(2).strip()
-            if numbered_preamble:
-                question_text = f"{numbered_preamble} {question_text}".strip()
-                numbered_preamble = ""
             current = {
                 "label": f"Question {top.group(1)}",
-                "text": question_text,
+                "text": top.group(2).strip(),
                 "subparts": [],
             }
 

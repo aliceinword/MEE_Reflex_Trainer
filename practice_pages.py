@@ -47,7 +47,7 @@ def render_muscle_ladder_page(compact_mode=False, reading_mode=False):
         "and MEE Advanced Tools only for imports or manual entry."
     )
 
-    question_id = question_picker(active_default=True, compact=True)
+    question_id = question_picker(active_default=True, compact=True, practice_ready_only=True)
 
     if not question_id:
         return
@@ -109,60 +109,77 @@ def render_mini_drill_tab(qd, compact_mode=False, reading_mode=False):
         )
 
 
-def render_ladder_tab(qd, compact_mode=False, reading_mode=False):
+def render_ladder_level_selector():
+    """Render level picker and return level context."""
     level = render_selectbox(
         "Choose training level",
         LADDER_LEVELS,
     )
-
     target_minutes, goal_text = ladder_goal(level)
     render_compact_note(f"{target_minutes}-minute target: {goal_text}")
+    return level, target_minutes
 
+
+def render_ladder_work_area(qd, level):
+    """Render the prompt/work split for the selected Muscle Ladder level."""
     prompt_col, work_col = render_control_row([1, 1.15], gap="large")
 
     with prompt_col:
         render_ladder_prompt_panel(qd)
 
     with work_col:
-        combined_answer = render_ladder_response_input(level)
+        return render_ladder_response_input(level)
 
-    render_practice_section_break()
 
+def render_ladder_score_save_panel(qd, level, combined_answer, target_minutes):
+    """Render the score/self-reflection controls and save action."""
+    render_section_heading("Score and Save")
+    issue_score = render_slider("Issue score", 0, 5, 0)
+    rule_score = render_slider("Rule score", 0, 5, 0)
+    fact_score = render_slider("Fact connection score", 0, 5, 0)
+
+    average_score = training_score(issue_score, rule_score, fact_score)
+    render_metric_row([("Training score", f"{average_score}/5")])
+
+    missed = render_text_area(
+        "What did you miss?",
+        placeholder="Missed issue, element, or trigger fact.",
+        height=TEXTAREA_HEIGHT_XS,
+    )
+    notes = render_text_area(
+        "Fix note for future you",
+        placeholder="One useful instruction for next time.",
+        height=TEXTAREA_HEIGHT_XS,
+    )
+    render_save_ladder_attempt(qd, level, combined_answer, average_score, missed, notes, target_minutes)
+
+
+def render_ladder_reveal_panel(qd):
+    """Render the gated reveal control for the ladder answer bank."""
+    render_section_heading("Quick Answer Check")
+    ladder_revealed = render_reveal_control(
+        "Reveal Model Answer + Rule Outline",
+        f"ladder_reveal_{qd['id']}",
+        gate_text="Reveal only after writing your answer.",
+    )
+    render_caption("The answer bank opens full-width below this practice panel.")
+    return ladder_revealed
+
+
+def render_ladder_score_and_check(qd, level, combined_answer, target_minutes):
+    """Render score/save and reveal controls side-by-side."""
     score_col, check_col = render_control_row([1, 1], gap="large")
-
     with score_col:
-        render_section_heading("Score and Save")
-        issue_score = render_slider("Issue score", 0, 5, 0)
-        rule_score = render_slider("Rule score", 0, 5, 0)
-        fact_score = render_slider("Fact connection score", 0, 5, 0)
-
-        average_score = training_score(issue_score, rule_score, fact_score)
-        render_metric_row([("Training score", f"{average_score}/5")])
-
-        missed = render_text_area(
-            "What did you miss?",
-            placeholder="Missed issue, element, or trigger fact.",
-            height=TEXTAREA_HEIGHT_XS,
-        )
-
-        notes = render_text_area(
-            "Fix note for future you",
-            placeholder="One useful instruction for next time.",
-            height=TEXTAREA_HEIGHT_XS,
-        )
-
-        render_save_ladder_attempt(qd, level, combined_answer, average_score, missed, notes, target_minutes)
-
+        render_ladder_score_save_panel(qd, level, combined_answer, target_minutes)
     with check_col:
-        render_section_heading("Quick Answer Check")
-        ladder_revealed = render_reveal_control(
-            "Reveal Model Answer + Rule Outline",
-            f"ladder_reveal_{qd['id']}",
-            gate_text="Reveal only after writing your answer.",
-        )
+        return render_ladder_reveal_panel(qd)
 
-        render_caption("The answer bank opens full-width below this practice panel.")
 
+def render_ladder_tab(qd, compact_mode=False, reading_mode=False):
+    level, target_minutes = render_ladder_level_selector()
+    combined_answer = render_ladder_work_area(qd, level)
+    render_practice_section_break()
+    ladder_revealed = render_ladder_score_and_check(qd, level, combined_answer, target_minutes)
     if ladder_revealed:
         render_practice_review_panel(
             qd,

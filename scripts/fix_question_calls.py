@@ -112,24 +112,6 @@ FIXES = [
             "regarding the landlord's claim to 17 months of unpaid rent."
         ),
     },
-    {
-        # The import lost the stem of call 1; it ended up at the tail of
-        # question_text while call_of_question kept only the subparts.
-        "subject": "Civil Procedure",
-        "exam_name": "July 2015",
-        "question_number": "2",
-        "source": "MEE_PQ_Bank.docx",
-        "anchor": "Does the State A federal district court have personal jurisdiction over",
-        "call": (
-            "1. Does the State A federal district court have personal jurisdiction over:\n"
-            "a. the corporation? Explain.\n"
-            "b. the engineer? Explain.\n"
-            "2. Assuming that there is personal jurisdiction over both defendants, does "
-            "the State A federal district court have subject-matter jurisdiction over:\n"
-            "a. the woman's claim against the corporation and the engineer? Explain.\n"
-            "b. the engineer's cross-claim against the corporation? Explain."
-        ),
-    },
 ]
 
 
@@ -151,7 +133,7 @@ def main():
             SELECT id, question_text FROM questions
             WHERE subject = ? AND exam_name = ? AND question_number = ? AND source = ?
             """,
-            (fix["subject"], fix["exam_name"], fix["question_number"], fix.get("source", SOURCE)),
+            (fix["subject"], fix["exam_name"], fix["question_number"], SOURCE),
         )
         if not row:
             print(f"  NOT FOUND: {fix['subject']} {fix['exam_name']} Q{fix['question_number']}")

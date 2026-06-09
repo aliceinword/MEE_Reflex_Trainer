@@ -10,6 +10,9 @@ from database import (
     DB_NAME,
     get_dashboard_stats,
     get_exam_years,
+    get_mbe_content_quality,
+    get_mbe_mastery_stats,
+    get_mee_content_quality,
     get_question_bank_rows,
     get_question_by_id,
     get_rule_flashcards,
@@ -150,12 +153,8 @@ def select_question_bank_row(rows):
     return rows[labels.index(selected_label)]
 
 
-def render_dashboard_page():
-    stats = get_dashboard_stats()
-    render_page_title("Home", "One tiny useful rep. No overwhelm.")
-
-    render_html_open("dashboard-wrap")
-
+def render_dashboard_metrics(stats):
+    """Render dashboard headline metrics."""
     metric_values = [
         ("Questions", stats["total_questions"]),
         ("Active", stats["active_questions"]),
@@ -165,9 +164,9 @@ def render_dashboard_page():
     ]
     render_metric_row(metric_values)
 
-    rule_bank_cards = get_rule_flashcards()
-    rule_bank_subjects = sorted({row[1] for row in rule_bank_cards if len(row) > 1 and row[1]})
 
+def render_dashboard_top_cards():
+    """Render the compact daily-work cards on Home."""
     left_col, mid_col, right_col = render_control_row([1.15, 1.15, 1], gap="medium")
 
     with left_col:
@@ -210,9 +209,9 @@ def render_dashboard_page():
             """,
         )
 
-    if not rule_bank_cards:
-        render_warning("No flashcards are imported yet. Add your own rule bank when you are ready.")
 
+def render_dashboard_summary_cards(stats, rule_bank_cards, rule_bank_subjects):
+    """Render weakest-subject and next-action cards."""
     bottom_left, bottom_right = render_control_row([1.5, 1], gap="medium")
 
     with bottom_left:
@@ -245,6 +244,9 @@ def render_dashboard_page():
             ),
         )
 
+
+def render_dashboard_queue_expander(stats):
+    """Render the smart practice queue expander."""
     with render_expander("Smart Practice Queue", expanded=False):
         if stats["recommended_queue"]:
             queue_df = pd.DataFrame(
@@ -273,6 +275,9 @@ def render_dashboard_page():
         else:
             render_info("No active questions found yet. Import or add a few questions to build the queue.")
 
+
+def render_dashboard_session_plan_expander():
+    """Render the full session-plan expander."""
     with render_expander("Full 35-minute session plan", expanded=False):
         render_markdown_body("""
         1. **5 min** - Issue spotting
@@ -287,6 +292,9 @@ def render_dashboard_page():
         **Compare With Sample Answer**.
         """)
 
+
+def render_dashboard_due_expander(stats):
+    """Render due/untouched subject diagnostics."""
     with render_expander("Due and Untouched by Subject", expanded=False):
         if stats["due_by_subject"]:
             due_df = pd.DataFrame(stats["due_by_subject"], columns=["Subject", "Due"])
@@ -300,6 +308,45 @@ def render_dashboard_page():
         else:
             render_success("No due reviews and no untouched active questions.")
 
+
+def render_mbe_mastery_block(username):
+    """Render MBE mastery summary on the home dashboard."""
+    from app_state import get_authed_user
+    mbe = get_mbe_mastery_stats(username or get_authed_user())
+    if not mbe["remaining"] and not mbe["mastered"]:
+        return
+    render_section_heading("MBE Mastery Progress", level=4)
+    render_metric_row([
+        ("Remaining (target 0)", mbe["remaining"]),
+        ("Mastered", mbe["mastered"]),
+    ])
+    if mbe["by_subject"]:
+        with render_expander("Per-subject breakdown", expanded=False):
+            subj_df = pd.DataFrame(
+                mbe["by_subject"],
+                columns=["Subject", "Remaining", "Mastered"],
+            )
+            render_preview_table(subj_df, max_rows=20)
+
+
+def render_dashboard_page():
+    stats = get_dashboard_stats()
+    rule_bank_cards = get_rule_flashcards()
+    rule_bank_subjects = sorted({row[1] for row in rule_bank_cards if len(row) > 1 and row[1]})
+
+    render_page_title("Home", "One tiny useful rep. No overwhelm.")
+    render_html_open("dashboard-wrap")
+    render_dashboard_metrics(stats)
+    render_dashboard_top_cards()
+
+    if not rule_bank_cards:
+        render_warning("No flashcards are imported yet. Add your own rule bank when you are ready.")
+
+    render_dashboard_summary_cards(stats, rule_bank_cards, rule_bank_subjects)
+    render_mbe_mastery_block(None)
+    render_dashboard_queue_expander(stats)
+    render_dashboard_session_plan_expander()
+    render_dashboard_due_expander(stats)
     render_html_close()
 
 
@@ -335,6 +382,114 @@ def render_question_bank_page(compact_mode=False):
     render_question_detail_tabs(qd, compact_mode=compact_mode)
 
 
+def mee_quality_table_rows(rows):
+    """Return compact table rows for incomplete MEE question diagnostics."""
+    quality_rows = []
+    for row in rows:
+        (
+            question_id,
+            exam_name,
+            question_number,
+            subject,
+            source,
+            missing_prompt,
+            missing_call,
+            missing_sample_answer,
+            missing_rules,
+            missing_tested_issues,
+            missing_trigger_facts,
+        ) = row
+        missing_fields = [
+            label
+            for label, is_missing in [
+                ("prompt", missing_prompt),
+                ("call", missing_call),
+                ("sample answer", missing_sample_answer),
+                ("rules", missing_rules),
+                ("tested issues", missing_tested_issues),
+                ("trigger facts", missing_trigger_facts),
+            ]
+            if is_missing
+        ]
+        quality_rows.append({
+            "ID": question_id,
+            "Question": f"{exam_name} Q{question_number}",
+            "Subject": subject,
+            "Missing": ", ".join(missing_fields),
+            "Source": source,
+        })
+    return quality_rows
+
+
+def render_mee_content_quality_panel():
+    """Render compact MEE data-quality diagnostics in Settings."""
+    with render_expander("MEE Content Quality", expanded=False):
+        quality = get_mee_content_quality(limit=12)
+        summary = quality["summary"]
+        render_metric_row([
+            ("Practice-ready", summary["practice_ready_questions"]),
+            ("Missing prompt", summary["missing_prompt"]),
+            ("Missing call", summary["missing_call"]),
+            ("Missing rules", summary["missing_rules"]),
+            ("Missing trigger facts", summary["missing_trigger_facts"]),
+        ])
+
+        if quality["rows"]:
+            render_preview_table(mee_quality_table_rows(quality["rows"]), max_rows=12)
+        else:
+            render_success("All MEE rows have the core practice fields.")
+
+
+def render_mbe_content_quality_panel():
+    """Render compact MBE card and practice diagnostics in Settings."""
+    with render_expander("MBE Content Quality", expanded=False):
+        quality = get_mbe_content_quality(limit=12)
+        summary = quality["summary"]
+        render_metric_row([
+            ("Total cards", summary["total_cards"]),
+            ("Drill cards", summary["drill_cards"]),
+            ("Flashcards", summary["flashcards"]),
+            ("Content dupes", summary["content_duplicates"]),
+            ("AdaptiBar ID dupes", summary["adv_id_duplicates"]),
+        ])
+
+        source_rows = [
+            {"Source": source, "Cards": count}
+            for source, count in quality["by_source"]
+        ]
+        render_preview_table(source_rows, empty_message="No MBE cards loaded.", max_rows=12)
+
+        if quality["practice_rows"]:
+            practice_rows = [
+                {
+                    "User": username,
+                    "Stat entries": stats_entries,
+                    "Practiced": practiced,
+                    "Snoozed": snoozed,
+                    "Updated": updated_at,
+                }
+                for username, stats_entries, practiced, snoozed, updated_at in quality["practice_rows"]
+            ]
+            render_preview_table(practice_rows, max_rows=12)
+        else:
+            render_warning("No MBE practice stats have been saved yet.")
+
+        if quality["duplicate_rows"]:
+            duplicate_rows = [
+                {
+                    "ID": card_id,
+                    "Keep ID": keep_id,
+                    "Subject": subject,
+                    "Subtopic": subtopic,
+                    "Title": title,
+                }
+                for card_id, keep_id, subject, subtopic, title in quality["duplicate_rows"]
+            ]
+            render_preview_table(duplicate_rows, max_rows=12)
+        else:
+            render_success("No MBE duplicate fingerprints detected.")
+
+
 def render_settings_page(reading_mode, compact_mode, font_size, line_height):
     render_page_title(
         "Settings",
@@ -361,6 +516,9 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
         ("Database", DB_NAME),
     ]
     render_metric_row(data_values)
+
+    render_mee_content_quality_panel()
+    render_mbe_content_quality_panel()
 
     render_divider()
     render_section_heading("Workflow")

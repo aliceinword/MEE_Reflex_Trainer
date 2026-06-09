@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <script>
+      let readyAck = false;
+      let lastPayloadSig = "";
+
+      const Streamlit = window.Streamlit || {
+        setComponentReady() {
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              type: "streamlit:componentReady",
+              apiVersion: 1,
+            },
+            "*"
+          );
+        },
+        setComponentValue(value) {
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              type: "streamlit:setComponentValue",
+              value,
+              dataType: "json",
+            },
+            "*"
+          );
+        },
+        setFrameHeight(height) {
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              type: "streamlit:setFrameHeight",
+              height,
+            },
+            "*"
+          );
+        },
+      };
+
+      function readLatestPayload() {
+        try {
+          const raw = window.parent.localStorage.getItem(
+            "trapTrainer.practiceSync.latest"
+          );
+          if (!raw || raw === lastPayloadSig) return null;
+          const payload = JSON.parse(raw);
+          if (!payload || typeof payload !== "object") return null;
+          if (!payload.cardStats) return null;
+          lastPayloadSig = raw;
+          return payload;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function pollAndSend() {
+        if (!readyAck) return;
+        const payload = readLatestPayload();
+        if (!payload) return;
+        try {
+          Streamlit.setComponentValue(payload);
+        } catch (e) {}
+      }
+
+      window.addEventListener("message", function (event) {
+        const data = event.data;
+        if (!data || data.type !== "streamlit:render") return;
+        readyAck = true;
+        Streamlit.setFrameHeight(0);
+        pollAndSend();
+      });
+
+      function sendReady() {
+        Streamlit.setComponentReady();
+      }
+
+      function startReadyHandshake() {
+        let tries = 0;
+        setTimeout(sendReady, 250);
+        const readyTimer = setInterval(function () {
+          if (readyAck || tries >= 20) {
+            clearInterval(readyTimer);
+            return;
+          }
+          tries += 1;
+          sendReady();
+        }, 500);
+      }
+
+      if (document.readyState === "loading") {
+        window.addEventListener("DOMContentLoaded", startReadyHandshake, {
+          once: true,
+        });
+      } else {
+        startReadyHandshake();
+      }
+
+      setInterval(pollAndSend, 750);
+    </script>
+  </body>
+</html>

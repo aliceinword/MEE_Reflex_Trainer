@@ -567,9 +567,8 @@
   .facts-text{font-family:'IBM Plex Serif',Georgia,serif;font-size:18px;line-height:1.72;color:var(--ink);font-weight:400;margin-bottom:4px}
   /* larger, more readable question + answers */
   .call-text{font-size:19px !important;line-height:1.45 !important}
-  .facts-text{font-size:20px !important;line-height:1.75 !important}
-  .facts-label{font-size:12px !important;margin-bottom:10px !important}
-  .call-tag{font-size:10px !important}
+  .facts-text{font-size:16.5px !important;line-height:1.7 !important}
+  .facts-label, .call-tag{font-size:10px !important}
   .qtitle{font-size:17px !important;line-height:1.6 !important}
   .opts .opt{font-size:16px !important;line-height:1.5 !important;padding:14px 16px !important}
   .opts .opt .key{font-size:14px !important}
@@ -611,24 +610,32 @@
   }
   /* comfortable reading width for long explanations */
   .fb-box, .trigger-analysis, .facts-text { line-height: 1.6 !important; }
-  body.drill-screen,
-  body.drill-screen .wrap,
-  body.drill-screen #app,
-  body.drill-screen .qcard.panel,
-  body.drill-screen .opts {
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
+  /* Streamlit embed: fixed viewport, single scrollbar on #app */
+  html, body {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
   }
-  body.drill-screen .wrap { min-height: calc(100vh - clamp(12px,1.3vw,20px)) !important; }
-  /* Streamlit embeds this file; keep scrolling in Streamlit, not inside the iframe. */
-  html, body { height: auto !important; overflow: visible !important; }
-  .wrap { height: auto !important; min-height: 100vh !important; }
-  #app { height: auto !important; min-height: 0 !important; overflow: visible !important; }
-  body:not(.drill-screen) #app { height: auto !important; overflow: visible !important; }
+  .wrap {
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  #app {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-right: 2px !important;
+  }
   /* fix: options + feedback must flow in normal vertical order, never overlap */
-  body.drill-screen { overflow: visible !important; }
-  body.drill-screen #app { position: static !important; display: block !important; height: auto !important; max-height: none !important; overflow: visible !important; }
+  body.drill-screen { overflow: hidden !important; }
+  body.drill-screen .wrap { min-height: 0 !important; height: 100% !important; }
+  body.drill-screen #app { position: static !important; display: block !important; overflow-y: auto !important; max-height: none !important; }
   body.drill-screen .qcard.panel { position: static !important; height: auto !important; max-height: none !important; overflow: visible !important; }
   #fb, .fb { position: static !important; display: block !important; height: auto !important; max-height: none !important; overflow: visible !important; margin-top: 14px !important; clear: both !important; }
   .opts { position: static !important; display: flex !important; flex-direction: column !important; gap: 10px !important; height: auto !important; max-height: none !important; overflow: visible !important; }
@@ -644,12 +651,9 @@
   html, body {
     background: var(--bg) !important;
     color: var(--ink) !important;
-    overflow-y: hidden !important;
-    overflow-x: hidden !important;
   }
   .wrap, #app {
     background: var(--bg) !important;
-    min-height: 100vh !important;
   }
   .rule-modal-overlay {
     background: rgba(251, 249, 245, .72) !important;
@@ -2046,21 +2050,331 @@ function cardStatAliases(card) {
   if (card && card.advId) keys.push(String(card.advId));
   if (card && card.id) keys.push(String(card.id));
   if (card && card.dbId != null) keys.push("DB" + card.dbId);
+  const adv = String(card && card.advId ? card.advId : "");
+  const id = String(card && card.id ? card.id : "");
+  if (adv && adv.toUpperCase().startsWith("ABX") && adv.slice(3)) keys.push(adv.slice(3));
+  if (id && id.toUpperCase().startsWith("ABX") && id.slice(3)) keys.push(id.slice(3));
+  if (adv && !adv.toUpperCase().startsWith("ABX")) keys.push("ABX" + adv);
+  if (id && !id.toUpperCase().startsWith("ABX") && /^\d+$/.test(id)) keys.push("ABX" + id);
+  // Stats from deleted DB imports were saved as DB278 while built-in cards use ABX278.
+  if (adv && adv.toUpperCase().startsWith("ABX") && adv.slice(3)) keys.push("DB" + adv.slice(3));
+  if (id && id.toUpperCase().startsWith("ABX") && id.slice(3)) keys.push("DB" + id.slice(3));
   return [...new Set(keys.filter(Boolean))];
+}
+function findCardByStatsKey(key) {
+  const cards = allCards();
+  for (const card of cards) {
+    if (cardKey(card) === key || cardStatAliases(card).includes(key)) return card;
+  }
+  return findCardForOrphanStatsKey(key, cards);
+}
+function sessionAnsweredEntries(session) {
+  if (!session) return [];
+  if (Array.isArray(session.cardsAnswered) && session.cardsAnswered.length) {
+    return session.cardsAnswered.map(entry => (
+      typeof entry === "string"
+        ? { key: entry, at: session.endedAt || session.startedAt, correct: null }
+        : entry
+    ));
+  }
+  const shown = session.questionsShown || [];
+  const n = Number(session.questionsAnswered || 0);
+  if (!n || !shown.length) return [];
+  return shown.slice(0, Math.min(n, shown.length)).map(key => ({
+    key,
+    at: session.endedAt || session.startedAt,
+    correct: null
+  }));
+}
+function mergeSessionLogs(existing, incoming) {
+  const byId = new Map();
+  const sessionSig = (s) => s.id || `${s.startedAt}|${(s.questionsShown || []).join(",")}|${s.questionsAnswered || 0}`;
+  const pickSession = (a, b) => {
+    const ta = Date.parse(a.endedAt || a.startedAt || 0) || 0;
+    const tb = Date.parse(b.endedAt || b.startedAt || 0) || 0;
+    const base = tb > ta ? b : a;
+    const other = base === a ? b : a;
+    const merged = { ...other, ...base };
+    if ((other.cardsAnswered || []).length > (base.cardsAnswered || []).length) {
+      merged.cardsAnswered = other.cardsAnswered;
+    }
+    if ((other.questionsAnswered || 0) > (base.questionsAnswered || 0)) {
+      merged.questionsAnswered = other.questionsAnswered;
+    }
+    return merged;
+  };
+  for (const s of [...(incoming || []), ...(existing || [])]) {
+    if (!s) continue;
+    const id = sessionSig(s);
+    const prev = byId.get(id);
+    byId.set(id, prev ? pickSession(prev, s) : s);
+  }
+  return [...byId.values()].sort((a, b) =>
+    (Date.parse(b.endedAt || b.startedAt || 0) || 0) - (Date.parse(a.endedAt || a.startedAt || 0) || 0)
+  );
+}
+function loadDedupedSessionLog() {
+  return mergeSessionLogs([], loadSessionLog()).slice(0, 200);
+}
+function dedupeAndSaveSessionLog() {
+  const merged = loadDedupedSessionLog();
+  const raw = loadSessionLog();
+  if (merged.length !== raw.length || JSON.stringify(merged) !== JSON.stringify(raw)) {
+    saveSessionLog(merged);
+    scheduleServerStatsSync();
+  }
+  return merged;
+}
+function sessionsForToday() {
+  const today = localTodayISO();
+  const out = [];
+  const seen = new Set();
+  const add = (session) => {
+    if (!session) return;
+    const sessionDate = localDateISOFromValue(session.endedAt || session.startedAt);
+    if (sessionDate !== today) return;
+    const id = session.id || `${session.startedAt}|${(session.questionsShown || []).length}|${session.questionsAnswered || 0}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push(session);
+  };
+  add(state.currentSession);
+  try {
+    const raw = trapGetItem("__trapTrainerInProgressSession");
+    if (raw) add(JSON.parse(raw));
+  } catch (e) {}
+  for (const s of loadDedupedSessionLog()) add(s);
+  return out;
+}
+function backfillTodayPracticeFromSessions() {
+  const today = localTodayISO();
+  let changed = false;
+  for (const session of sessionsForToday()) {
+    for (const entry of sessionAnsweredEntries(session)) {
+      const card = findCardByStatsKey(entry.key);
+      if (!card) continue;
+      const stats = getCardStats(card);
+      if (isPracticedTodayStats(stats)) continue;
+      const at = entry.at || nowISO();
+      const patch = { ...stats };
+      patch.timesSeen = (patch.timesSeen || 0) + 1;
+      patch.lastAnsweredAt = latestISO(patch.lastAnsweredAt, at);
+      patch.lastPracticedAt = latestISO(patch.lastPracticedAt, at);
+      patch.lastPracticedDate = today;
+      patch.practiceHistory = mergePracticeHistory(patch.practiceHistory, [{
+        at,
+        practicedAt: at,
+        practicedDate: today,
+        correct: entry.correct !== false,
+        wasCorrect: entry.correct !== false,
+        sessionId: session.id || null,
+        backfilledFromSession: true
+      }]);
+      setCardStats(card, patch);
+      changed = true;
+    }
+  }
+  return changed;
+}
+function practicedTodayFingerprints() {
+  const fps = new Set();
+  for (const card of allCards()) {
+    if (isPracticedTodayStats(getCardStats(card))) {
+      fps.add(getCardContentFingerprint(card) || cardKey(card));
+    }
+  }
+  for (const session of sessionsForToday()) {
+    for (const entry of sessionAnsweredEntries(session)) {
+      const card = findCardByStatsKey(entry.key);
+      if (card) fps.add(getCardContentFingerprint(card) || cardKey(card));
+    }
+  }
+  return fps;
+}
+function countPracticedTodayForSubject(subject) {
+  const counted = new Set();
+  const bumpCard = (card) => {
+    if (!card || normalizeMBESubject(card.subj) !== subject) return;
+    counted.add(getCardContentFingerprint(card) || cardKey(card));
+  };
+  for (const card of allCards()) {
+    if (normalizeMBESubject(card.subj) !== subject) continue;
+    if (isPracticedTodayStats(getCardStats(card))) bumpCard(card);
+  }
+  for (const session of sessionsForToday()) {
+    for (const entry of sessionAnsweredEntries(session)) {
+      if (entry.subj) {
+        if (normalizeMBESubject(entry.subj) !== subject) continue;
+        const card = findCardByStatsKey(entry.key);
+        if (card) bumpCard(card);
+        else counted.add(`sess:${entry.key}`);
+        continue;
+      }
+      bumpCard(findCardByStatsKey(entry.key));
+    }
+  }
+  return counted.size;
+}
+function findCardForOrphanStatsKey(key, cards) {
+  cards = cards || allCards();
+  for (const card of cards) {
+    if (cardStatAliases(card).includes(key)) return card;
+  }
+  const dbm = String(key || "").match(/^DB(\d+)$/i);
+  if (dbm) {
+    const num = dbm[1];
+    return cards.find(c => {
+      const ck = String(cardKey(c) || "");
+      const cid = String(c.id || "");
+      return ck === "ABX" + num || ck === num || cid === "ABX" + num || cid === num;
+    }) || null;
+  }
+  if (/^\d+$/.test(String(key || ""))) {
+    const num = String(key);
+    return cards.find(c => {
+      const ck = String(cardKey(c) || "");
+      const cid = String(c.id || "");
+      return ck === "ABX" + num || ck === num || cid === "ABX" + num || cid === num;
+    }) || null;
+  }
+  return null;
+}
+let _contentStatsIndex = null;
+function invalidateContentStatsIndex() { _contentStatsIndex = null; }
+function rebuildContentStatsIndex() {
+  const all = loadCardStatsMap();
+  const cards = allCards();
+  const index = {};
+  for (const card of cards) {
+    const fp = getCardContentFingerprint(card);
+    if (!fp) continue;
+    for (const alias of cardStatAliases(card)) {
+      if (all[alias]) index[fp] = mergeCardStatRecords(index[fp], all[alias]);
+    }
+  }
+  for (const key of Object.keys(all)) {
+    if (!key || key.startsWith("__")) continue;
+    const card = findCardForOrphanStatsKey(key, cards);
+    if (!card) continue;
+    const fp = getCardContentFingerprint(card);
+    if (!fp) continue;
+    index[fp] = mergeCardStatRecords(index[fp], all[key]);
+  }
+  _contentStatsIndex = index;
+  return index;
+}
+function reconcileCardStatsKeys() {
+  const all = loadCardStatsMap();
+  const cards = allCards();
+  let changed = false;
+  for (const card of cards) {
+    const canonical = cardKey(card);
+    if (!canonical) continue;
+    let merged = null;
+    for (const alias of cardStatAliases(card)) {
+      if (all[alias]) merged = mergeCardStatRecords(merged, all[alias]);
+    }
+    if (!merged) continue;
+    const prev = all[canonical] || {};
+    if (JSON.stringify(prev) !== JSON.stringify(merged)) {
+      all[canonical] = merged;
+      changed = true;
+    }
+    for (const alias of cardStatAliases(card)) {
+      if (alias !== canonical && JSON.stringify(all[alias] || {}) !== JSON.stringify(merged)) {
+        all[alias] = { ...merged };
+        changed = true;
+      }
+    }
+  }
+  const claimed = new Set();
+  cards.forEach(c => cardStatAliases(c).forEach(a => claimed.add(a)));
+  for (const key of Object.keys(all)) {
+    if (!key || key.startsWith("__") || claimed.has(key)) continue;
+    const stats = all[key];
+    if (!stats || (!stats.lastAnsweredAt && !(stats.practiceHistory || []).length)) continue;
+    const card = findCardForOrphanStatsKey(key, cards);
+    if (!card) continue;
+    const canonical = cardKey(card);
+    const merged = mergeCardStatRecords(all[canonical], stats);
+    if (JSON.stringify(all[canonical] || {}) !== JSON.stringify(merged)) {
+      all[canonical] = merged;
+      changed = true;
+    }
+    for (const alias of cardStatAliases(card)) {
+      if (alias !== canonical) all[alias] = { ...merged };
+    }
+  }
+  invalidateContentStatsIndex();
+  if (changed) saveCardStatsMap(all, { skipServerSync: true });
+  else rebuildContentStatsIndex();
 }
 function getCardStats(card) {
   const all = loadCardStats();
+  let found = null;
   for (const id of cardStatAliases(card)) {
-    if (all[id]) return all[id];
+    if (all[id]) found = mergeCardStatRecords(found, all[id]);
   }
-  return {};
+  if (found) return found;
+  const fp = getCardContentFingerprint(card);
+  if (!fp) return {};
+  if (!_contentStatsIndex) rebuildContentStatsIndex();
+  return _contentStatsIndex[fp] || {};
+}
+let _sessionPracticeIndex = null;
+function invalidateSessionPracticeIndex() { _sessionPracticeIndex = null; }
+function sessionPracticeTimeForKey(key) {
+  if (!key) return 0;
+  if (!_sessionPracticeIndex) {
+    _sessionPracticeIndex = new Map();
+    const add = (k, at) => {
+      if (!k) return;
+      const t = Date.parse(at || 0);
+      if (!Number.isFinite(t)) return;
+      const cur = _sessionPracticeIndex.get(k) || 0;
+      if (t > cur) _sessionPracticeIndex.set(k, t);
+    };
+    for (const session of loadDedupedSessionLog()) {
+      for (const entry of sessionAnsweredEntries(session)) {
+        add(entry.key, entry.at);
+        const card = findCardByStatsKey(entry.key);
+        if (card) cardStatAliases(card).forEach(alias => add(alias, entry.at));
+      }
+    }
+    try {
+      const raw = trapGetItem("__trapTrainerInProgressSession");
+      if (raw) {
+        const session = JSON.parse(raw);
+        for (const entry of sessionAnsweredEntries(session)) {
+          add(entry.key, entry.at);
+          const card = findCardByStatsKey(entry.key);
+          if (card) cardStatAliases(card).forEach(alias => add(alias, entry.at));
+        }
+      }
+    } catch (e) {}
+  }
+  return _sessionPracticeIndex.get(key) || 0;
+}
+function lastPracticeTime(card) {
+  const s = getCardStats(card) || {};
+  let best = 0;
+  const bump = (raw) => {
+    const t = raw ? Date.parse(raw) : 0;
+    if (Number.isFinite(t) && t > best) best = t;
+  };
+  bump(s.lastAnsweredAt);
+  bump(s.lastPracticedAt);
+  (s.practiceHistory || []).forEach(h => bump(h.at || h.practicedAt));
+  for (const key of cardStatAliases(card)) {
+    const t = sessionPracticeTimeForKey(key);
+    if (t > best) best = t;
+  }
+  return best;
 }
 
 function saveCardStatsForCard(card, patch) {
-  const id = cardKey(card);
-  const all = loadCardStats();
-  all[id] = { ...(all[id] || {}), ...patch };
-  saveCardStats(all);
+  const stats = { ...getCardStats(card), ...(patch || {}) };
+  setCardStats(card, stats);
 }
 
 function findTriggerSentences(stem, phrases) {
@@ -2731,19 +3045,47 @@ function getHighlightedQuestionHTML(card) {
     esc(`${card.scenario || ""}\n\n${card.q || ""}`.trim());
 }
 
+// Detect the call sentence embedded at the end of an MBE scenario block.
+// AdaptiBar bulk cards store the full fact pattern in `scenario` with question="Choose the best answer.".
+// The last sentence of the scenario IS the call (e.g. "In this case, the court should").
+function splitCallFromScenario(scenario){
+  if(!scenario) return {callText:'', factsText:''};
+  // For AdaptiBar bulk cards the last sentence is always the call
+  // (the answer choices complete it). Find the last ". " before a capital letter.
+  const lastDot = scenario.lastIndexOf('. ');
+  if(lastDot < 0 || lastDot >= scenario.length - 2) return {callText:'', factsText:''};
+  const factsText = scenario.slice(0, lastDot + 1).trim();
+  const callText = scenario.slice(lastDot + 2).trim();
+  if(!callText || !/^[A-Z]/.test(callText) || factsText.length < 80) return {callText:'', factsText:''};
+  return {callText, factsText};
+}
+
 // Separate the CALL of the question (read first) from the FACTS
 function questionBlockHTML(card){
-  const call = (card.q || "").trim();
-  if(!call){
-    // No separate call stored — fall back to the combined, highlighted stem
-    return `<div class="facts-text">${getHighlightedQuestionHTML(card)}</div>`;
+  // Strip "Choose the best answer." suffix — it's AdaptiBar's standard prompt artifact.
+  const call = (card.q || "").trim().replace(/\s*Choose the best answer\.?\s*$/i, "").trim();
+  if(call){
+    const analysis = resolveTriggerAnalysis(card);
+    const facts = card.scenario ? boldTriggerPhrases(card.scenario, analysis.triggerPhrases) : "";
+    return `<div class="call-box"><span class="call-tag">\u25B6 The question — read this first</span>`+
+           `<div class="call-text">${esc(call)}</div></div>`+
+           (facts ? `<div class="facts-label">The facts</div><div class="facts-text">${facts}</div>` : "");
   }
-  const analysis = resolveTriggerAnalysis(card);
-  const facts = card.scenario ? boldTriggerPhrases(card.scenario, analysis.triggerPhrases) : "";
-  return `<div class="call-box"><span class="call-tag">\u25B6 The question — read this first</span>`+
-         `<div class="call-text">${esc(call)}</div></div>`+
-         (facts ? `<div class="facts-label">The facts</div><div class="facts-text">${facts}</div>` : "");
+  // No explicit call — try to split the last call sentence out of the scenario.
+  if(card.scenario){
+    const {callText, factsText} = splitCallFromScenario(card.scenario);
+    if(callText){
+      const analysis = resolveTriggerAnalysis(card);
+      const factsHighlighted = boldTriggerPhrases(factsText, analysis.triggerPhrases);
+      return `<div class="call-box"><span class="call-tag">\u25B6 The question — read this first</span>`+
+             `<div class="call-text">${esc(callText)}</div></div>`+
+             (factsHighlighted ? `<div class="facts-label">The facts</div><div class="facts-text">${factsHighlighted}</div>` : "");
+    }
+  }
+  // Fallback: show the combined, highlighted stem as a single block.
+  return `<div class="facts-text">${getHighlightedQuestionHTML(card)}</div>`;
 }
+
 
 function renderTriggerAnalysisBox(card) {
   const a = resolveTriggerAnalysis(card);
@@ -2905,7 +3247,6 @@ function enrichCardWithTriggerAnalysis(card) {
     return card;
   }
   const ta = buildTriggerAnalysis(card);
-  saveCardStatsForCard(card, { triggerAnalysis: ta, triggerAnalysisVersion: TRIGGER_ANALYSIS_VERSION });
   card.triggerAnalysis = ta;
   return card;
 }
@@ -2965,6 +3306,22 @@ function mergeStoredJsonObjects(parentRaw, iframeRaw) {
   try { iframeObj = iframeRaw ? JSON.parse(iframeRaw) : {}; } catch (e) { iframeObj = {}; }
   return { ...iframeObj, ...parentObj };
 }
+function mergeCardStatsStorageMaps(parentRaw, iframeRaw) {
+  let parentObj = {};
+  let iframeObj = {};
+  try { parentObj = parentRaw ? JSON.parse(parentRaw) : {}; } catch (e) { parentObj = {}; }
+  try { iframeObj = iframeRaw ? JSON.parse(iframeRaw) : {}; } catch (e) { iframeObj = {}; }
+  const out = { ...parentObj };
+  for (const [key, incoming] of Object.entries(iframeObj)) {
+    if (!key) continue;
+    if (key.startsWith("__")) {
+      out[key] = incoming;
+      continue;
+    }
+    out[key] = mergeCardStatRecords(out[key], incoming);
+  }
+  return out;
+}
 function migrateIframeStorageToParent() {
   let iframeStore;
   try { iframeStore = window.localStorage; } catch (e) { return; }
@@ -2985,7 +3342,7 @@ function migrateIframeStorageToParent() {
       if (!fromParent) {
         parentStore.setItem(key, fromIframe);
       } else if (key === CARD_STATS_KEY || key === LS_CARD_STATS_KEY) {
-        parentStore.setItem(key, JSON.stringify(mergeStoredJsonObjects(fromParent, fromIframe)));
+        parentStore.setItem(key, JSON.stringify(mergeCardStatsStorageMaps(fromParent, fromIframe)));
       }
     } catch (e) {}
   }
@@ -3107,26 +3464,65 @@ function buildPracticeSyncPayload() {
     uiState: loadUiState()
   };
 }
+function slimCardStatsForSync(map) {
+  const out = {};
+  for (const [key, stats] of Object.entries(map || {})) {
+    if (!key || !stats) continue;
+    if (key.startsWith("__")) {
+      out[key] = stats;
+      continue;
+    }
+    const slim = { ...stats };
+    if (slim.triggerAnalysis && !slim.timesSeen && !(slim.practiceHistory || []).length) {
+      delete slim.triggerAnalysis;
+      delete slim.triggerAnalysisVersion;
+      delete slim.triggerAnalysisOverride;
+    }
+    const hasPractice = !!(slim.timesSeen || (slim.practiceHistory || []).length || slim.lastAnsweredAt || slim.lastPracticedAt);
+    if (hasPractice || slim.isMastered || slim.isInErrorList || slim.snoozedUntil || slim.flaggedForReview) {
+      out[key] = slim;
+    } else if (slim.triggerAnalysisOverride) {
+      out[key] = { triggerAnalysisOverride: slim.triggerAnalysisOverride };
+    }
+  }
+  return out;
+}
 function pushPracticeStatsToServer() {
   try {
     const payload = buildPracticeSyncPayload();
-    const sig = JSON.stringify(payload);
-    if (window.__lastPracticeSyncSig === sig) return;
+    payload.cardStats = slimCardStatsForSync(payload.cardStats);
+    // Signature excludes syncedAt; otherwise every push looks "new" and
+    // re-posting on each iframe load causes a save/rerun/remount loop.
+    const sig = JSON.stringify({ ...payload, syncedAt: null });
+    const lastSig = trapGetItem("trapTrainer.practiceSync.lastSig");
+    if (window.__lastPracticeSyncSig === sig || lastSig === sig) return;
     window.__lastPracticeSyncSig = sig;
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: "mbeTrapStatsSync", payload }, "*");
+    try {
+      trapSetItem("trapTrainer.practiceSync.lastSig", sig);
+      trapSetItem("trapTrainer.practiceSync.latest", JSON.stringify(payload));
+    } catch (e) {}
+    const msg = { type: "mbeTrapStatsSync", payload };
+    const targets = new Set([window.parent, window.top].filter(w => w && w !== window));
+    for (const w of targets) {
+      try { w.postMessage(msg, "*"); } catch (e) {}
     }
   } catch (e) {}
 }
 function scheduleServerStatsSync() {
   clearTimeout(_statsSyncTimer);
-  _statsSyncTimer = setTimeout(pushPracticeStatsToServer, 600);
+  _statsSyncTimer = setTimeout(pushPracticeStatsToServer, 250);
 }
 function mergeImportedPracticeBlob(blob) {
   if (!blob || typeof blob !== "object") return;
-  const blobStamp = blob.syncedAt || blob.exportedAt || JSON.stringify(blob.cardStats || {}).length;
-  const lastMerged = trapGetItem("__trapTrainerBlobMergedAt");
-  if (blobStamp && lastMerged === String(blobStamp)) return;
+  if (!blob.cardStats || !Object.keys(blob.cardStats).length) {
+    try {
+      const raw = trapGetItem("trapTrainer.practiceSync.latest");
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached && cached.cardStats) blob = { ...blob, ...cached };
+      }
+    } catch (e) {}
+  }
   const statsMap = loadCardStatsMap();
   let changed = false;
   for (const [key, incomingStats] of Object.entries(blob.cardStats || {})) {
@@ -3138,17 +3534,17 @@ function mergeImportedPracticeBlob(blob) {
     }
   }
   if (changed) saveCardStatsMap(statsMap, { skipServerSync: true });
-  trapSetItem("__trapTrainerBlobMergedAt", String(blobStamp));
   if (Array.isArray(blob.errorList) && blob.errorList.length) {
     const mergedErrors = mergeErrorLists(loadErrorList(), blob.errorList);
     if (mergedErrors.length) saveErrorList(mergedErrors);
   }
   if (Array.isArray(blob.sessionLog) && blob.sessionLog.length) {
-    const mergedLog = (loadSessionLog() || []).concat(blob.sessionLog).slice(-200);
+    const mergedLog = mergeSessionLogs(loadSessionLog(), blob.sessionLog).slice(0, 200);
     saveSessionLog(mergedLog);
   }
   if (blob.schedulerSettings) saveSessionSettings({ ...loadSessionSettings(), ...blob.schedulerSettings });
   if (blob.uiState) saveUiState(blob.uiState);
+  invalidateSessionPracticeIndex();
 }
 function mergeErrorLists(existing, incoming) {
   const out = (existing || []).slice();
@@ -3175,12 +3571,16 @@ function saveCardStatsMap(map, opts) {
   opts = opts || {};
   try {
     _cardStatsCache = map;
+    invalidateContentStatsIndex();
     const ok = trapSetItem(CARD_STATS_KEY, JSON.stringify(map));
     if (ok && !opts.skipServerSync) scheduleServerStatsSync();
     return ok;
   } catch (e) { return false; }
 }
-function invalidateCardStatsCache() { _cardStatsCache = null; }
+function invalidateCardStatsCache() {
+  _cardStatsCache = null;
+  invalidateContentStatsIndex();
+}
 function loadCardStats() { return loadCardStatsMap(); }
 function saveCardStats(stats) { return saveCardStatsMap(stats); }
 
@@ -3198,7 +3598,12 @@ function loadSessionLog() {
   try { const r = trapGetItem(SESSION_LOG_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
 }
 function saveSessionLog(log) {
-  try { return trapSetItem(SESSION_LOG_KEY, JSON.stringify(log)); } catch (e) { return false; }
+  try {
+    invalidateSessionPracticeIndex();
+    const ok = trapSetItem(SESSION_LOG_KEY, JSON.stringify(log));
+    if (ok) scheduleServerStatsSync();
+    return ok;
+  } catch (e) { return false; }
 }
 function loadMasteredCards() {
   try { const r = trapGetItem(MASTERED_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
@@ -3336,7 +3741,8 @@ function missAgeStatus(card) {
 
 function getDateSummary(cards) {
   cards = cards || allCards();
-  let oldUnchecked = 0, recentMisses = 0, practicedToday = 0, stale14 = 0, neverPracticed = 0;
+  let oldUnchecked = 0, recentMisses = 0, stale14 = 0, neverPracticed = 0;
+  const practicedToday = practicedTodayFingerprints().size;
   for (const card of cards) {
     const stats = getCardStats(card);
     const missedDate = card.mostRecentImportedMissAt || card.dateAnswered || card.firstMissedAt;
@@ -3345,7 +3751,6 @@ function getDateSummary(cards) {
     const hasPractice = !!(stats.practiceHistory && stats.practiceHistory.length);
     if (missedDays >= 30 && practicedDays === Infinity) oldUnchecked++;
     if (missedDays <= 14) recentMisses++;
-    if (isPracticedTodayStats(stats)) practicedToday++;
     if (hasPractice && practicedDays >= 14) stale14++;
     if (!hasPractice) neverPracticed++;
   }
@@ -3786,14 +4191,26 @@ function lastAnsweredTime(card){
 
 function answeredRecently(card, hours){
   try{
+    const cutoff = Date.now() - hours * 3600 * 1000;
+    const t = lastPracticeTime(card);
+    if (t && t >= cutoff) return true;
     const s = getCardStats(card) || {};
-    const history = s.practiceHistory || [];
-    if (!history.length && !s.lastAnsweredAt && !s.lastPracticedAt) return false;
-    let t = s.lastAnsweredAt ? Date.parse(s.lastAnsweredAt) : 0;
-    if (!Number.isFinite(t) || t <= 0) t = s.lastPracticedAt ? Date.parse(s.lastPracticedAt) : 0;
-    if (!Number.isFinite(t) || t <= 0) return false;
-    return (Date.now() - t) < hours * 3600 * 1000;
+    return (s.practiceHistory || []).some(h => {
+      const pt = Date.parse(h.at || h.practicedAt || 0);
+      return Number.isFinite(pt) && pt >= cutoff;
+    });
   }catch(e){ return false; }
+}
+function countPracticedInSubject(subject, hours) {
+  if (!hours || hours >= 24) {
+    const todayCount = countPracticedTodayForSubject(subject);
+    if (todayCount) return todayCount;
+  }
+  return allCards().filter(c => {
+    if (normalizeMBESubject(c.subj) !== subject) return false;
+    if (!hours) return !!lastPracticeTime(c);
+    return answeredRecently(c, hours);
+  }).length;
 }
 
 function isSpacingBlocked(card, errorKeys) {
@@ -3810,7 +4227,7 @@ function isDrillAvailableNow(card, errorKeys) {
   const stats = getCardStats(card);
   const key = cardKey(card);
   if (stats.isMastered) return false;
-  if (isSnoozed(card)) return false;
+  if (isCardSnoozed(card)) return false;
   if (state.skipAnswered24 !== false && answeredRecently(card, 24)) return false;
   if (errorKeys.has(key) && !isErrorItemDue(card)) return false;
   if (isSpacingBlocked(card, errorKeys)) return false;
@@ -3819,7 +4236,7 @@ function isDrillAvailableNow(card, errorKeys) {
 function shouldSkipQueuedCard(card) {
   const stats = getCardStats(card);
   if (stats.isMastered) return true;
-  if (isSnoozed(card)) return true;
+  if (isCardSnoozed(card)) return true;
   if (state.skipAnswered24 !== false && answeredRecently(card, 24)) return true;
   return false;
 }
@@ -3835,7 +4252,7 @@ function isSubjectFocusedSelection() {
 function countSpacingBlocked(pool, errorKeys) {
   errorKeys = errorKeys || new Set(loadErrorList().filter(x => x.status !== "resolved").map(x => x.key));
   return dedupeCards(pool).filter(c => {
-    if (getCardStats(c).isMastered || isSnoozed(c)) return false;
+    if (getCardStats(c).isMastered || isCardSnoozed(c)) return false;
     return isSpacingBlocked(c, errorKeys);
   }).length;
 }
@@ -3863,6 +4280,8 @@ function persistInProgressSession() {
   try {
     trapSetItem(LS_LAST_SESSION_SHOWN_KEY, JSON.stringify(session.questionsShown));
     trapSetItem(LS_SESSION_KEY, String(Date.now()));
+    trapSetItem("__trapTrainerInProgressSession", JSON.stringify(session));
+    invalidateSessionPracticeIndex();
   } catch (e) {}
 }
 
@@ -3990,6 +4409,9 @@ function masterCard(card, stats) {
   stats.masteredAt = nowISO();
   stats.retiredReason = "5 correct reviews across time";
   stats.isInErrorList = false;
+  // Snooze mastered card for 14 days; it will resurface once as a confirmation check.
+  stats.snoozedUntil = Date.now() + 14 * 24 * 3600 * 1000;
+  stats.snoozedAt = nowISO();
   const mastered = loadMasteredCards();
   const key = cardKey(card);
   if (!mastered.find(x => x.key === key)) {
@@ -4039,6 +4461,31 @@ function recordCardAnswer(card, correct, chosenOption, meta) {
 
   const missedDate = card.mostRecentImportedMissAt || card.dateAnswered || card.firstMissedAt;
   const missedDays = daysSinceISO(missedDate);
+
+  // Mastery confirmation: card resurfaces once after 14-day snooze expires.
+  // Correct → re-snooze 14 more days (stays mastered). Wrong → demote to active, streak=0.
+  if (stats.isMastered) {
+    if (correct) {
+      stats.timesCorrect = (stats.timesCorrect || 0) + 1;
+      stats.snoozedUntil = Date.now() + 14 * 24 * 3600 * 1000;
+      stats.snoozedAt = nowISO();
+    } else {
+      stats.timesWrong = (stats.timesWrong || 0) + 1;
+      stats.isMastered = false;
+      stats.masteryCorrectCount = 0;
+      stats.correctStreak = 0;
+      stats.snoozedUntil = null;
+      stats.snoozedAt = null;
+      const masteredList = loadMasteredCards();
+      const demoteKey = cardKey(card);
+      const demoteIdx = masteredList.findIndex(x => x.key === demoteKey);
+      if (demoteIdx >= 0) masteredList.splice(demoteIdx, 1);
+      saveMasteredCards(masteredList);
+    }
+    setCardStats(card, stats);
+    pushPracticeStatsToServer();
+    return;
+  }
 
   if (correct) {
     stats.timesCorrect = (stats.timesCorrect || 0) + 1;
@@ -4090,13 +4537,22 @@ function recordCardAnswer(card, correct, chosenOption, meta) {
 
   updateDoctrineStats(card, correct, meta);
   setCardStats(card, stats);
+  invalidateSessionPracticeIndex();
   pushPracticeStatsToServer();
   if (state.currentSession) {
     state.currentSession.questionsAnswered = (state.currentSession.questionsAnswered || 0) + 1;
+    state.currentSession.cardsAnswered = state.currentSession.cardsAnswered || [];
+    state.currentSession.cardsAnswered.push({
+      key: cardKey(card),
+      subj: card.subj,
+      at: now,
+      correct: !!correct
+    });
     if (correct) state.currentSession.correct = (state.currentSession.correct || 0) + 1;
     else state.currentSession.wrong = (state.currentSession.wrong || 0) + 1;
     if (!correct && (meta.confidence || 0) >= 4) state.currentSession.dangerErrors = (state.currentSession.dangerErrors || 0) + 1;
     if (correct && !countsForMastery(true, meta.quality, meta.confidence)) state.currentSession.luckyCorrect = (state.currentSession.luckyCorrect || 0) + 1;
+    persistInProgressSession();
   }
 }
 
@@ -4106,6 +4562,7 @@ function newSession() {
     startedAt: nowISO(),
     endedAt: null,
     questionsShown: [],
+    cardsAnswered: [],
     questionsAnswered: 0,
     correct: 0,
     wrong: 0,
@@ -4127,7 +4584,10 @@ function finishCurrentSession() {
   try {
     trapSetItem(LS_LAST_SESSION_SHOWN_KEY, JSON.stringify(session.questionsShown || []));
     trapSetItem(LS_SESSION_KEY, String(Date.now()));
+    trapRemoveItem("__trapTrainerInProgressSession");
   } catch (e) {}
+  backfillTodayPracticeFromSessions();
+  pushPracticeStatsToServer();
   state.currentSession = null;
   return session;
 }
@@ -4197,7 +4657,7 @@ function buildSessionQueue(pool, opts) {
   const relaxSpacing = false;
   const active = dedupeCards(pool).filter(c => {
     if (getCardStats(c).isMastered) return false;
-    if (isSnoozed(c)) return false;
+    if (isCardSnoozed(c)) return false;
     if (state.skipAnswered24 !== false && answeredRecently(c, 24)) return false;
     const key = cardKey(c);
     if (errorKeys.has(key) && !isErrorItemDue(c)) return false;
@@ -4504,11 +4964,20 @@ function mergeCardStatRecords(existing, incoming) {
   merged.lastAnsweredAt = latestISO(existing.lastAnsweredAt, incoming.lastAnsweredAt);
   merged.lastPracticedAt = latestISO(existing.lastPracticedAt, incoming.lastPracticedAt);
   merged.lastSeenAt = latestISO(existing.lastSeenAt, incoming.lastSeenAt);
+  merged.lastShown = Math.max(Number(existing.lastShown || 0), Number(incoming.lastShown || 0));
   merged.firstPracticedAt = existing.firstPracticedAt || incoming.firstPracticedAt || null;
   merged.lastPracticedDate = localDateISOFromValue(merged.lastPracticedAt) || existing.lastPracticedDate || incoming.lastPracticedDate || null;
   merged.lastAnsweredCorrect = existing.lastAnsweredAt && incoming.lastAnsweredAt
     ? (Date.parse(existing.lastAnsweredAt) >= Date.parse(incoming.lastAnsweredAt) ? existing.lastAnsweredCorrect : incoming.lastAnsweredCorrect)
     : (existing.lastAnsweredCorrect ?? incoming.lastAnsweredCorrect ?? null);
+  merged.nextReviewAt = latestISO(existing.nextReviewAt, incoming.nextReviewAt) || existing.nextReviewAt || incoming.nextReviewAt || null;
+  merged.dueAt = Math.max(Number(existing.dueAt || 0), Number(incoming.dueAt || 0));
+  const existingSnooze = Number(existing.snoozedUntil || 0);
+  const incomingSnooze = Number(incoming.snoozedUntil || 0);
+  if (existingSnooze || incomingSnooze) {
+    merged.snoozedUntil = Math.max(existingSnooze, incomingSnooze);
+    merged.snoozedAt = latestISO(existing.snoozedAt, incoming.snoozedAt) || existing.snoozedAt || incoming.snoozedAt || null;
+  }
   merged.isInErrorList = !!(existing.isInErrorList || incoming.isInErrorList);
   merged.isMastered = !!(existing.isMastered || incoming.isMastered);
   return merged;
@@ -4793,6 +5262,10 @@ if (_userInit.dirty) saveUser();
 function withCategory(c){const x={...c};applyCategoryToCard(x); return x;}
 function allCards(){
   if(!_allCardsCache) {
+    if (window.APP_MBE_CARD_STORE === 'database') {
+      _allCardsCache = dedupeCards(userCards.map(withCategory));
+      return _allCardsCache;
+    }
     const merged = [];
     const seen = new Set();
     for (const card of BUILTIN.map(withCategory).concat(userCards.map(withCategory))) {
@@ -5042,6 +5515,8 @@ function buildDrillCandidatePool(opts, dateFilterOverride) {
   const dateFilter = dateFilterOverride || effectiveDateFilterForDrill();
   const errorKeys = new Set(loadErrorList().filter(x => x.status !== "resolved").map(x => x.key));
   pruneSubtopicFilters();
+  // Snooze invariant for default dashboard filters:
+  // passesDateFilter(d, state.dateFilter || "all") && !isCardSnoozed(d)
   let pool = allCards().filter(d =>
     cardMatchesSelectedSubject(d) &&
     cardMatchesSubtopicFilter(d) &&
@@ -5057,7 +5532,12 @@ function buildDrillCandidatePool(opts, dateFilterOverride) {
     return missedDays >= 30 && !s.isMastered && practicedDays >= 14;
   });
   else if (opts.dangerOnly) pool = pool.filter(d => getCardStats(d).dangerError);
-  else pool = pool.filter(d => !getCardStats(d).isMastered);
+  else pool = pool.filter(d => {
+    const s = getCardStats(d);
+    if (!s.isMastered) return true;
+    // Mastered card resurfaces once when its 14-day confirmation snooze has expired.
+    return s.snoozedUntil && Date.now() >= Number(s.snoozedUntil);
+  });
   if (!opts.reviewOnly && !opts.activeWeakness && !opts.oldMissRecheck && !opts.dangerOnly) {
     pool = pool.filter(d => isDrillAvailableNow(d, errorKeys));
   }
@@ -5164,9 +5644,27 @@ function toggleSubjectSelection(subj, checked) {
 }
 
 /* ---------- START ---------- */
+function restoreInProgressSession() {
+  try {
+    const raw = trapGetItem("__trapTrainerInProgressSession");
+    if (!raw) return;
+    const session = JSON.parse(raw);
+    const sessionDate = localDateISOFromValue(session.startedAt);
+    if (sessionDate !== localTodayISO()) {
+      trapRemoveItem("__trapTrainerInProgressSession");
+      return;
+    }
+    // Session is read via sessionsForToday() for counts; do not attach as active drill state.
+  } catch (e) {}
+}
 function renderStart(){
   setViewportMode('start');
   invalidateCardStatsCache();
+  restoreInProgressSession();
+  dedupeAndSaveSessionLog();
+  reconcileCardStatsKeys();
+  backfillTodayPracticeFromSessions();
+  reconcileCardStatsKeys();
   if (state.currentSession) persistInProgressSession();
   syncSelected();
   if (!state.expandedSubjects) state.expandedSubjects = new Set();
@@ -5242,9 +5740,12 @@ function renderStart(){
     const subjectInBank = all.filter(c => cardMatchesSubjectDashboard(c, s));
     const subjectCount = subjectInBank.length;
     const subjectAvailableCount = subjectInBank.filter(c => isDrillAvailableNow(c, errorKeysForCounts)).length;
-    const subjectCountLabel = subjectAvailableCount === subjectCount
-      ? `${subjectCount} in bank`
-      : `${subjectAvailableCount} ready / ${subjectCount} in bank`;
+    const practicedTodayN = countPracticedTodayForSubject(s);
+    const subjectCountLabel = subjectAvailableCount === 0 && practicedTodayN > 0
+      ? `0 to drill · ${practicedTodayN} done today`
+      : subjectAvailableCount === subjectCount
+        ? `${subjectAvailableCount} to drill`
+        : `${subjectAvailableCount} to drill · ${subjectCount} in bank`;
     const isSelected = state.selected.has(s);
     const subList = subtopicsFor(s);
 
@@ -5300,11 +5801,27 @@ function renderStart(){
     </div>
     ${reviewRow}
     <div class="stat-row">
+      <div class="stat" style="border:2px solid var(--btn)"><div class="n">${summary.active}</div><div class="l">remaining ← drive to 0</div></div>
+      <div class="stat"><div class="n">${summary.mastered}</div><div class="l">mastered</div></div>
       <div class="stat"><div class="n">${summary.due}</div><div class="l">due now</div></div>
       <div class="stat"><div class="n">${summary.errors}</div><div class="l">error list</div></div>
       <div class="stat"><div class="n">${summary.unseen}</div><div class="l">never seen</div></div>
-      <div class="stat"><div class="n">${summary.mastered}</div><div class="l">mastered</div></div>
     </div>
+    ${(()=>{
+      const subjMap = {};
+      allCards().forEach(c => {
+        const s = c.subj || 'Other';
+        if (!subjMap[s]) subjMap[s] = {remaining:0, mastered:0};
+        const st = getCardStats(c);
+        if (st.isMastered) subjMap[s].mastered++; else subjMap[s].remaining++;
+      });
+      const rows = Object.entries(subjMap).sort((a,b)=>b[1].remaining-a[1].remaining);
+      if (!rows.length) return '';
+      return `<div class="panel" style="margin-top:6px;padding:14px 16px">
+        <div style="font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--btn);margin-bottom:12px">Per-subject: Remaining / Mastered</div>
+        ${rows.map(([s,c])=>`<div style="display:flex;justify-content:space-between;align-items:center;font-size:16px;padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-weight:600">${esc(s)}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:17px;white-space:nowrap"><b style="color:var(--ink);font-size:20px">${c.remaining}</b><span style="color:var(--sec)"> remaining &nbsp;·&nbsp; </span><b style="color:var(--ok);font-size:20px">${c.mastered}</b><span style="color:var(--sec)"> mastered</span></span></div>`).join('')}
+      </div>`;
+    })()}
     <div class="ube-home-grid">
       <div class="ube-home-main">
     <div class="panel" style="margin-top:14px;padding:12px 16px">
@@ -5984,13 +6501,13 @@ function revealDrillFeedback(pending) {
   if (d.ru) fb += `<div class="fb-box fb-ru"><strong>Shortcut</strong>${esc(d.ru)}</div>`;
   const flagged = !!getCardStats(d).flaggedForReview;
   fb += `<div class="fb-actions"><button class="btn btn-ghost btn-sm" id="flagLater">${flagged?'🚩 Flagged ✓':'🚩 Flag for later'}</button>
-    <button class="btn btn-ghost btn-sm" id="snooze14">&#128277; Don't ask for 2 weeks</button>
+    <button class="btn btn-ghost btn-sm" id="snoozeTwoWeeks">&#128277; Don't ask this question again for 2 weeks</button>
     <button class="btn btn-primary" id="next">${state.i + 1 < state.queue.length ? 'Next →' : 'See results →'}</button></div></div>`;
   document.getElementById('fb').innerHTML = fb;
   document.getElementById('next').onclick = nextCard;
   const flagBtn = document.getElementById('flagLater');
   if (flagBtn) flagBtn.onclick = () => flagCardForLater(d, flagBtn);
-  const sn = document.getElementById('snooze14');
+  const sn = document.getElementById('snoozeTwoWeeks');
   if (sn) sn.onclick = () => snoozeCard(d, 14, sn);
   if (!chosen.ok) {
     try {
@@ -6039,10 +6556,17 @@ function renderDrill(){
   const navBtn = state.studyLock
     ? `<button class="btn btn-ghost btn-sm" id="futureChangeBtn">Add A Note to Myself</button>`
     : `<button class="btn btn-ghost btn-sm" onclick="renderStart()" style="margin-left:auto">← Main menu</button>`;
+  const _dStats = getCardStats(d);
+  const _mc = _dStats.isMastered ? 5 : (_dStats.masteryCorrectCount || 0);
+  const _streakLabel = _dStats.isMastered
+    ? `✓ Mastered — confirm`
+    : _mc > 0
+      ? `Streak ${_mc}/5 — ${5 - _mc} more to retire`
+      : `Streak 0/5`;
   app.innerHTML=`${missionBanner}
     <div class="prog-wrap"><div class="prog-meta">
       <span>${esc(fullName(d.subj))} · Q ${state.i+1} / ${state.queue.length}</span>
-      <span class="streak">${state.streak>0?'🔥 streak '+state.streak:'streak 0'} · score ${state.correct}</span>
+      <span class="streak">${_streakLabel}</span>
       ${navBtn}
     </div><div class="bar"><i style="width:${pct}%"></i></div></div>
     <div class="qcard panel">
@@ -6795,6 +7319,11 @@ try {
   if (window.APP_TRAP_PRACTICE_BLOB && Object.keys(window.APP_TRAP_PRACTICE_BLOB).length) {
     mergeImportedPracticeBlob(window.APP_TRAP_PRACTICE_BLOB);
   }
+  restoreInProgressSession();
+  dedupeAndSaveSessionLog();
+  reconcileCardStatsKeys();
+  backfillTodayPracticeFromSessions();
+  reconcileCardStatsKeys();
   restoreUiState();
   if (window.APP_MBE_START_MODE === 'flashcards') {
     syncSelected();

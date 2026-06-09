@@ -15,11 +15,13 @@ When a question has no Normal call paragraphs, the call is inline in the last
 fact paragraph and is split off heuristically.
 
 Usage:
-    python import_questions_docx.py "MEE_Question_Extraction_By_Compiled_Topics.docx"
+    python scripts/import_questions_docx.py "MEE_Question_Extraction_By_Compiled_Topics.docx"
 
 Re-running is safe: questions already present (same exam + number + subject +
 source) are skipped.
 """
+
+import _bootstrap  # noqa: F401
 
 import re
 import sys

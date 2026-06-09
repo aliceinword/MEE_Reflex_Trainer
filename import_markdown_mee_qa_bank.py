@@ -4,7 +4,6 @@ import argparse
 import json
 import re
 import shutil
-import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -402,87 +401,84 @@ def import_records(records: list[ParsedRecord], apply: bool, allow_truncated: bo
         return report
 
     report["backup"] = str(backup_db(db_path))
-    conn = sqlite3.connect(db_path)
 
-    for question_id, record in updates:
-        conn.execute(
-            """
-            UPDATE questions
-            SET
-                subject = ?,
-                question_text = ?,
-                call_of_question = ?,
-                tested_issues = ?,
-                rules = CASE WHEN ? != '' THEN ? ELSE rules END,
-                traps = CASE WHEN ? != '' THEN ? ELSE traps END,
-                model_points = ?,
-                active_for_july_2026 = 1,
-                exam_year = ?,
-                exam_season = ?,
-                july_2026_status = 'Active standalone MEE',
-                priority = 3,
-                source = ?
-            WHERE id = ?
-            """,
-            (
-                record.subject,
-                record.question_text,
-                record.call_of_question,
-                record.tested_issues,
-                record.rules,
-                record.rules,
-                record.traps,
-                record.traps,
-                record.model_points,
-                record.exam_year,
-                record.exam_season,
-                SOURCE_LABEL,
-                question_id,
-            ),
-        )
-
-    for record in inserts:
-        conn.execute(
-            """
-            INSERT INTO questions (
-                exam_name,
-                question_number,
-                subject,
-                question_text,
-                call_of_question,
-                tested_issues,
-                rules,
-                trigger_facts,
-                traps,
-                model_points,
-                active_for_july_2026,
-                exam_year,
-                exam_season,
-                secondary_subjects,
-                july_2026_status,
-                priority,
-                source
+    with database.write_transaction() as conn:
+        for question_id, record in updates:
+            conn.execute(
+                """
+                UPDATE questions
+                SET
+                    subject = ?,
+                    question_text = ?,
+                    call_of_question = ?,
+                    tested_issues = ?,
+                    rules = CASE WHEN ? != '' THEN ? ELSE rules END,
+                    traps = CASE WHEN ? != '' THEN ? ELSE traps END,
+                    model_points = ?,
+                    active_for_july_2026 = 1,
+                    exam_year = ?,
+                    exam_season = ?,
+                    july_2026_status = 'Active standalone MEE',
+                    priority = 3,
+                    source = ?
+                WHERE id = ?
+                """,
+                (
+                    record.subject,
+                    record.question_text,
+                    record.call_of_question,
+                    record.tested_issues,
+                    record.rules,
+                    record.rules,
+                    record.traps,
+                    record.traps,
+                    record.model_points,
+                    record.exam_year,
+                    record.exam_season,
+                    SOURCE_LABEL,
+                    question_id,
+                ),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, 1, ?, ?, '', 'Active standalone MEE', 3, ?)
-            """,
-            (
-                record.exam_name,
-                record.question_number,
-                record.subject,
-                record.question_text,
-                record.call_of_question,
-                record.tested_issues,
-                record.rules,
-                record.traps,
-                record.model_points,
-                record.exam_year,
-                record.exam_season,
-                SOURCE_LABEL,
-            ),
-        )
 
-    conn.commit()
-    conn.close()
+        for record in inserts:
+            conn.execute(
+                """
+                INSERT INTO questions (
+                    exam_name,
+                    question_number,
+                    subject,
+                    question_text,
+                    call_of_question,
+                    tested_issues,
+                    rules,
+                    trigger_facts,
+                    traps,
+                    model_points,
+                    active_for_july_2026,
+                    exam_year,
+                    exam_season,
+                    secondary_subjects,
+                    july_2026_status,
+                    priority,
+                    source
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, 1, ?, ?, '', 'Active standalone MEE', 3, ?)
+                """,
+                (
+                    record.exam_name,
+                    record.question_number,
+                    record.subject,
+                    record.question_text,
+                    record.call_of_question,
+                    record.tested_issues,
+                    record.rules,
+                    record.traps,
+                    record.model_points,
+                    record.exam_year,
+                    record.exam_season,
+                    SOURCE_LABEL,
+                ),
+            )
     return report
 
 

@@ -189,28 +189,25 @@ def render_ladder_prompt_panel(qd):
     render_fact_prompt(qd)
 
 
-def render_ladder_response_input(level):
-    """Render the writing prompt for a selected Muscle Ladder level."""
-    render_section_heading(f"{level.split(' - ')[0]} Work")
+def render_ladder_level_1_response():
+    """Render Level 1 issue/rule/fact retrieval fields."""
+    user_issues = render_text_area(
+        "Step A - What issues do you see?",
+        placeholder="List each legal issue raised by this call.",
+        height=TEXTAREA_HEIGHT_SM,
+    )
+    user_rules = render_text_area(
+        "Step B - Write the rules from memory",
+        placeholder="Write the governing test, elements, or standard.",
+        height=TEXTAREA_HEIGHT_SM,
+    )
+    user_facts = render_text_area(
+        "Optional - Which facts triggered those issues?",
+        placeholder="Quote or summarize the facts that connect to each rule element.",
+        height=TEXTAREA_HEIGHT_XS,
+    )
 
-    if level.startswith("Level 1"):
-        user_issues = render_text_area(
-            "Step A - What issues do you see?",
-            placeholder="List each legal issue raised by this call.",
-            height=TEXTAREA_HEIGHT_SM,
-        )
-        user_rules = render_text_area(
-            "Step B - Write the rules from memory",
-            placeholder="Write the governing test, elements, or standard.",
-            height=TEXTAREA_HEIGHT_SM,
-        )
-        user_facts = render_text_area(
-            "Optional - Which facts triggered those issues?",
-            placeholder="Quote or summarize the facts that connect to each rule element.",
-            height=TEXTAREA_HEIGHT_XS,
-        )
-
-        return f"""
+    return f"""
 ISSUES:
 {user_issues}
 
@@ -221,37 +218,64 @@ TRIGGER FACTS:
 {user_facts}
 """
 
-    if level.startswith("Level 2"):
-        return render_text_area(
-            "For each issue, write: Issue -> Rule -> Trigger Facts",
-            placeholder=(
-                "Issue 1: ___\nRule: ___\nTrigger facts: ___\n\n"
-                "Issue 2: ___\nRule: ___\nTrigger facts: ___"
-            ),
-            height=TEXTAREA_HEIGHT_LG,
-        )
 
-    if level.startswith("Level 3"):
-        return render_text_area(
-            "Write ONE strong IRAC paragraph",
-            placeholder=(
-                "Issue: Whether ___\nRule: Under ___\nApplication: Here, ___ because ___\n"
-                "Counterargument: However, ___\nConclusion: Therefore, ___"
-            ),
-            height=TEXTAREA_HEIGHT_LG,
-        )
+def render_ladder_level_2_response():
+    """Render Level 2 trigger-fact hunt field."""
+    return render_text_area(
+        "For each issue, write: Issue -> Rule -> Trigger Facts",
+        placeholder=(
+            "Issue 1: ___\nRule: ___\nTrigger facts: ___\n\n"
+            "Issue 2: ___\nRule: ___\nTrigger facts: ___"
+        ),
+        height=TEXTAREA_HEIGHT_LG,
+    )
 
-    if level.startswith("Level 4"):
-        return render_text_area(
-            "Outline the full essay. Short bullets only.",
-            placeholder=(
-                "Call 1:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:\n\n"
-                "Call 2:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:"
-            ),
-            height=TEXTAREA_HEIGHT_LG,
-        )
 
+def render_ladder_level_3_response():
+    """Render Level 3 mini-IRAC field."""
+    return render_text_area(
+        "Write ONE strong IRAC paragraph",
+        placeholder=(
+            "Issue: Whether ___\nRule: Under ___\nApplication: Here, ___ because ___\n"
+            "Counterargument: However, ___\nConclusion: Therefore, ___"
+        ),
+        height=TEXTAREA_HEIGHT_LG,
+    )
+
+
+def render_ladder_level_4_response():
+    """Render Level 4 skeleton essay field."""
+    return render_text_area(
+        "Outline the full essay. Short bullets only.",
+        placeholder=(
+            "Call 1:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:\n\n"
+            "Call 2:\n- Issue:\n- Rule:\n- Facts:\n- Conclusion:"
+        ),
+        height=TEXTAREA_HEIGHT_LG,
+    )
+
+
+def render_ladder_level_5_response():
+    """Render Level 5 full timed essay field."""
     return render_text_area("Write the full timed essay", height=TEXTAREA_HEIGHT_XL)
+
+
+LADDER_RESPONSE_RENDERERS = {
+    "Level 1": render_ladder_level_1_response,
+    "Level 2": render_ladder_level_2_response,
+    "Level 3": render_ladder_level_3_response,
+    "Level 4": render_ladder_level_4_response,
+    "Level 5": render_ladder_level_5_response,
+}
+
+
+def render_ladder_response_input(level):
+    """Render the writing prompt for a selected Muscle Ladder level."""
+    render_section_heading(f"{level.split(' - ')[0]} Work")
+    for prefix, renderer in LADDER_RESPONSE_RENDERERS.items():
+        if level.startswith(prefix):
+            return renderer()
+    return render_ladder_level_5_response()
 
 
 def render_mini_drill_response_input():
@@ -350,6 +374,65 @@ def render_practice_section_break():
     render_divider()
 
 
+def answer_bank_tab_names(include_sample_answer=True, include_rule_support=True):
+    """Return the tab labels for the shared answer bank."""
+    names = []
+    if include_sample_answer:
+        names.append("Sample Answer")
+    names.extend(["Rules + Issues", "Trigger Facts", "Traps"])
+    if include_rule_support:
+        names.append("Rule Support")
+    return names
+
+
+def render_rules_issues_tab(qd, *, compact=False):
+    """Render the rules and tested issues answer-bank tab."""
+    render_tested_issues_text("Tested Issues", qd.get("tested_issues", ""))
+    render_readable_text("Rules", qd.get("rules", ""), compact=compact)
+
+
+def render_trigger_facts_tab(qd, *, include_highlights=True):
+    """Render trigger facts and optional fact-pattern highlights."""
+    render_trigger_facts("Trigger Facts", get_clean_trigger_facts(qd), qd)
+    if not include_highlights:
+        return
+    render_trigger_rule_map("Trigger Identifier Map", qd)
+    fact_only = extract_fact_pattern_only(
+        qd.get("question_text", ""),
+        qd.get("call_of_question", ""),
+    )
+    render_question_highlights_with_fallback(
+        "Fact Pattern with Trigger Facts Highlighted",
+        qd,
+        text=fact_only,
+        show_explanations=True,
+    )
+
+
+def render_traps_tab(qd):
+    """Render trap warnings for the answer bank."""
+    render_trap_warnings("Trap Warnings", qd.get("traps", ""))
+
+
+def render_rule_support_tab(qd, *, reading_mode=False):
+    """Render attack-outline and Plug & Play support for the answer bank."""
+    outline_matches = _cached_outline_rule_matches(qd, limit=3)
+    plug_matches = _cached_plug_play_matches(qd, limit=2)
+
+    if outline_matches:
+        render_section_heading("Attack Outline Rules", level=4)
+        for rule in outline_matches:
+            render_attack_rule_box(rule, reading_mode=reading_mode)
+
+    if plug_matches:
+        render_section_heading("Plug & Play Templates", level=4)
+        for template in plug_matches:
+            render_plug_play_template(template)
+
+    if not outline_matches and not plug_matches:
+        render_info("No extra rule support matched this question yet.")
+
+
 def render_answer_bank_tabs(
     qd,
     expanded=False,
@@ -363,14 +446,7 @@ def render_answer_bank_tabs(
     """Render the shared post-retrieval answer bank for practice surfaces."""
     with render_expander(title, expanded=expanded):
         render_section_heading(title)
-        tab_names = []
-        if include_sample_answer:
-            tab_names.append("Sample Answer")
-
-        tab_names.extend(["Rules + Issues", "Trigger Facts", "Traps"])
-        if include_rule_support:
-            tab_names.append("Rule Support")
-
+        tab_names = answer_bank_tab_names(include_sample_answer, include_rule_support)
         tabs = render_tab_set(tab_names)
         tab_index = 0
 
@@ -380,47 +456,20 @@ def render_answer_bank_tabs(
             tab_index += 1
 
         with tabs[tab_index]:
-            render_tested_issues_text("Tested Issues", qd.get("tested_issues", ""))
-            render_readable_text("Rules", qd.get("rules", ""), compact=compact)
+            render_rules_issues_tab(qd, compact=compact)
         tab_index += 1
 
         with tabs[tab_index]:
-            render_trigger_facts("Trigger Facts", get_clean_trigger_facts(qd), qd)
-            if include_highlights:
-                render_trigger_rule_map("Trigger Identifier Map", qd)
-                fact_only = extract_fact_pattern_only(
-                    qd.get("question_text", ""),
-                    qd.get("call_of_question", ""),
-                )
-                render_question_highlights_with_fallback(
-                    "Fact Pattern with Trigger Facts Highlighted",
-                    qd,
-                    text=fact_only,
-                    show_explanations=True,
-                )
+            render_trigger_facts_tab(qd, include_highlights=include_highlights)
         tab_index += 1
 
         with tabs[tab_index]:
-            render_trap_warnings("Trap Warnings", qd.get("traps", ""))
+            render_traps_tab(qd)
         tab_index += 1
 
         if include_rule_support:
             with tabs[tab_index]:
-                outline_matches = _cached_outline_rule_matches(qd, limit=3)
-                plug_matches = _cached_plug_play_matches(qd, limit=2)
-
-                if outline_matches:
-                    render_section_heading("Attack Outline Rules", level=4)
-                    for rule in outline_matches:
-                        render_attack_rule_box(rule, reading_mode=reading_mode)
-
-                if plug_matches:
-                    render_section_heading("Plug & Play Templates", level=4)
-                    for template in plug_matches:
-                        render_plug_play_template(template)
-
-                if not outline_matches and not plug_matches:
-                    render_info("No extra rule support matched this question yet.")
+                render_rule_support_tab(qd, reading_mode=reading_mode)
 
 
 def render_practice_review_panel(

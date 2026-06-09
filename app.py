@@ -38,7 +38,6 @@ elif menu in {"MEE Advanced Tools", "Advanced Tools", "Import Questions", "Manua
     from content_tools import render_advanced_tools_page
 
     render_advanced_tools_page()
-
 elif menu == "MEE Muscle Ladder":
     from practice_pages import render_muscle_ladder_page
 

@@ -1,4 +1,6 @@
-﻿import re
+﻿import _bootstrap  # noqa: F401
+
+import re
 import sys
 from pathlib import Path
 

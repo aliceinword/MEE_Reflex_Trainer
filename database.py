@@ -15,6 +15,24 @@ PUBLIC_SEED_TABLES = (
     "plug_play_templates",
     "rule_flashcards",
 )
+PUBLIC_SEED_COUNT_SQL = {
+    "questions": 'SELECT COUNT(*) FROM "questions"',
+    "outline_rules": 'SELECT COUNT(*) FROM "outline_rules"',
+    "plug_play_templates": 'SELECT COUNT(*) FROM "plug_play_templates"',
+    "rule_flashcards": 'SELECT COUNT(*) FROM "rule_flashcards"',
+}
+PUBLIC_SEED_DELETE_SQL = {
+    "questions": 'DELETE FROM "questions"',
+    "outline_rules": 'DELETE FROM "outline_rules"',
+    "plug_play_templates": 'DELETE FROM "plug_play_templates"',
+    "rule_flashcards": 'DELETE FROM "rule_flashcards"',
+}
+PUBLIC_SEED_INSERT_SQL = {
+    "questions": 'INSERT INTO "questions" SELECT * FROM seed."questions"',
+    "outline_rules": 'INSERT INTO "outline_rules" SELECT * FROM seed."outline_rules"',
+    "plug_play_templates": 'INSERT INTO "plug_play_templates" SELECT * FROM seed."plug_play_templates"',
+    "rule_flashcards": 'INSERT INTO "rule_flashcards" SELECT * FROM seed."rule_flashcards"',
+}
 
 _READ_CACHE = {}
 _READ_CACHE_TTL_SECONDS = 45
@@ -52,7 +70,7 @@ SQLITE_BUSY_TIMEOUT_MS = 30000
 def _connect_sqlite(db_path, *, use_wal=False):
     """Open SQLite with safe lock waiting instead of bypassing locks."""
     conn = sqlite3.connect(str(db_path), timeout=SQLITE_TIMEOUT_SECONDS)
-    conn.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+    conn.execute("PRAGMA busy_timeout = 30000")
     conn.execute("PRAGMA foreign_keys = ON")
 
     if use_wal:
@@ -67,9 +85,11 @@ def _connect_sqlite(db_path, *, use_wal=False):
 
 
 def _table_count_for_path(db_path, table_name):
+    if table_name not in PUBLIC_SEED_COUNT_SQL:
+        return 0
     try:
         with closing(_connect_sqlite(db_path)) as conn:
-            row = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
+            row = conn.execute(PUBLIC_SEED_COUNT_SQL[table_name]).fetchone()
             return int(row[0] or 0)
     except Exception:
         return 0
@@ -88,13 +108,12 @@ def _seed_missing_public_content(db_path, seed_path):
     if not seed_tables:
         return
 
-    with _connect_sqlite(db_path, use_wal=True) as conn:
+    with write_transaction(db_path) as conn:
         conn.execute("ATTACH DATABASE ? AS seed", (str(seed_path),))
         try:
             for table in seed_tables:
-                conn.execute(f'DELETE FROM "{table}"')
-                conn.execute(f'INSERT INTO "{table}" SELECT * FROM seed."{table}"')
-            conn.commit()
+                conn.execute(PUBLIC_SEED_DELETE_SQL[table])
+                conn.execute(PUBLIC_SEED_INSERT_SQL[table])
         finally:
             conn.execute("DETACH DATABASE seed")
 
@@ -140,9 +159,9 @@ def execute_write(query, params=()):
 
 
 @contextmanager
-def write_transaction():
+def write_transaction(db_path=None):
     """Open a write transaction and always close the connection."""
-    conn = get_connection()
+    conn = _connect_sqlite(db_path, use_wal=True) if db_path is not None else get_connection()
     try:
         yield conn
         conn.commit()
@@ -536,13 +555,12 @@ def delete_mbe_cards_by_ids(card_ids):
     ids = [int(card_id) for card_id in (card_ids or []) if card_id is not None]
     if not ids:
         return 0
-    placeholders = ",".join("?" for _ in ids)
+    deleted = 0
     with write_transaction() as conn:
-        cur = conn.execute(
-            f"DELETE FROM mbe_cards WHERE id IN ({placeholders})",
-            ids,
-        )
-        return int(cur.rowcount or 0)
+        for card_id in ids:
+            cur = conn.execute("DELETE FROM mbe_cards WHERE id = ?", (card_id,))
+            deleted += int(cur.rowcount or 0)
+    return deleted
 
 
 def remove_mbe_cards_duplicating_builtin(*, dry_run=False):
@@ -685,6 +703,123 @@ def count_mbe_cards():
     return int(row[0] or 0) if row else 0
 
 
+def get_mbe_content_quality(limit=12):
+    """Return compact read-only diagnostics for MBE card inventory and practice state."""
+    import json
+
+    from mbe_import_services import mbe_card_content_fingerprint
+
+    rows = fetch_all(
+        """
+        SELECT
+            id,
+            card_uid,
+            adv_id,
+            subject,
+            subtopic,
+            title,
+            scenario,
+            question,
+            options_json,
+            source
+        FROM mbe_cards
+        ORDER BY subject, subtopic, id
+        """
+    )
+
+    by_source = {}
+    by_subject = {}
+    source_rows = {}
+    subject_rows = {}
+    content_seen = {}
+    adv_seen = {}
+    content_dupes = []
+    adv_dupes = []
+
+    for row in rows:
+        (
+            card_id,
+            _card_uid,
+            adv_id,
+            subject,
+            subtopic,
+            title,
+            scenario,
+            question,
+            options_json,
+            source,
+        ) = row
+        subject = subject or "Uncategorized"
+        source = source or "App database"
+        by_source[source] = by_source.get(source, 0) + 1
+        by_subject[subject] = by_subject.get(subject, 0) + 1
+        source_rows.setdefault(source, []).append(card_id)
+        subject_rows.setdefault(subject, []).append(card_id)
+
+        content_fp = mbe_card_content_fingerprint(
+            subject=subject,
+            subtopic=subtopic,
+            scenario=scenario,
+            question=question,
+            options_json=options_json,
+        )
+        if content_fp in content_seen:
+            content_dupes.append((card_id, content_seen[content_fp], subject, subtopic, title or question))
+        else:
+            content_seen[content_fp] = card_id
+
+        adv_id = str(adv_id or "").strip()
+        if adv_id:
+            if adv_id in adv_seen:
+                adv_dupes.append((card_id, adv_seen[adv_id], subject, subtopic, title or question))
+            else:
+                adv_seen[adv_id] = card_id
+
+    practice_rows = []
+    for username, stats_json, updated_at in fetch_all(
+        """
+        SELECT username, stats_json, updated_at
+        FROM mbe_practice_stats
+        ORDER BY username
+        """
+    ):
+        try:
+            blob = json.loads(stats_json or "{}")
+        except Exception:
+            blob = {}
+        stats = blob.get("cardStats") or {}
+        practiced = sum(
+            1
+            for value in stats.values()
+            if isinstance(value, dict) and (value.get("timesSeen") or value.get("practiceHistory"))
+        )
+        snoozed = sum(
+            1
+            for value in stats.values()
+            if isinstance(value, dict) and value.get("snoozedUntil")
+        )
+        practice_rows.append((username, len(stats), practiced, snoozed, updated_at))
+
+    drill_cards = sum(count for source, count in by_source.items() if source != "adaptibar_rules")
+    flashcards = by_source.get("adaptibar_rules", 0)
+
+    return {
+        "summary": {
+            "total_cards": len(rows),
+            "drill_cards": drill_cards,
+            "flashcards": flashcards,
+            "sources": len(by_source),
+            "subjects": len(by_subject),
+            "content_duplicates": len(content_dupes),
+            "adv_id_duplicates": len(adv_dupes),
+        },
+        "by_source": sorted(by_source.items(), key=lambda item: (-item[1], item[0]))[:limit],
+        "by_subject": sorted(by_subject.items(), key=lambda item: item[0])[:limit],
+        "practice_rows": practice_rows[:limit],
+        "duplicate_rows": (content_dupes + adv_dupes)[:limit],
+    }
+
+
 def get_mbe_practice_stats(username):
     """Return the saved MBE trap-trainer practice blob for a user, or None."""
     if not username:
@@ -703,6 +838,107 @@ def get_mbe_practice_stats(username):
         return None
 
 
+def _merge_unique_json_items(existing_items, incoming_items):
+    """Merge list-like JSON records without duplicating identical entries."""
+    import json
+
+    merged = []
+    seen = set()
+    for item in list(existing_items or []) + list(incoming_items or []):
+        try:
+            sig = json.dumps(item, sort_keys=True, ensure_ascii=False)
+        except TypeError:
+            sig = str(item)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        merged.append(item)
+    return merged
+
+
+def merge_mbe_practice_stats(existing_blob, incoming_blob):
+    """Merge an incoming MBE practice sync payload with the saved user blob."""
+    if not isinstance(existing_blob, dict):
+        existing_blob = {}
+    if not isinstance(incoming_blob, dict):
+        incoming_blob = {}
+
+    merged = {**existing_blob, **incoming_blob}
+
+    existing_stats = existing_blob.get("cardStats") or {}
+    incoming_stats = incoming_blob.get("cardStats") or {}
+    card_stats = {}
+    for key in set(existing_stats) | set(incoming_stats):
+        old_value = existing_stats.get(key) or {}
+        new_value = incoming_stats.get(key) or {}
+        if isinstance(old_value, dict) and isinstance(new_value, dict):
+            combined = {**old_value, **new_value}
+            combined["practiceHistory"] = _merge_unique_json_items(
+                old_value.get("practiceHistory"),
+                new_value.get("practiceHistory"),
+            )
+            card_stats[key] = combined
+        else:
+            card_stats[key] = new_value or old_value
+    merged["cardStats"] = card_stats
+
+    for list_key in ("errorList", "sessionLog", "masteredCards"):
+        merged[list_key] = _merge_unique_json_items(
+            existing_blob.get(list_key),
+            incoming_blob.get(list_key),
+        )
+
+    return merged
+
+
+def get_mbe_mastery_stats(username):
+    """Return MBE mastery summary for the Streamlit dashboard.
+
+    Joins mbe_cards (for subject names) with the per-user practice JSON blob.
+    Returns:
+      remaining  – active (non-mastered) card count
+      mastered   – mastered card count
+      by_subject – list of (subject, remaining, mastered) sorted by remaining desc
+    """
+    blob = get_mbe_practice_stats(username) or {}
+    card_stats = blob.get("cardStats") or {}
+    if not card_stats:
+        return {"remaining": 0, "mastered": 0, "by_subject": []}
+
+    # Build lookup: adv_id -> subject, card_uid -> subject
+    card_rows = fetch_all("SELECT card_uid, adv_id, subject FROM mbe_cards")
+    uid_to_subj = {row[0]: row[2] for row in card_rows if row[0]}
+    adv_to_subj = {str(row[1]): row[2] for row in card_rows if row[1]}
+
+    subject_map = {}
+    for key, stats in card_stats.items():
+        if not isinstance(stats, dict) or key.startswith("__"):
+            continue
+        # Resolve subject: adv_id lookup, then uid lookup, then parse key
+        subj = adv_to_subj.get(str(key)) or uid_to_subj.get(str(key))
+        if not subj and "|" in key:
+            subj = key.split("|")[0]
+        subj = subj or "Unknown"
+        if subj not in subject_map:
+            subject_map[subj] = {"remaining": 0, "mastered": 0}
+        if stats.get("isMastered"):
+            subject_map[subj]["mastered"] += 1
+        else:
+            subject_map[subj]["remaining"] += 1
+
+    total_remaining = sum(v["remaining"] for v in subject_map.values())
+    total_mastered = sum(v["mastered"] for v in subject_map.values())
+    by_subject = sorted(
+        [(s, v["remaining"], v["mastered"]) for s, v in subject_map.items()],
+        key=lambda row: (-row[1], row[0]),
+    )
+    return {
+        "remaining": total_remaining,
+        "mastered": total_mastered,
+        "by_subject": by_subject,
+    }
+
+
 def save_mbe_practice_stats(username, stats_blob):
     """Persist the MBE trap-trainer practice blob for a user."""
     if not username or not isinstance(stats_blob, dict):
@@ -710,7 +946,8 @@ def save_mbe_practice_stats(username, stats_blob):
 
     import json
 
-    payload = json.dumps(stats_blob, ensure_ascii=False)
+    merged_blob = merge_mbe_practice_stats(get_mbe_practice_stats(username), stats_blob)
+    payload = json.dumps(merged_blob, ensure_ascii=False)
     timestamp = now()
     with write_transaction() as conn:
         conn.execute(
@@ -1374,7 +1611,14 @@ def add_question(
     ))
 
 
-def get_questions(active_only=False, subject=None, status=None, search=None, due_only=False):
+def get_questions(
+    active_only=False,
+    subject=None,
+    status=None,
+    search=None,
+    due_only=False,
+    practice_ready_only=False,
+):
     query = """
         SELECT
             id,
@@ -1391,6 +1635,13 @@ def get_questions(active_only=False, subject=None, status=None, search=None, due
 
     if active_only:
         query += " AND active_for_july_2026 = 1"
+
+    if practice_ready_only:
+        query += """
+            AND TRIM(COALESCE(question_text, '')) <> ''
+            AND TRIM(COALESCE(call_of_question, '')) <> ''
+            AND TRIM(COALESCE(model_points, '')) <> ''
+        """
 
     if subject and subject != "All":
         query += " AND subject = ?"
@@ -1851,6 +2102,83 @@ def get_dashboard_stats():
     }
     _READ_CACHE[cache_key] = (now, result)
     return result
+
+
+def get_mee_content_quality(limit=12):
+    """Return compact read-only diagnostics for incomplete MEE question rows."""
+    summary = fetch_one(
+        """
+        SELECT
+            COUNT(*) AS total_questions,
+            SUM(CASE WHEN active_for_july_2026 = 1 THEN 1 ELSE 0 END) AS active_questions,
+            SUM(
+                CASE
+                    WHEN active_for_july_2026 = 1
+                    AND TRIM(COALESCE(question_text, '')) <> ''
+                    AND TRIM(COALESCE(call_of_question, '')) <> ''
+                    AND TRIM(COALESCE(model_points, '')) <> ''
+                    THEN 1 ELSE 0
+                END
+            ) AS practice_ready_questions,
+            SUM(CASE WHEN TRIM(COALESCE(question_text, '')) = '' THEN 1 ELSE 0 END) AS missing_prompt,
+            SUM(CASE WHEN TRIM(COALESCE(call_of_question, '')) = '' THEN 1 ELSE 0 END) AS missing_call,
+            SUM(CASE WHEN TRIM(COALESCE(model_points, '')) = '' THEN 1 ELSE 0 END) AS missing_sample_answer,
+            SUM(CASE WHEN TRIM(COALESCE(rules, '')) = '' THEN 1 ELSE 0 END) AS missing_rules,
+            SUM(CASE WHEN TRIM(COALESCE(tested_issues, '')) = '' THEN 1 ELSE 0 END) AS missing_tested_issues,
+            SUM(CASE WHEN TRIM(COALESCE(trigger_facts, '')) = '' THEN 1 ELSE 0 END) AS missing_trigger_facts
+        FROM questions
+        """
+    )
+    rows = fetch_all(
+        """
+        SELECT
+            id,
+            exam_name,
+            question_number,
+            subject,
+            source,
+            TRIM(COALESCE(question_text, '')) = '' AS missing_prompt,
+            TRIM(COALESCE(call_of_question, '')) = '' AS missing_call,
+            TRIM(COALESCE(model_points, '')) = '' AS missing_sample_answer,
+            TRIM(COALESCE(rules, '')) = '' AS missing_rules,
+            TRIM(COALESCE(tested_issues, '')) = '' AS missing_tested_issues,
+            TRIM(COALESCE(trigger_facts, '')) = '' AS missing_trigger_facts
+        FROM questions
+        WHERE
+            TRIM(COALESCE(question_text, '')) = ''
+            OR TRIM(COALESCE(call_of_question, '')) = ''
+            OR TRIM(COALESCE(model_points, '')) = ''
+            OR TRIM(COALESCE(rules, '')) = ''
+            OR TRIM(COALESCE(tested_issues, '')) = ''
+            OR TRIM(COALESCE(trigger_facts, '')) = ''
+        ORDER BY
+            missing_prompt DESC,
+            missing_call DESC,
+            missing_sample_answer DESC,
+            missing_rules DESC,
+            missing_trigger_facts DESC,
+            exam_year DESC,
+            exam_name DESC,
+            question_number ASC
+        LIMIT ?
+        """,
+        (int(limit),),
+    )
+    keys = [
+        "total_questions",
+        "active_questions",
+        "practice_ready_questions",
+        "missing_prompt",
+        "missing_call",
+        "missing_sample_answer",
+        "missing_rules",
+        "missing_tested_issues",
+        "missing_trigger_facts",
+    ]
+    return {
+        "summary": dict(zip(keys, [int(value or 0) for value in (summary or [])])),
+        "rows": rows,
+    }
 
 
 # ---------------------------------------------------------------------------

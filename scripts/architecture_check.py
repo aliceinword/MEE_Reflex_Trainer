@@ -408,7 +408,7 @@ def check_mbe_invariants(checker):
 
     checker.check(
         "MBE sync writes latest payload to parent storage",
-        'trapSetItem("trapTrainer.practiceSync.latest", JSON.stringify(payload))' in trainer,
+        'trapSetItem("trapTrainer.practiceSync.latest", sig)' in trainer,
     )
     checker.check(
         "MBE sync bridge polls latest practice payload",
@@ -649,17 +649,6 @@ def check_mee_invariants(checker):
     )
 
 
-def check_call_parsing(checker):
-    from call_parsing_check import run_fixtures
-
-    failures = run_fixtures()
-    checker.check(
-        "MEE call parsing regression fixtures pass",
-        not failures,
-        "; ".join(failures),
-    )
-
-
 def main():
     checker = Checker()
     compile_python(checker)
@@ -670,7 +659,6 @@ def main():
     check_sql_and_scripts(checker)
     check_mee_invariants(checker)
     check_mbe_invariants(checker)
-    check_call_parsing(checker)
 
     if checker.failures:
         print("\nArchitecture check failed:")

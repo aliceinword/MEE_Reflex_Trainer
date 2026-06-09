@@ -37,6 +37,7 @@ TEXTAREA_HEIGHT_LG = 280
 TEXTAREA_HEIGHT_XL = 360
 TEXTAREA_HEIGHT_XXL = 420
 TEXTAREA_HEIGHT_PREVIEW = 320
+session_state = st.session_state
 
 
 def render_app_header():
@@ -466,9 +467,25 @@ def render_selectbox(label, options, *, key=None, index=0, caption=None):
     return result
 
 
-def render_radio(label, options, *, key=None, horizontal=False, label_visibility="visible"):
+def render_select_slider(label, *, options, value=None, format_func=None, key=None, caption=None):
+    """Render a select slider through the shared control layer."""
+    kwargs = {"options": options}
+    if value is not None:
+        kwargs["value"] = value
+    if format_func is not None:
+        kwargs["format_func"] = format_func
+    if key is not None:
+        kwargs["key"] = key
+
+    result = st.select_slider(label, **kwargs)
+    if caption:
+        render_caption(caption)
+    return result
+
+
+def render_radio(label, options, *, key=None, horizontal=False, label_visibility="visible", index=0):
     """Render a radio group through the shared control layer."""
-    kwargs = {"horizontal": horizontal, "label_visibility": label_visibility}
+    kwargs = {"horizontal": horizontal, "label_visibility": label_visibility, "index": index}
     if key is not None:
         kwargs["key"] = key
     return st.radio(label, options, **kwargs)
@@ -657,9 +674,9 @@ def render_primary_action_button(label, *, key=None):
     return st.button(label, type="primary", use_container_width=True, key=key)
 
 
-def render_action_button(label, *, key=None, type="secondary", use_container_width=True):
+def render_action_button(label, *, key=None, type="secondary", use_container_width=True, disabled=False):
     """Render a standard action button through the shared UI layer."""
-    return st.button(label, key=key, type=type, use_container_width=use_container_width)
+    return st.button(label, key=key, type=type, use_container_width=use_container_width, disabled=disabled)
 
 
 def render_form_submit_button(label, *, type="primary", use_container_width=True):
@@ -670,6 +687,16 @@ def render_form_submit_button(label, *, type="primary", use_container_width=True
 def rerun_app():
     """Rerun Streamlit through the shared UI layer."""
     st.rerun()
+
+
+def clear_cached_data():
+    """Clear cached Streamlit data through the shared UI layer."""
+    st.cache_data.clear()
+
+
+def render_component_html(html, *, height, scrolling=False):
+    """Render a trusted HTML component through the shared UI layer."""
+    components.html(html, height=height, scrolling=scrolling)
 
 
 def stop_app():
@@ -724,7 +751,7 @@ def _select_random_question(labels, picker_key, select_key):
     return selected_index
 
 
-def question_picker(active_default=True, due_only=False, compact=False):
+def question_picker(active_default=True, due_only=False, compact=False, practice_ready_only=False):
     subjects = ["All"] + get_subjects()
     statuses = ["All"] + get_statuses()
 
@@ -767,10 +794,16 @@ def question_picker(active_default=True, due_only=False, compact=False):
         status=status_filter,
         search=search,
         due_only=due_only,
+        practice_ready_only=practice_ready_only,
     )
 
     if not questions:
-        render_warning("No matching questions. Broaden the filter or import more.")
+        if practice_ready_only:
+            render_warning(
+                "No practice-ready questions match. Broaden the filter, or check MEE Question Bank for rows missing a prompt/call."
+            )
+        else:
+            render_warning("No matching questions. Broaden the filter or import more.")
         if compact:
             st.markdown("</div>", unsafe_allow_html=True)
         return None
