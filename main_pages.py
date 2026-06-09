@@ -20,6 +20,7 @@ from question_utils import unpack_question
 from ui_components import (
     compact_card_container,
     render_checkbox,
+    render_caption,
     render_control_row,
     render_compact_card,
     render_divider,
@@ -132,6 +133,10 @@ def question_bank_rows_dataframe(rows):
 def render_question_bank_results_table(rows):
     """Render the Question Bank results table with consistent preview sizing."""
     visible_rows = rows[:QUESTION_BANK_VISIBLE_ROWS]
+    if len(rows) > QUESTION_BANK_VISIBLE_ROWS:
+        render_caption(
+            f"Preview shows first {QUESTION_BANK_VISIBLE_ROWS}; use the dropdown below to open any of the {len(rows)} matches."
+        )
     render_preview_table(
         question_bank_rows_dataframe(visible_rows),
         height=preview_table_height(len(visible_rows), max_height=220),
@@ -140,10 +145,9 @@ def render_question_bank_results_table(rows):
 
 def select_question_bank_row(rows):
     """Render the Question Bank detail selector and return the selected row."""
-    visible_rows = rows[:QUESTION_BANK_VISIBLE_ROWS]
-    labels = [format_bank_question_label(row) for row in visible_rows]
+    labels = [format_bank_question_label(row) for row in rows]
     selected_label = render_selectbox("Open question details", labels, key="bank_selected_question")
-    return visible_rows[labels.index(selected_label)]
+    return rows[labels.index(selected_label)]
 
 
 def render_dashboard_page():
