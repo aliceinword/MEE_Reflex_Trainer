@@ -1,6 +1,7 @@
 ﻿import sqlite3
 import shutil
 import os
+import time
 from contextlib import closing, contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -15,10 +16,57 @@ PUBLIC_SEED_TABLES = (
     "rule_flashcards",
 )
 
+_READ_CACHE = {}
+_READ_CACHE_TTL_SECONDS = 45
+
+_INDEX_STATEMENTS = (
+    "CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_active_july ON questions(active_for_july_2026)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_next_review ON questions(next_review_at)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_july_status ON questions(july_2026_status)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_exam_year ON questions(exam_year)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_last_practiced ON questions(last_practiced_at)",
+    "CREATE INDEX IF NOT EXISTS idx_attempts_question_id ON attempts(question_id)",
+    "CREATE INDEX IF NOT EXISTS idx_app_users_username ON app_users(username)",
+)
+
+
+def _read_cached(cache_key, loader):
+    now = time.monotonic()
+    entry = _READ_CACHE.get(cache_key)
+    if entry is not None and now - entry[0] < _READ_CACHE_TTL_SECONDS:
+        return entry[1]
+    value = loader()
+    _READ_CACHE[cache_key] = (now, value)
+    return value
+
+
+def invalidate_read_cache():
+    _READ_CACHE.clear()
+SQLITE_TIMEOUT_SECONDS = 30
+SQLITE_BUSY_TIMEOUT_MS = 30000
+
+
+def _connect_sqlite(db_path, *, use_wal=False):
+    """Open SQLite with safe lock waiting instead of bypassing locks."""
+    conn = sqlite3.connect(str(db_path), timeout=SQLITE_TIMEOUT_SECONDS)
+    conn.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+    conn.execute("PRAGMA foreign_keys = ON")
+
+    if use_wal:
+        try:
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
+        except sqlite3.DatabaseError:
+            # Some hosted/readonly filesystems may reject WAL; the timeout still helps.
+            pass
+
+    return conn
+
 
 def _table_count_for_path(db_path, table_name):
     try:
-        with closing(sqlite3.connect(db_path)) as conn:
+        with closing(_connect_sqlite(db_path)) as conn:
             row = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
             return int(row[0] or 0)
     except Exception:
@@ -38,7 +86,7 @@ def _seed_missing_public_content(db_path, seed_path):
     if not seed_tables:
         return
 
-    with sqlite3.connect(db_path) as conn:
+    with _connect_sqlite(db_path, use_wal=True) as conn:
         conn.execute("ATTACH DATABASE ? AS seed", (str(seed_path),))
         try:
             for table in seed_tables:
@@ -68,7 +116,7 @@ def _ensure_database_file():
 
 def get_connection():
     _ensure_database_file()
-    return sqlite3.connect(DB_NAME)
+    return _connect_sqlite(DB_NAME, use_wal=True)
 
 
 def fetch_all(query, params=()):
@@ -299,6 +347,9 @@ def init_db():
         }
         _add_missing_columns(c, "app_users", user_extra_columns)
 
+        for index_sql in _INDEX_STATEMENTS:
+            c.execute(index_sql)
+
 
 def add_outline_rule(subject, rule_title, appearance_rate, rule_text, pdf_page, printed_page, source_file):
     with write_transaction() as conn:
@@ -448,7 +499,7 @@ def add_rule_flashcard(subject, rule_title, rule_text, source_file, tags=""):
     return True
 
 
-def get_rule_flashcards(subject=None):
+def _load_rule_flashcards(subject=None):
     query = """
         SELECT
             id,
@@ -469,6 +520,14 @@ def get_rule_flashcards(subject=None):
     query += " ORDER BY subject, rule_title"
 
     return fetch_all(query, params)
+
+
+def get_rule_flashcards(subject=None):
+    subject_key = "" if not subject or subject == "All" else subject
+    return _read_cached(
+        f"rule_flashcards:{subject_key}",
+        lambda: _load_rule_flashcards(subject),
+    )
 
 
 def search_rule_flashcards(query, subject=None, limit=30):
@@ -1077,13 +1136,15 @@ def get_question_bank_rows(
 
 
 def get_exam_years():
-    rows = fetch_all("""
-        SELECT DISTINCT exam_year
-        FROM questions
-        WHERE exam_year IS NOT NULL
-        ORDER BY exam_year DESC
-    """)
-    return [row[0] for row in rows]
+    return _read_cached("exam_years", lambda: [
+        row[0]
+        for row in fetch_all("""
+            SELECT DISTINCT exam_year
+            FROM questions
+            WHERE exam_year IS NOT NULL
+            ORDER BY exam_year DESC
+        """)
+    ])
 
 
 def get_question_by_id(question_id):
@@ -1116,23 +1177,27 @@ def get_question_by_id(question_id):
 
 
 def get_subjects():
-    rows = fetch_all("""
-        SELECT DISTINCT subject
-        FROM questions
-        WHERE subject IS NOT NULL AND subject != ''
-        ORDER BY subject
-    """)
-    return [row[0] for row in rows]
+    return _read_cached("subjects", lambda: [
+        row[0]
+        for row in fetch_all("""
+            SELECT DISTINCT subject
+            FROM questions
+            WHERE subject IS NOT NULL AND subject != ''
+            ORDER BY subject
+        """)
+    ])
 
 
 def get_statuses():
-    rows = fetch_all("""
-        SELECT DISTINCT july_2026_status
-        FROM questions
-        WHERE july_2026_status IS NOT NULL AND july_2026_status != ''
-        ORDER BY july_2026_status
-    """)
-    return [row[0] for row in rows]
+    return _read_cached("statuses", lambda: [
+        row[0]
+        for row in fetch_all("""
+            SELECT DISTINCT july_2026_status
+            FROM questions
+            WHERE july_2026_status IS NOT NULL AND july_2026_status != ''
+            ORDER BY july_2026_status
+        """)
+    ])
 
 
 def review_date_from_score(score):
