@@ -138,8 +138,8 @@ def summarize(cards):
         by_source[source] = by_source.get(source, 0) + 1
         by_subject[subject] = by_subject.get(subject, 0) + 1
 
-    drill_cards = [c for c in cards if (c["source"] or "") != "adaptibar_rules"]
-    flashcards = [c for c in cards if c["source"] == "adaptibar_rules"]
+    drill_cards = [c for c in cards if (c["source"] or "") != "qbank_rules"]
+    flashcards = [c for c in cards if c["source"] == "qbank_rules"]
 
     fingerprints = {}
     adv_ids = {}
@@ -238,10 +238,10 @@ def main():
         )
 
     print("\nDuplicate checks:")
-    print(f"  duplicate AdaptiBar IDs: {len(summary['adv_dupes'])}")
+    print(f"  duplicate QBank IDs: {len(summary['adv_dupes'])}")
     print(f"  duplicate content fingerprints: {len(summary['content_dupes'])}")
     for label, groups in (
-        ("AdaptiBar ID", summary["adv_dupes"]),
+        ("QBank ID", summary["adv_dupes"]),
         ("content", summary["content_dupes"]),
     ):
         for group in groups[:10]:

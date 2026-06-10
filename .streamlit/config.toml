@@ -8,3 +8,4 @@ font = "sans serif"
 
 [server]
 enableStaticServing = false
+port = 8501

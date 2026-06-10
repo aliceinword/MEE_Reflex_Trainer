@@ -800,8 +800,8 @@ def get_mbe_content_quality(limit=12):
         )
         practice_rows.append((username, len(stats), practiced, snoozed, updated_at))
 
-    drill_cards = sum(count for source, count in by_source.items() if source != "adaptibar_rules")
-    flashcards = by_source.get("adaptibar_rules", 0)
+    drill_cards = sum(count for source, count in by_source.items() if source != "qbank_rules")
+    flashcards = by_source.get("qbank_rules", 0)
 
     return {
         "summary": {
