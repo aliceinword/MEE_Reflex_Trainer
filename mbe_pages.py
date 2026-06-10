@@ -190,7 +190,7 @@ def render_mbe_bulk_upload_page():
 
 
 def render_mbe_drills_page():
-    render_mbe_trainer_page(embed_mode="drill", exclude_sources={"adaptibar_rules"})
+    render_mbe_trainer_page(embed_mode="drill", exclude_sources={"qbank_rules"})
 
 
 def reset_mbe_flashcard_state():
@@ -203,7 +203,7 @@ def reset_mbe_flashcard_state():
 def render_mbe_flashcard_filters(all_rows):
     """Render flashcard source/subject filters and return the matching rows."""
     source_options = ["All sources"] + sorted({row[12] or "App database" for row in all_rows})
-    default_source = "adaptibar_rules" if "adaptibar_rules" in source_options else source_options[0]
+    default_source = "qbank_rules" if "qbank_rules" in source_options else source_options[0]
 
     control_col, metric_col = render_control_row([1.5, 1], gap="medium")
     with control_col:
@@ -708,6 +708,8 @@ def render_mbe_stats_sync_bridge(username):
         from mbe_stats_sync import render_mbe_stats_sync
 
         sync_payload = render_mbe_stats_sync(key="mbe_stats_sync")
+        if isinstance(sync_payload, dict) and sync_payload.get("__storageDiag"):
+            return
         _save_synced_mbe_practice_stats(username, sync_payload)
     except Exception:
         pass
@@ -779,7 +781,7 @@ def _bd_reset(deck, sig):
 
 def render_bridge_drill_filters(all_rows):
     source_options = ["All sources"] + sorted({row[12] or "App database" for row in all_rows})
-    default_source = "adaptibar_misses" if "adaptibar_misses" in source_options else source_options[0]
+    default_source = "qbank_misses" if "qbank_misses" in source_options else source_options[0]
 
     source_col, subject_col = render_control_row([1, 1], gap="medium")
     with source_col:
@@ -892,7 +894,7 @@ def render_bridge_drill_page():
     if not all_rows:
         render_warning(
             "No MBE cards in the database yet. "
-            "Import your AdaptiBar questions first via MBE Drills Question Bulk Upload."
+            "Import your QBank questions first via MBE Drills Question Bulk Upload."
         )
         return
 
@@ -1184,7 +1186,7 @@ def reset_rule_recall_state():
 
 def render_rule_recall_filters(all_rows):
     source_options = ["All sources"] + sorted({row[12] or "App database" for row in all_rows})
-    default_source = "adaptibar_rules" if "adaptibar_rules" in source_options else source_options[0]
+    default_source = "qbank_rules" if "qbank_rules" in source_options else source_options[0]
 
     source_col, subject_col = render_control_row([1, 1], gap="medium")
     with source_col:
@@ -1375,7 +1377,7 @@ def render_rule_recall_page():
     if not all_rows:
         render_warning(
             "No MBE cards in the database yet. "
-            "Import your AdaptiBar questions first via MBE Drills Question Bulk Upload."
+            "Import your QBank questions first via MBE Drills Question Bulk Upload."
         )
         return
 

@@ -217,12 +217,12 @@ def _extract_text_without_label(node, label):
     return text
 
 
-def adaptibar_flashcards_from_html(path, *, source_name="adaptibar_rules"):
-    """Parse exported AdaptiBar miss flashcards into app MBE card records."""
+def qbank_flashcards_from_html(path, *, source_name="qbank_rules"):
+    """Parse exported QBank miss flashcards into app MBE card records."""
     try:
         from bs4 import BeautifulSoup
     except ImportError as exc:
-        raise RuntimeError("Parsing AdaptiBar flashcards requires beautifulsoup4.") from exc
+        raise RuntimeError("Parsing QBank flashcards requires beautifulsoup4.") from exc
 
     html = Path(path).read_text(encoding="utf-8")
     soup = BeautifulSoup(html, "html.parser")
@@ -249,7 +249,7 @@ def adaptibar_flashcards_from_html(path, *, source_name="adaptibar_rules"):
             if card_node.select_one(".card-front h2")
             else ""
         )
-        subtopic = heading or subtopic_from_meta or "AdaptiBar Miss"
+        subtopic = heading or subtopic_from_meta or "QBank Miss"
 
         question_node = card_node.select_one(".card-front .question")
         small_node = question_node.select_one("small") if question_node else None
@@ -289,7 +289,7 @@ def adaptibar_flashcards_from_html(path, *, source_name="adaptibar_rules"):
         trap_text = re.sub(r"^Trap\s*[-—]\s*why\s+[A-D]\s+is\s+wrong\s*", "", trap_text, flags=re.IGNORECASE).strip()
 
         if not question:
-            question = "Which answer states the governing rule for this missed AdaptiBar question?"
+            question = "Which answer states the governing rule for this missed QBank question?"
 
         if not subject or not correct_text:
             errors.append(f"Card {card_number}: missing subject or correct answer.")
@@ -479,15 +479,20 @@ def builtin_duplicate_lookup():
     content_fps = set()
     adv_ids = set()
     for card in load_builtin_trap_trainer_cards():
-        content_fps.add(
-            mbe_card_content_fingerprint(
-                subject=card.get("subj"),
-                subtopic=card.get("sub"),
-                scenario=card.get("scenario"),
-                question=card.get("q"),
-                options=card.get("options") or [],
+        # Fingerprint under both the raw and normalized subject so cards whose
+        # subject gets normalized on import (e.g. "Criminal Law" ->
+        # "Criminal Law and Procedure") still match the built-in deck.
+        raw_subject = card.get("subj") or ""
+        for subject in {raw_subject, normalize_mbe_subject(raw_subject)}:
+            content_fps.add(
+                mbe_card_content_fingerprint(
+                    subject=subject,
+                    subtopic=card.get("sub"),
+                    scenario=card.get("scenario"),
+                    question=card.get("q"),
+                    options=card.get("options") or [],
+                )
             )
-        )
         for key in (card.get("advId"), card.get("id")):
             if not key:
                 continue
@@ -547,6 +552,20 @@ def find_builtin_duplicate_db_rows(rows):
     return dupes
 
 
+def normalize_trainer_options(options):
+    """Coerce stored option dicts to the trainer's shape ("t" = choice text)."""
+    out = []
+    for opt in options or []:
+        if not isinstance(opt, dict):
+            continue
+        opt = dict(opt)
+        if not opt.get("t") and opt.get("text"):
+            opt["t"] = opt.pop("text")
+        opt.pop("label", None)
+        out.append(opt)
+    return out
+
+
 def database_rows_to_mbe_cards(rows):
     """Convert mbe_cards database rows into trap-trainer card dictionaries."""
     cards = []
@@ -583,7 +602,7 @@ def database_rows_to_mbe_cards(rows):
                 "scenario": scenario or "",
                 "q": question or "Choose the best answer.",
                 "ru": rule_hint or shortcut or "",
-                "options": options,
+                "options": normalize_trainer_options(options),
                 "_b": False,
                 "plain": plain or "",
                 "source": source or "App database",
