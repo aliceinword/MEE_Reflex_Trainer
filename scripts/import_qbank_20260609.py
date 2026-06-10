@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Import 25 AdaptiBar Past Questions (report dated 6/9/2026) into mbe_cards.
-Run from the project root:  python scripts/import_adaptibar_20260609.py
+Import 25 QBank Past Questions (report dated 6/9/2026) into mbe_cards.
+Run from the project root:  python scripts/import_qbank_20260609.py
 """
 import json
 import sys
@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import upsert_mbe_cards
 
-SOURCE = "adaptibar_past_questions_20260609"
+SOURCE = "qbank_past_questions_20260609"
 
 # ---------------------------------------------------------------------------
 # Helper

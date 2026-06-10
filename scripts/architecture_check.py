@@ -241,7 +241,7 @@ def check_mbe_invariants(checker):
 
     checker.check(
         "MBE drills exclude rule flashcards",
-        'render_mbe_trainer_page(embed_mode="drill", exclude_sources={"adaptibar_rules"})' in mbe_pages,
+        'render_mbe_trainer_page(embed_mode="drill", exclude_sources={"qbank_rules"})' in mbe_pages,
     )
     checker.check(
         "MBE bulk upload uses modular helpers",
@@ -265,7 +265,7 @@ def check_mbe_invariants(checker):
     )
     checker.check(
         "Flashcards Drill defaults to rule cards",
-        'default_source = "adaptibar_rules"' in mbe_pages,
+        'default_source = "qbank_rules"' in mbe_pages,
     )
     checker.check(
         "Flashcards Drill uses modular helpers",

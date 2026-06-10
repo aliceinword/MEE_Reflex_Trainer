@@ -217,12 +217,12 @@ def _extract_text_without_label(node, label):
     return text
 
 
-def adaptibar_flashcards_from_html(path, *, source_name="adaptibar_rules"):
-    """Parse exported AdaptiBar miss flashcards into app MBE card records."""
+def qbank_flashcards_from_html(path, *, source_name="qbank_rules"):
+    """Parse exported QBank miss flashcards into app MBE card records."""
     try:
         from bs4 import BeautifulSoup
     except ImportError as exc:
-        raise RuntimeError("Parsing AdaptiBar flashcards requires beautifulsoup4.") from exc
+        raise RuntimeError("Parsing QBank flashcards requires beautifulsoup4.") from exc
 
     html = Path(path).read_text(encoding="utf-8")
     soup = BeautifulSoup(html, "html.parser")
@@ -249,7 +249,7 @@ def adaptibar_flashcards_from_html(path, *, source_name="adaptibar_rules"):
             if card_node.select_one(".card-front h2")
             else ""
         )
-        subtopic = heading or subtopic_from_meta or "AdaptiBar Miss"
+        subtopic = heading or subtopic_from_meta or "QBank Miss"
 
         question_node = card_node.select_one(".card-front .question")
         small_node = question_node.select_one("small") if question_node else None
@@ -289,7 +289,7 @@ def adaptibar_flashcards_from_html(path, *, source_name="adaptibar_rules"):
         trap_text = re.sub(r"^Trap\s*[-—]\s*why\s+[A-D]\s+is\s+wrong\s*", "", trap_text, flags=re.IGNORECASE).strip()
 
         if not question:
-            question = "Which answer states the governing rule for this missed AdaptiBar question?"
+            question = "Which answer states the governing rule for this missed QBank question?"
 
         if not subject or not correct_text:
             errors.append(f"Card {card_number}: missing subject or correct answer.")

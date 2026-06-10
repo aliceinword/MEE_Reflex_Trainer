@@ -450,7 +450,7 @@ def render_mbe_content_quality_panel():
             ("Drill cards", summary["drill_cards"]),
             ("Flashcards", summary["flashcards"]),
             ("Content dupes", summary["content_duplicates"]),
-            ("AdaptiBar ID dupes", summary["adv_id_duplicates"]),
+            ("QBank ID dupes", summary["adv_id_duplicates"]),
         ])
 
         source_rows = [
