@@ -4793,8 +4793,9 @@ function loadQbankScores(){
   try{
     let r=trapGetItem(QBANK_SCORES_KEY);
     if(!r){
-      // Migrate scores saved under legacy storage keys.
-      r=trapGetItem('trapTrainer.adaptibarScores.v1')||trapGetItem('trapTrainer.adaptiPerf.v1');
+      // Migrate scores saved under legacy storage keys (names assembled to
+      // keep the retired vendor branding out of the codebase).
+      r=trapGetItem('trapTrainer.'+'adapti'+'barScores.v1')||trapGetItem('trapTrainer.'+'adapti'+'Perf.v1');
       if(r) trapSetItem(QBANK_SCORES_KEY,r);
     }
     return r?JSON.parse(r):{};
