@@ -31,7 +31,7 @@ def send_email(*, to_address, subject, text_body, html_body=None, from_address=N
     if not to_address:
         return EmailSendResult(ok=False, error="Missing recipient address")
     if not sender:
-        return EmailSendResult(ok=False, error="Missing EMAIL_FROM_ADDRESS")
+        sender = "noreply@localhost"
 
     message_id = f"local-{uuid.uuid4().hex}"
 

@@ -22,6 +22,7 @@ from database import (
     get_user_notification_settings,
     upsert_user_notification_settings,
 )
+from daily_error_config import describe_email_delivery_mode
 from daily_error_sheet_service import send_daily_error_sheet_for_user
 from missed_answer_service import build_daily_error_report, render_daily_error_report_text
 from question_utils import unpack_question
@@ -39,6 +40,7 @@ from ui_components import (
     render_markdown_body,
     render_action_button,
     render_metric_row,
+    render_nav_button,
     render_number_input,
     render_page_title,
     preview_table_height,
@@ -528,6 +530,7 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
 
     render_divider()
     render_section_heading("Daily Error Sheet")
+    render_info(describe_email_delivery_mode())
     username = get_authed_user()
     notify_settings = get_user_notification_settings(username)
     enabled = render_checkbox(
@@ -596,7 +599,20 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
                     send_if_empty=send_empty,
                 )
                 if result.get("ok"):
-                    render_success(f"Daily error sheet status: {result.get('status')}")
+                    if result.get("dry_run"):
+                        render_success(
+                            "Dry-run OK — report generated but not emailed "
+                            f"(would send to {result.get('recipient_email', 'your address')}). "
+                            "Add SMTP settings in .streamlit/secrets.toml to deliver for real."
+                        )
+                        if result.get("text_body"):
+                            render_markdown_body(
+                                "```text\n" + result["text_body"] + "\n```"
+                            )
+                    else:
+                        render_success(
+                            f"Email sent to {result.get('recipient_email', 'your address')}."
+                        )
                 else:
                     render_warning(result.get("error") or result.get("status"))
 

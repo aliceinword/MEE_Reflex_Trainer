@@ -113,6 +113,9 @@ def send_daily_error_sheet_for_user(
             "report_date": report_date,
             "dry_run": result.dry_run,
             "message_id": result.message_id,
+            "recipient_email": email,
+            "subject": subject,
+            "text_body": text_body,
         }
 
     record_daily_error_sheet_sent(

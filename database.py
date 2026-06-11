@@ -2525,6 +2525,68 @@ def get_mbe_card_by_uid(card_uid):
     )
 
 
+_MBE_CARD_SELECT = """
+    SELECT
+        id, card_uid, adv_id, subject, subtopic, title,
+        scenario, question, rule_hint, options_json,
+        plain_english, shortcut, source
+    FROM mbe_cards
+"""
+
+
+def lookup_mbe_card_row(lookup_key):
+    """Return an mbe_cards row by trainer key (DB123, ABX123), uid, adv_id, or id."""
+    if not lookup_key:
+        return None
+    key = str(lookup_key).strip()
+    if not key:
+        return None
+
+    upper = key.upper()
+    if upper.startswith("DB"):
+        suffix = key[2:]
+        if suffix.isdigit():
+            row = fetch_one(
+                _MBE_CARD_SELECT + " WHERE id = ? LIMIT 1",
+                (int(suffix),),
+            )
+            if row:
+                return row
+
+    if upper.startswith("ABX"):
+        suffix = key[3:]
+        adv_variants = []
+        if suffix:
+            adv_variants.append(suffix)
+            if suffix.isdigit():
+                adv_variants.append(str(int(suffix)))
+        for adv in adv_variants:
+            row = fetch_one(
+                _MBE_CARD_SELECT + " WHERE adv_id = ? LIMIT 1",
+                (adv,),
+            )
+            if row:
+                return row
+
+    return fetch_one(
+        _MBE_CARD_SELECT
+        + " WHERE card_uid = ? OR adv_id = ? OR CAST(id AS TEXT) = ? LIMIT 1",
+        (key, key, key),
+    )
+
+
+def lookup_mbe_card_by_correct_answer(correct_answer):
+    """Best-effort lookup when only the correct answer text is known."""
+    answer = (correct_answer or "").strip()
+    if len(answer) < 20:
+        return None
+    snippet = answer[:120]
+    return fetch_one(
+        _MBE_CARD_SELECT + " WHERE INSTR(options_json, ?) > 0 LIMIT 1",
+        (snippet,),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Missed answer events (Daily Error Sheet)
 # ---------------------------------------------------------------------------

@@ -14,11 +14,14 @@ from zoneinfo import ZoneInfo
 
 from daily_error_config import get_daily_error_config
 from database import (
-    get_mbe_card_by_uid,
     get_missed_answer_events_for_date,
     get_user_notification_settings,
+    lookup_mbe_card_by_correct_answer,
+    lookup_mbe_card_row,
     record_missed_answer_event,
 )
+
+_BUILTIN_CARD_INDEX = None
 
 
 @dataclass
@@ -105,6 +108,61 @@ def _rule_group_key(row) -> str:
     return f"{topic}|{subtopic}|{rule_label}|{correct_rule}"
 
 
+def _trainer_lookup_keys(*values) -> List[str]:
+    """Collect unique trainer lookup keys from stored ids and event keys."""
+    keys: List[str] = []
+    for raw in values:
+        key = str(raw or "").strip()
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def _lookup_details_by_correct_answer(correct_answer: str) -> Dict[str, Any]:
+    """Fallback: find a card whose correct option text matches the stored answer."""
+    answer = (correct_answer or "").strip()
+    if len(answer) < 20:
+        return {}
+
+    needle = answer.lower()
+    for card in _builtin_card_index().values():
+        for opt in card.get("options") or []:
+            if opt.get("ok") and needle in (opt.get("t") or "").lower():
+                return _details_from_builtin_card(card)
+
+    row = lookup_mbe_card_by_correct_answer(answer)
+    if row:
+        return _details_from_db_row(row)
+    return {}
+
+
+def _question_prompt_for_event_row(row) -> str:
+    """Return the best available question prompt, enriching legacy rows when needed."""
+    prompt = (row[11] or "").strip()
+    if prompt and prompt not in {"(no prompt)", "Fact pattern unavailable"}:
+        return prompt
+
+    lookup_keys = _trainer_lookup_keys(row[2])
+    event_key = row[16] or ""
+    if event_key.startswith(("mbe:", "bridge:")):
+        parts = event_key.split(":", 2)
+        if len(parts) > 1 and parts[1]:
+            lookup_keys = _trainer_lookup_keys(*lookup_keys, parts[1])
+
+    for lookup_key in lookup_keys:
+        details = resolve_mbe_card_details(lookup_key)
+        enriched = (details.get("question_prompt") or "").strip()
+        if enriched:
+            return enriched
+
+    details = _lookup_details_by_correct_answer(row[13] or "")
+    enriched = (details.get("question_prompt") or "").strip()
+    if enriched:
+        return enriched
+
+    return prompt
+
+
 def build_daily_error_report(username: str, report_date: str) -> DailyErrorReport:
     """Build a grouped daily error report for one user and calendar date."""
     rows = get_missed_answer_events_for_date(username, report_date)
@@ -127,7 +185,7 @@ def build_daily_error_report(username: str, report_date: str) -> DailyErrorRepor
         group.count += 1
         group.questions.append(
             MissedQuestionItem(
-                question_prompt=row[11] or "",
+                question_prompt=_question_prompt_for_event_row(row),
                 user_answer=row[12] or "",
                 correct_answer=row[13] or "",
                 explanation=row[14] or "",
@@ -186,7 +244,7 @@ def render_daily_error_report_text(report: DailyErrorReport) -> str:
         for item in group.questions:
             lines.extend(
                 [
-                    f"- Question: {item.question_prompt or '(no prompt)'}",
+                    f"- Question: {item.question_prompt or 'Fact pattern unavailable'}",
                     f"  Your answer: {item.user_answer or '(none)'}",
                     f"  Correct answer: {item.correct_answer or '(none)'}",
                     f"  Explanation: {item.explanation or '(none)'}",
@@ -223,7 +281,7 @@ def render_daily_error_report_html(report: DailyErrorReport) -> str:
         for item in group.questions:
             question_blocks.append(
                 "<li style='margin-bottom:14px'>"
-                f"<div><strong>Question:</strong> {escape(item.question_prompt or '(no prompt)')}</div>"
+                f"<div><strong>Question:</strong> {escape(item.question_prompt or 'Fact pattern unavailable')}</div>"
                 f"<div><strong>Your answer:</strong> {escape(item.user_answer or '(none)')}</div>"
                 f"<div><strong>Correct answer:</strong> {escape(item.correct_answer or '(none)')}</div>"
                 f"<div><strong>Explanation:</strong> {escape(item.explanation or '(none)')}</div>"
@@ -254,13 +312,61 @@ def render_daily_error_report_html(report: DailyErrorReport) -> str:
     )
 
 
-def _mbe_card_details(card_uid: str, card_key: str = "") -> Dict[str, Any]:
-    row = get_mbe_card_by_uid(card_uid) if card_uid else None
-    if not row and card_key:
-        row = get_mbe_card_by_uid(card_key)
-    if not row:
-        return {}
+def _builtin_card_index() -> Dict[str, Dict[str, Any]]:
+    """Index built-in trainer cards by id, advId, and subject|subtopic keys."""
+    global _BUILTIN_CARD_INDEX
+    if _BUILTIN_CARD_INDEX is not None:
+        return _BUILTIN_CARD_INDEX
 
+    from mbe_import_services import load_builtin_trap_trainer_cards, normalize_mbe_subject
+
+    index: Dict[str, Dict[str, Any]] = {}
+    for card in load_builtin_trap_trainer_cards():
+        keys = set()
+        for raw_key in (card.get("advId"), card.get("id")):
+            if not raw_key:
+                continue
+            key = str(raw_key).strip()
+            keys.add(key)
+            if key.upper().startswith("ABX"):
+                keys.add(key[3:])
+        subject = normalize_mbe_subject(card.get("subj") or "")
+        subtopic = card.get("sub") or ""
+        if subject:
+            keys.add(f"{subject}|{subtopic}")
+        for key in keys:
+            if key:
+                index[key] = card
+    _BUILTIN_CARD_INDEX = index
+    return index
+
+
+def _format_mbe_question_prompt(
+    *,
+    scenario: str = "",
+    question: str = "",
+    title: str = "",
+    subtopic: str = "",
+) -> str:
+    """Build a readable prompt from MBE card fields (scenario is the fact pattern)."""
+    scenario = (scenario or "").strip()
+    question = (question or "").strip()
+    title = (title or "").strip()
+    subtopic = (subtopic or "").strip()
+
+    parts = []
+    if scenario:
+        parts.append(scenario)
+    if question:
+        parts.append(question)
+    elif subtopic and subtopic.lower() not in title.lower():
+        parts.append(subtopic)
+    elif title and len(title) > 24:
+        parts.append(title)
+    return "\n\n".join(parts)
+
+
+def _details_from_db_row(row) -> Dict[str, Any]:
     options = []
     try:
         options = json.loads(row[9] or "[]")
@@ -269,19 +375,82 @@ def _mbe_card_details(card_uid: str, card_key: str = "") -> Dict[str, Any]:
 
     correct_opt = next((opt for opt in options if opt.get("ok")), {})
     trap_opt = next((opt for opt in options if opt.get("trap")), {})
+    scenario = row[6] or ""
+    question = row[7] or ""
+    title = row[5] or ""
 
     return {
         "card_uid": row[1],
         "subject": row[3] or "",
         "subtopic": row[4] or "",
-        "title": row[5] or "",
-        "scenario": row[6] or "",
-        "question": row[7] or "",
+        "title": title,
+        "scenario": scenario,
+        "question": question,
         "rule_hint": row[8] or "",
         "plain_english": row[10] or "",
         "correct_answer": correct_opt.get("t") or "",
         "explanation": correct_opt.get("why") or trap_opt.get("why") or row[10] or "",
+        "question_prompt": _format_mbe_question_prompt(
+            scenario=scenario,
+            question=question,
+            title=title,
+            subtopic=row[4] or "",
+        ),
     }
+
+
+def _details_from_builtin_card(card: Dict[str, Any]) -> Dict[str, Any]:
+    options = card.get("options") or []
+    correct_opt = next((opt for opt in options if opt.get("ok")), {})
+    trap_opt = next((opt for opt in options if opt.get("trap")), {})
+    scenario = card.get("scenario") or ""
+    question = card.get("q") or ""
+    title = card.get("title") or ""
+
+    return {
+        "card_uid": str(card.get("id") or card.get("advId") or ""),
+        "subject": card.get("subj") or "",
+        "subtopic": card.get("sub") or "",
+        "title": title,
+        "scenario": scenario,
+        "question": question,
+        "rule_hint": card.get("ru") or "",
+        "plain_english": card.get("plain") or "",
+        "correct_answer": correct_opt.get("t") or "",
+        "explanation": correct_opt.get("why") or trap_opt.get("why") or card.get("plain") or "",
+        "question_prompt": _format_mbe_question_prompt(
+            scenario=scenario,
+            question=question,
+            title=title,
+            subtopic=card.get("sub") or "",
+        ),
+    }
+
+
+def resolve_mbe_card_details(lookup_key: str, *, correct_answer: str = "") -> Dict[str, Any]:
+    """Resolve MBE card content from a practice-stats key (DB123, ABX123, uid, etc.)."""
+    for key in _trainer_lookup_keys(lookup_key):
+        row = lookup_mbe_card_row(key)
+        if row:
+            return _details_from_db_row(row)
+
+        builtin = _builtin_card_index().get(key)
+        if builtin:
+            return _details_from_builtin_card(builtin)
+
+        upper = key.upper()
+        if upper.startswith("ABX"):
+            builtin = _builtin_card_index().get(key[3:])
+            if builtin:
+                return _details_from_builtin_card(builtin)
+            if key[3:].isdigit():
+                builtin = _builtin_card_index().get(str(int(key[3:])))
+                if builtin:
+                    return _details_from_builtin_card(builtin)
+
+    if correct_answer:
+        return _lookup_details_by_correct_answer(correct_answer)
+    return {}
 
 
 def record_mbe_practice_misses(username: str, stats_blob: dict):
@@ -306,10 +475,13 @@ def record_mbe_practice_misses(username: str, stats_blob: dict):
 
             event_at = entry.get("at") or entry.get("practicedAt") or ""
             event_key = f"mbe:{card_key}:{event_at}:{entry.get('selectedAnswerText', '')}"
-            details = _mbe_card_details("", card_key)
+            details = resolve_mbe_card_details(
+                card_key,
+                correct_answer=entry.get("correctAnswerText") or "",
+            )
             card_uid = details.get("card_uid") or card_key
             rule_label = details.get("title") or details.get("subtopic") or card_key
-            question_prompt = details.get("question") or details.get("scenario") or details.get("title") or ""
+            question_prompt = details.get("question_prompt") or ""
 
             if record_missed_answer_event(
                 username=username,
@@ -353,9 +525,9 @@ def record_bridge_drill_miss(
     settings = get_user_notification_settings(username)
     timezone_name = settings["daily_error_sheet_timezone"]
     event_at = event_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    details = _mbe_card_details(card_uid)
+    details = resolve_mbe_card_details(card_uid)
     options = []
-    row = get_mbe_card_by_uid(card_uid)
+    row = lookup_mbe_card_row(card_uid)
     if row:
         try:
             options = json.loads(row[9] or "[]")
@@ -389,7 +561,7 @@ def record_bridge_drill_miss(
         rule_label=details.get("title") or subtopic or subject or "Bridge Drill",
         missed_rule_text=picked_opt.get("t") if picked_opt else picked_letter,
         correct_rule_text=details.get("rule_hint") or correct_opt.get("t") or "",
-        question_prompt=details.get("question") or details.get("scenario") or "",
+        question_prompt=details.get("question_prompt") or "",
         user_answer=_option_text(picked_letter) or picked_letter,
         correct_answer=_option_text(correct_letter) or correct_opt.get("t") or correct_letter,
         explanation=correct_opt.get("why") or details.get("explanation") or "",

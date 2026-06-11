@@ -19,6 +19,7 @@ from missed_answer_service import (
     record_bridge_drill_miss,
     record_mee_ladder_miss,
     render_daily_error_report_text,
+    resolve_mbe_card_details,
 )
 
 
@@ -163,6 +164,93 @@ class DailyErrorSheetTests(unittest.TestCase):
         result = send_daily_error_sheet_for_user("alice", "2026-06-11", force=True)
         self.assertTrue(result["ok"])
         self.assertEqual(result["status"], "sent")
+
+    def test_db_prefixed_key_resolves(self):
+        self.database.execute_write(
+            """
+            INSERT INTO mbe_cards (
+                card_uid, adv_id, subject, subtopic, title, scenario, question, options_json, source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "test-db-card",
+                "",
+                "Evidence",
+                "Forgery",
+                "Forgery trap",
+                "A skilled calligrapher crafted a letter on very old paper.",
+                "Did the defendant commit forgery?",
+                '[{"t":"Yes","ok":true},{"t":"No","ok":false}]',
+                "test",
+            ),
+        )
+        row = self.database.fetch_one(
+            "SELECT id FROM mbe_cards WHERE card_uid = ?",
+            ("test-db-card",),
+        )
+        details = resolve_mbe_card_details(f"DB{row[0]}")
+        self.assertIn("calligrapher", (details.get("question_prompt") or "").lower())
+
+    def test_abx_qbank_key_resolves_from_database(self):
+        self.database.execute_write(
+            """
+            INSERT INTO mbe_cards (
+                card_uid, adv_id, subject, subtopic, title, scenario, question, options_json, source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "test-abx-card",
+                "1174",
+                "Evidence",
+                "Hearsay",
+                "Drug trial",
+                "At a defendant's trial for sale of drugs, the government called a witness.",
+                "Is the statement admissible?",
+                '[{"t":"inadmissible hearsay","ok":true}]',
+                "test",
+            ),
+        )
+        details = resolve_mbe_card_details("ABX1174")
+        self.assertIn("drugs", (details.get("question_prompt") or "").lower())
+
+    def test_legacy_row_enriches_db_prefixed_event(self):
+        self.database.record_missed_answer_event(
+            username="alice",
+            event_key="mbe:DB1307:2026-06-11T17:04:03.534Z:wrong",
+            source="mbe_drill",
+            event_at="2026-06-11 17:04:00",
+            event_date="2026-06-11",
+            question_id="DB1307",
+            user_answer="wrong",
+            correct_answer="Yes, because there was no consideration for the discharge",
+            question_prompt="",
+        )
+        report = build_daily_error_report("alice", "2026-06-11")
+        prompt = report.rule_groups[0].questions[0].question_prompt.lower()
+        self.assertIn("contract", prompt)
+
+    def test_builtin_card_prompt_resolves_for_abx_id(self):
+        details = resolve_mbe_card_details("ABX146")
+        self.assertIn("student", (details.get("question_prompt") or "").lower())
+        self.assertIn("police", (details.get("question_prompt") or "").lower())
+
+    def test_report_enriches_missing_prompt_from_event_key(self):
+        self.database.record_missed_answer_event(
+            username="alice",
+            event_key="mbe:ABX146:2026-06-11T10:00:00:wrong answer",
+            source="mbe_drill",
+            event_at="2026-06-11 10:00:00",
+            event_date="2026-06-11",
+            question_id="ABX146",
+            user_answer="wrong answer",
+            correct_answer="right answer",
+            question_prompt="",
+        )
+        report = build_daily_error_report("alice", "2026-06-11")
+        self.assertEqual(report.total_missed, 1)
+        prompt = report.rule_groups[0].questions[0].question_prompt.lower()
+        self.assertIn("student", prompt)
+        self.assertNotIn("(no prompt)", prompt)
 
     def test_timezone_date_boundary(self):
         utc_evening = "2026-06-12T02:30:00+00:00"
