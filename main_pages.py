@@ -6,6 +6,7 @@ from html import escape
 
 import pandas as pd
 
+from app_state import get_authed_user, is_admin
 from database import (
     DB_NAME,
     get_dashboard_stats,
@@ -18,7 +19,11 @@ from database import (
     get_rule_flashcards,
     get_statuses,
     get_subjects,
+    get_user_notification_settings,
+    upsert_user_notification_settings,
 )
+from daily_error_sheet_service import send_daily_error_sheet_for_user
+from missed_answer_service import build_daily_error_report, render_daily_error_report_text
 from question_utils import unpack_question
 from ui_components import (
     compact_card_container,
@@ -32,8 +37,9 @@ from ui_components import (
     render_html_open,
     render_info,
     render_markdown_body,
+    render_action_button,
     render_metric_row,
-    render_nav_button,
+    render_number_input,
     render_page_title,
     preview_table_height,
     render_preview_table,
@@ -519,6 +525,80 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
 
     render_mee_content_quality_panel()
     render_mbe_content_quality_panel()
+
+    render_divider()
+    render_section_heading("Daily Error Sheet")
+    username = get_authed_user()
+    notify_settings = get_user_notification_settings(username)
+    enabled = render_checkbox(
+        "Email me a daily error sheet",
+        value=notify_settings["daily_error_sheet_enabled"],
+        key="settings_daily_error_sheet_enabled",
+    )
+    email_override = render_text_input(
+        "Delivery email (optional)",
+        value=notify_settings["daily_error_sheet_email"] or "",
+        key="settings_daily_error_sheet_email",
+        caption="Defaults to your account email when left blank.",
+    )
+    send_hour = render_number_input(
+        "Send hour (24h, local time)",
+        min_value=0,
+        max_value=23,
+        value=int(notify_settings["daily_error_sheet_send_hour"]),
+        key="settings_daily_error_sheet_send_hour",
+    )
+    timezone_value = render_text_input(
+        "Timezone (IANA name)",
+        value=notify_settings["daily_error_sheet_timezone"],
+        key="settings_daily_error_sheet_timezone",
+        caption="Example: America/New_York",
+    )
+    send_empty = render_checkbox(
+        "Send email even when I had no misses",
+        value=notify_settings["send_no_misses_email"],
+        key="settings_daily_error_sheet_send_empty",
+    )
+    if render_action_button("Save notification settings", key="settings_save_notifications"):
+        upsert_user_notification_settings(
+            username,
+            daily_error_sheet_enabled=enabled,
+            daily_error_sheet_email=email_override.strip() or None,
+            daily_error_sheet_send_hour=int(send_hour),
+            daily_error_sheet_timezone=timezone_value.strip() or "America/New_York",
+            send_no_misses_email=send_empty,
+        )
+        render_success("Notification settings saved.")
+
+    if is_admin():
+        render_caption("Admin: preview or send today's sheet for your account.")
+        preview_date = render_text_input(
+            "Report date (YYYY-MM-DD)",
+            value=date.today().isoformat(),
+            key="settings_daily_error_sheet_preview_date",
+        )
+        preview_col, send_col = render_control_row([1, 1], gap="medium")
+        with preview_col:
+            if render_action_button("Preview report", key="settings_preview_daily_error_sheet"):
+                report = build_daily_error_report(username, preview_date.strip())
+                render_info(
+                    f"Missed {report.total_missed} question(s) across {report.unique_rules} rule(s)."
+                )
+                render_markdown_body(
+                    "```text\n" + render_daily_error_report_text(report) + "\n```"
+                )
+        with send_col:
+            if render_action_button("Send now (test)", key="settings_send_daily_error_sheet"):
+                result = send_daily_error_sheet_for_user(
+                    username,
+                    preview_date.strip(),
+                    force=True,
+                    send_if_empty=send_empty,
+                )
+                if result.get("ok"):
+                    render_success(f"Daily error sheet status: {result.get('status')}")
+                else:
+                    render_warning(result.get("error") or result.get("status"))
 
     render_divider()
     render_section_heading("Workflow")

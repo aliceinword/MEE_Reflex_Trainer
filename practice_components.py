@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Shared practice-mode components for MEE drills."""
 
-from app_state import get_state, set_state
+from app_state import get_authed_user, get_state, set_state
 from database import find_best_outline_rules_for_question, find_best_plug_play_for_call, save_attempt
+from missed_answer_service import record_mee_ladder_miss
 from text_rendering import (
     extract_fact_pattern_only,
     get_clean_trigger_facts,
@@ -77,6 +78,22 @@ def save_ladder_attempt(qd, level, response_text, score, missed, notes, minutes_
         notes,
         minutes_spent=minutes_spent,
     )
+    username = get_authed_user()
+    if username:
+        try:
+            record_mee_ladder_miss(
+                username,
+                question_id=qd["id"],
+                subject=qd.get("subject") or "",
+                mode=level,
+                self_score=score,
+                missed_issues=missed or "",
+                response_text=response_text or "",
+                rules_text=qd.get("rules") or "",
+                question_prompt=qd.get("question_text") or qd.get("call_of_question") or "",
+            )
+        except Exception:
+            pass
 
 
 def render_save_attempt_button(

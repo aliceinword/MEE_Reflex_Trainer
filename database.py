@@ -48,6 +48,9 @@ _INDEX_STATEMENTS = (
     "CREATE INDEX IF NOT EXISTS idx_app_users_username ON app_users(username)",
     "CREATE INDEX IF NOT EXISTS idx_mbe_cards_card_uid ON mbe_cards(card_uid)",
     "CREATE INDEX IF NOT EXISTS idx_mbe_cards_subject ON mbe_cards(subject)",
+    "CREATE INDEX IF NOT EXISTS idx_missed_answer_username_date ON missed_answer_events(username, event_date)",
+    "CREATE INDEX IF NOT EXISTS idx_missed_answer_event_key ON missed_answer_events(username, event_key)",
+    "CREATE INDEX IF NOT EXISTS idx_daily_error_sheet_sent_user_date ON daily_error_sheet_sent(username, report_date)",
 )
 
 
@@ -118,21 +121,47 @@ def _seed_missing_public_content(db_path, seed_path):
             conn.execute("DETACH DATABASE seed")
 
 
-def _ensure_database_file():
+# Set once per process after the runtime DB file has been created and seeded.
+# Without this guard, the work below (filesystem stats plus, when the runtime DB
+# already exists, up to 8 extra SQLite connections + COUNT(*) scans via
+# _seed_missing_public_content) runs on *every* get_connection() call — i.e. on
+# every fetch_all / fetch_one / write. The file only needs ensuring once.
+_db_file_ready = False
+
+
+def _ensure_database_file(force=False):
+    global _db_file_ready
+    if _db_file_ready and not force:
+        return
+
     db_path = Path(DB_NAME)
     legacy_path = Path(LEGACY_DB_NAME)
 
     if not legacy_path.exists():
+        # No seed DB to bootstrap from; nothing to do now, but check again on a
+        # later call in case the seed appears (don't latch the ready flag).
         return
 
     if DB_NAME != DEFAULT_DB_NAME:
+        _db_file_ready = True
         return
 
     if not db_path.exists():
         shutil.copy2(legacy_path, db_path)
+        _db_file_ready = True
         return
 
     _seed_missing_public_content(db_path, legacy_path)
+    _db_file_ready = True
+
+
+def reset_database_file_cache():
+    """Force the next get_connection() to re-run the file/seed setup.
+
+    Useful after operations that recreate or replace the runtime DB file.
+    """
+    global _db_file_ready
+    _db_file_ready = False
 
 
 def get_connection():
@@ -397,6 +426,58 @@ def init_db():
                 pick_correct INTEGER DEFAULT 0,
                 skipped_draft INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS missed_answer_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                question_id TEXT,
+                session_id TEXT,
+                source TEXT NOT NULL,
+                topic TEXT,
+                subtopic TEXT,
+                rule_id TEXT,
+                rule_label TEXT,
+                missed_rule_text TEXT,
+                correct_rule_text TEXT,
+                question_prompt TEXT,
+                user_answer TEXT,
+                correct_answer TEXT,
+                explanation TEXT,
+                retry_link TEXT,
+                event_key TEXT NOT NULL,
+                event_at TEXT NOT NULL,
+                event_date TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(username, event_key)
+            )
+        """)
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS user_notification_settings (
+                username TEXT PRIMARY KEY,
+                daily_error_sheet_enabled INTEGER DEFAULT 1,
+                daily_error_sheet_email TEXT,
+                daily_error_sheet_send_hour INTEGER DEFAULT 21,
+                daily_error_sheet_timezone TEXT DEFAULT 'America/New_York',
+                send_no_misses_email INTEGER DEFAULT 0,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS daily_error_sheet_sent (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                report_date TEXT NOT NULL,
+                sent_at TEXT NOT NULL,
+                status TEXT NOT NULL,
+                recipient_email TEXT,
+                provider_message_id TEXT,
+                error_message TEXT,
+                UNIQUE(username, report_date)
             )
         """)
 
@@ -676,31 +757,38 @@ def consolidate_mbe_card_subjects_and_remove_dupes(*, dry_run=False):
 
 def get_mbe_cards():
     """Return app-stored MBE cards for injection into the trainer."""
-    return fetch_all(
-        """
-        SELECT
-            id,
-            card_uid,
-            adv_id,
-            subject,
-            subtopic,
-            title,
-            scenario,
-            question,
-            rule_hint,
-            options_json,
-            plain_english,
-            shortcut,
-            source
-        FROM mbe_cards
-        ORDER BY subject, subtopic, id
-        """
+    # Static seed content; cached with TTL and cleared on any write.
+    return _read_cached(
+        "mbe_cards",
+        lambda: fetch_all(
+            """
+            SELECT
+                id,
+                card_uid,
+                adv_id,
+                subject,
+                subtopic,
+                title,
+                scenario,
+                question,
+                rule_hint,
+                options_json,
+                plain_english,
+                shortcut,
+                source
+            FROM mbe_cards
+            ORDER BY subject, subtopic, id
+            """
+        ),
     )
 
 
 def count_mbe_cards():
-    row = fetch_one("SELECT COUNT(*) FROM mbe_cards")
-    return int(row[0] or 0) if row else 0
+    def _count():
+        row = fetch_one("SELECT COUNT(*) FROM mbe_cards")
+        return int(row[0] or 0) if row else 0
+
+    return _read_cached("mbe_cards_count", _count)
 
 
 def get_mbe_content_quality(limit=12):
@@ -961,6 +1049,12 @@ def save_mbe_practice_stats(username, stats_blob):
             (username, payload, timestamp),
         )
     invalidate_read_cache()
+    try:
+        from missed_answer_service import record_mbe_practice_misses
+
+        record_mbe_practice_misses(username, merged_blob)
+    except Exception:
+        pass
     return True
 
 
@@ -1027,7 +1121,12 @@ def get_outline_rules(subject=None):
 
     query += " ORDER BY subject, pdf_page, rule_title"
 
-    return fetch_all(query, params)
+    # Static seed content; cached with TTL and cleared on any write.
+    subject_key = "" if not subject or subject == "All" else subject
+    return _read_cached(
+        f"outline_rules:{subject_key}",
+        lambda: fetch_all(query, params),
+    )
 
 
 def search_outline_rules(query, subject=None, limit=5):
@@ -1417,7 +1516,12 @@ def get_plug_play_templates(subject=None):
 
     query += " ORDER BY subject, pdf_page, module_title"
 
-    return fetch_all(query, params)
+    # Static seed content; cached with TTL and cleared on any write.
+    subject_key = "" if not subject or subject == "All" else subject
+    return _read_cached(
+        f"plug_play_templates:{subject_key}",
+        lambda: fetch_all(query, params),
+    )
 
 
 def search_plug_play_templates(query, subject=None, limit=5):
@@ -2342,6 +2446,7 @@ def save_bridge_attempt(
     skipped_draft=False,
 ):
     """Persist one Bridge Drill attempt (rule draft + MBE pick + self-score)."""
+    created_at = now()
     execute_write(
         """
         INSERT INTO bridge_drill_attempts (
@@ -2362,9 +2467,24 @@ def save_bridge_attempt(
             int(draft_score or 0),
             1 if pick_correct else 0,
             1 if skipped_draft else 0,
-            now(),
+            created_at,
         ),
     )
+    if username and not pick_correct:
+        try:
+            from missed_answer_service import record_bridge_drill_miss
+
+            record_bridge_drill_miss(
+                username,
+                card_uid=card_uid or "",
+                subject=subject or "",
+                subtopic=subtopic or "",
+                picked_letter=picked_letter or "",
+                correct_letter=correct_letter or "",
+                event_at=created_at,
+            )
+        except Exception:
+            pass
 
 
 def get_bridge_attempts(limit=200):
@@ -2381,3 +2501,297 @@ def get_bridge_attempts(limit=200):
         """,
         (limit,),
     )
+
+
+# ---------------------------------------------------------------------------
+# MBE card lookup
+# ---------------------------------------------------------------------------
+
+def get_mbe_card_by_uid(card_uid):
+    """Return one MBE card row by card_uid, or None."""
+    if not card_uid:
+        return None
+    return fetch_one(
+        """
+        SELECT
+            id, card_uid, adv_id, subject, subtopic, title,
+            scenario, question, rule_hint, options_json,
+            plain_english, shortcut, source
+        FROM mbe_cards
+        WHERE card_uid = ?
+        LIMIT 1
+        """,
+        (str(card_uid),),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Missed answer events (Daily Error Sheet)
+# ---------------------------------------------------------------------------
+
+def record_missed_answer_event(
+    *,
+    username,
+    event_key,
+    source,
+    event_at,
+    event_date,
+    question_id=None,
+    session_id=None,
+    topic=None,
+    subtopic=None,
+    rule_id=None,
+    rule_label=None,
+    missed_rule_text=None,
+    correct_rule_text=None,
+    question_prompt=None,
+    user_answer=None,
+    correct_answer=None,
+    explanation=None,
+    retry_link=None,
+):
+    """Persist one missed-answer event. Returns True if inserted, False if duplicate."""
+    if not username or not event_key or not source or not event_at or not event_date:
+        return False
+
+    with write_transaction() as conn:
+        cursor = conn.execute(
+            """
+            INSERT OR IGNORE INTO missed_answer_events (
+                username, question_id, session_id, source, topic, subtopic,
+                rule_id, rule_label, missed_rule_text, correct_rule_text,
+                question_prompt, user_answer, correct_answer, explanation,
+                retry_link, event_key, event_at, event_date, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(username).strip().lower(),
+                question_id,
+                session_id,
+                source,
+                topic,
+                subtopic,
+                rule_id,
+                rule_label,
+                missed_rule_text,
+                correct_rule_text,
+                question_prompt,
+                user_answer,
+                correct_answer,
+                explanation,
+                retry_link,
+                event_key,
+                event_at,
+                event_date,
+                now(),
+            ),
+        )
+        return cursor.rowcount > 0
+
+
+def get_missed_answer_events_for_date(username, event_date):
+    """Return missed-answer rows for a user on a calendar date (YYYY-MM-DD)."""
+    return fetch_all(
+        """
+        SELECT
+            id, username, question_id, session_id, source, topic, subtopic,
+            rule_id, rule_label, missed_rule_text, correct_rule_text,
+            question_prompt, user_answer, correct_answer, explanation,
+            retry_link, event_key, event_at, event_date, created_at
+        FROM missed_answer_events
+        WHERE LOWER(username) = LOWER(?)
+          AND event_date = ?
+        ORDER BY topic, subtopic, rule_label, event_at
+        """,
+        (username, event_date),
+    )
+
+
+def count_missed_answer_events_for_date(username, event_date):
+    row = fetch_one(
+        """
+        SELECT COUNT(*) FROM missed_answer_events
+        WHERE LOWER(username) = LOWER(?) AND event_date = ?
+        """,
+        (username, event_date),
+    )
+    return int(row[0] or 0) if row else 0
+
+
+# ---------------------------------------------------------------------------
+# User notification settings
+# ---------------------------------------------------------------------------
+
+def get_user_notification_settings(username):
+    """Return notification settings dict with defaults for missing rows."""
+    defaults = {
+        "username": (username or "").strip().lower(),
+        "daily_error_sheet_enabled": True,
+        "daily_error_sheet_email": None,
+        "daily_error_sheet_send_hour": 21,
+        "daily_error_sheet_timezone": "America/New_York",
+        "send_no_misses_email": False,
+    }
+    if not username:
+        return defaults
+
+    row = fetch_one(
+        """
+        SELECT
+            username,
+            daily_error_sheet_enabled,
+            daily_error_sheet_email,
+            daily_error_sheet_send_hour,
+            daily_error_sheet_timezone,
+            send_no_misses_email
+        FROM user_notification_settings
+        WHERE LOWER(username) = LOWER(?)
+        LIMIT 1
+        """,
+        (username,),
+    )
+    if not row:
+        return defaults
+
+    return {
+        "username": row[0],
+        "daily_error_sheet_enabled": bool(row[1]),
+        "daily_error_sheet_email": row[2] or None,
+        "daily_error_sheet_send_hour": int(row[3] if row[3] is not None else 21),
+        "daily_error_sheet_timezone": row[4] or "America/New_York",
+        "send_no_misses_email": bool(row[5]),
+    }
+
+
+def upsert_user_notification_settings(username, **fields):
+    """Update notification settings for a user."""
+    if not username:
+        return False
+
+    current = get_user_notification_settings(username)
+    merged = {**current, **{k: v for k, v in fields.items() if v is not None or k in fields}}
+    username_key = str(username).strip().lower()
+
+    with write_transaction() as conn:
+        conn.execute(
+            """
+            INSERT INTO user_notification_settings (
+                username,
+                daily_error_sheet_enabled,
+                daily_error_sheet_email,
+                daily_error_sheet_send_hour,
+                daily_error_sheet_timezone,
+                send_no_misses_email,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(username) DO UPDATE SET
+                daily_error_sheet_enabled = excluded.daily_error_sheet_enabled,
+                daily_error_sheet_email = excluded.daily_error_sheet_email,
+                daily_error_sheet_send_hour = excluded.daily_error_sheet_send_hour,
+                daily_error_sheet_timezone = excluded.daily_error_sheet_timezone,
+                send_no_misses_email = excluded.send_no_misses_email,
+                updated_at = excluded.updated_at
+            """,
+            (
+                username_key,
+                1 if merged.get("daily_error_sheet_enabled", True) else 0,
+                (merged.get("daily_error_sheet_email") or "").strip() or None,
+                int(merged.get("daily_error_sheet_send_hour", 21)),
+                merged.get("daily_error_sheet_timezone") or "America/New_York",
+                1 if merged.get("send_no_misses_email") else 0,
+                now(),
+            ),
+        )
+    return True
+
+
+def list_users_for_daily_error_sheet():
+    """Return users eligible for daily error sheets (enabled + email on file)."""
+    rows = fetch_all(
+        """
+        SELECT
+            u.username,
+            COALESCE(NULLIF(TRIM(s.daily_error_sheet_email), ''), NULLIF(TRIM(u.email), '')) AS email,
+            COALESCE(s.daily_error_sheet_send_hour, 21) AS send_hour,
+            COALESCE(s.daily_error_sheet_timezone, 'America/New_York') AS timezone,
+            COALESCE(s.daily_error_sheet_enabled, 1) AS enabled,
+            COALESCE(s.send_no_misses_email, 0) AS send_no_misses
+        FROM app_users u
+        LEFT JOIN user_notification_settings s ON LOWER(s.username) = LOWER(u.username)
+        WHERE COALESCE(s.daily_error_sheet_enabled, 1) = 1
+        ORDER BY u.username
+        """
+    )
+    eligible = []
+    for row in rows:
+        email = (row[1] or "").strip()
+        if not email:
+            continue
+        eligible.append(
+            {
+                "username": row[0],
+                "email": email,
+                "send_hour": int(row[2] or 21),
+                "timezone": row[3] or "America/New_York",
+                "send_no_misses_email": bool(row[5]),
+            }
+        )
+    return eligible
+
+
+# ---------------------------------------------------------------------------
+# Daily error sheet send log
+# ---------------------------------------------------------------------------
+
+def get_daily_error_sheet_sent(username, report_date):
+    row = fetch_one(
+        """
+        SELECT username, report_date, sent_at, status, recipient_email,
+               provider_message_id, error_message
+        FROM daily_error_sheet_sent
+        WHERE LOWER(username) = LOWER(?) AND report_date = ?
+        LIMIT 1
+        """,
+        (username, report_date),
+    )
+    if not row:
+        return None
+    return {
+        "username": row[0],
+        "report_date": row[1],
+        "sent_at": row[2],
+        "status": row[3],
+        "recipient_email": row[4],
+        "provider_message_id": row[5],
+        "error_message": row[6],
+    }
+
+
+def record_daily_error_sheet_sent(
+    username,
+    report_date,
+    status,
+    recipient_email=None,
+    provider_message_id=None,
+    error_message=None,
+):
+    """Record a daily sheet send attempt. Returns False if already recorded."""
+    with write_transaction() as conn:
+        cursor = conn.execute(
+            """
+            INSERT OR IGNORE INTO daily_error_sheet_sent (
+                username, report_date, sent_at, status,
+                recipient_email, provider_message_id, error_message
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(username).strip().lower(),
+                report_date,
+                now(),
+                status,
+                recipient_email,
+                provider_message_id,
+                error_message,
+            ),
+        )
+        return cursor.rowcount > 0
