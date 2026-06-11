@@ -9,7 +9,7 @@ from database import ensure_db_initialized
 
 st.set_page_config(
     page_title="MEE Reflex Trainer",
-    page_icon=":books:",
+    page_icon="assets/app_icon.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
