@@ -112,6 +112,95 @@ FIXES = [
             "regarding the landlord's claim to 17 months of unpaid rent."
         ),
     },
+    # Constitutional Law — calls split incorrectly by MEE_PQ_Bank.docx import
+    {
+        "id": 621,
+        "subject": "Constitutional Law",
+        "exam_name": "July 2018",
+        "question_number": "1",
+        "anchor": "Is Section 11 of the Federal Drug Abuse Prevention Act",
+        "call": (
+            "1. Is Section 11 of the Federal Drug Abuse Prevention Act a constitutional "
+            "exercise of federal power? Explain.\n"
+            "2. Is Section 15 of the Federal Drug Abuse Prevention Act a constitutional "
+            "exercise of federal power? Explain."
+        ),
+    },
+    {
+        "id": 617,
+        "subject": "Constitutional Law",
+        "exam_name": "February 2014",
+        "question_number": "1",
+        "anchor": "",
+        "call": (
+            "1. Under the Fifth Amendment as applied to the states through the "
+            "Fourteenth Amendment, is the city ordinance requiring the restaurant to "
+            "install floodlights an unconstitutional taking? Explain.\n"
+            "2. Under the Fifth Amendment as applied to the states through the "
+            "Fourteenth Amendment, is the city's requirement that the restaurant grant "
+            "the city an easement as a condition for obtaining the building permit an "
+            "unconstitutional taking? Explain."
+        ),
+    },
+    {
+        "id": 618,
+        "subject": "Constitutional Law",
+        "exam_name": "February 2015",
+        "question_number": "2",
+        "anchor": "Does the Act violate the Equal Protection Clause",
+        "call": (
+            "1. Would Congress have authority under Section Five of the Fourteenth "
+            "Amendment to enact a statute barring states from establishing a maximum "
+            "age for firefighters? Explain.\n"
+            "2. Does the Act violate the Equal Protection Clause of the Fourteenth "
+            "Amendment? Explain."
+        ),
+    },
+    {
+        "id": 613,
+        "subject": "Constitutional Law",
+        "exam_name": "July 2010",
+        "question_number": "4",
+        "anchor": "Does the First Amendment, as applied to state and local governments through the Fourteenth Amendment",
+        "call": (
+            "Does the First Amendment, as applied to state and local governments through "
+            "the Fourteenth Amendment,\n"
+            "1. Preclude Homestead's enforcement of its anti-leafleting ordinance against "
+            "Chapter? Explain.\n"
+            "2. Preclude Principal's denial of Church Club's request to use classroom "
+            "space for its meetings? Explain.\n"
+            "3. Provide grounds to vacate Father's trespass conviction? Explain."
+        ),
+    },
+    {
+        "id": 728,
+        "subject": "Constitutional Law",
+        "exam_name": "July 2011",
+        "question_number": "7",
+        "anchor": "",
+        "call": (
+            "1. Has Private violated the man's rights under the Equal Protection Clause "
+            "of the Fourteenth Amendment? Explain.\n"
+            "2. Has Public violated the man's rights under the Equal Protection Clause "
+            "of the Fourteenth Amendment? Explain."
+        ),
+    },
+    {
+        "id": 554,
+        "subject": "Constitutional Law",
+        "exam_name": "July 2020",
+        "question_number": "2",
+        "anchor": "Under State X law, is the shareholder entitled",
+        "call": (
+            "1. Under State X law, is the shareholder entitled to inspect the requested "
+            "board minutes? Explain.\n"
+            "2. Under State X law, is the shareholder's proposed resolution a proper "
+            "subject for submission to Retailer's shareholders for their vote? Explain.\n"
+            "3. Assuming that the resolution is proper for submission for shareholder "
+            "action under State X law, would the resolution (if approved) infringe "
+            "Retailer's First Amendment rights? Explain."
+        ),
+    },
 ]
 
 
@@ -128,15 +217,22 @@ def main():
     missing = 0
 
     for fix in FIXES:
-        row = fetch_one(
-            """
-            SELECT id, question_text FROM questions
-            WHERE subject = ? AND exam_name = ? AND question_number = ? AND source = ?
-            """,
-            (fix["subject"], fix["exam_name"], fix["question_number"], SOURCE),
-        )
+        if fix.get("id"):
+            row = fetch_one(
+                "SELECT id, question_text FROM questions WHERE id = ?",
+                (fix["id"],),
+            )
+        else:
+            row = fetch_one(
+                """
+                SELECT id, question_text FROM questions
+                WHERE subject = ? AND exam_name = ? AND question_number = ? AND source = ?
+                """,
+                (fix["subject"], fix["exam_name"], fix["question_number"], SOURCE),
+            )
         if not row:
-            print(f"  NOT FOUND: {fix['subject']} {fix['exam_name']} Q{fix['question_number']}")
+            label = fix.get("id") or f"{fix['subject']} {fix['exam_name']} Q{fix['question_number']}"
+            print(f"  NOT FOUND: {label}")
             missing += 1
             continue
 
@@ -144,10 +240,12 @@ def main():
         new_qt = question_text
 
         # Trim the embedded call out of the fact pattern (apostrophe/quote-insensitive).
-        idx = normalize(question_text or "").find(normalize(fix["anchor"]))
-        if idx != -1:
-            new_qt = question_text[:idx].rstrip()
-            trimmed += 1
+        anchor = fix.get("anchor") or ""
+        if anchor:
+            idx = normalize(question_text or "").find(normalize(anchor))
+            if idx != -1:
+                new_qt = question_text[:idx].rstrip()
+                trimmed += 1
 
         with write_transaction() as conn:
             conn.execute(
