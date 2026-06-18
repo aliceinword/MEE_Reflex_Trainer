@@ -3,10 +3,12 @@
 
 import os
 
+import streamlit as st
 
 from app_state import get_authed_user
 from database import (
     count_mbe_cards,
+    fetch_one,
     get_mbe_cards,
     get_mbe_practice_stats,
     save_bridge_attempt,
@@ -162,7 +164,7 @@ def render_mbe_bulk_import_actions(cards, missing):
             "MBE import complete. "
             f"Inserted {result['inserted']} and updated {result['updated']} cards in the app database."
         )
-        clear_cached_data()
+        invalidate_mbe_trainer_session_cache()
 
 
 def render_mbe_bulk_upload_page():
@@ -460,10 +462,9 @@ def _filter_mbe_card_rows(rows, *, source_filter=None, subject_filter=None, excl
     return filtered
 
 
-def render_mbe_embed_layout_css():
-    """Apply full-width Streamlit layout overrides for the embedded MBE trainer."""
-    render_html_body("""
-    <style>
+def mbe_embed_header_css():
+    """Return CSS that removes Streamlit chrome around the embedded trainer."""
+    return """
     header[data-testid="stHeader"],
     div[data-testid="stToolbar"],
     div[data-testid="stDecoration"] {
@@ -471,7 +472,12 @@ def render_mbe_embed_layout_css():
         height: 0 !important;
         min-height: 0 !important;
     }
+    """
 
+
+def mbe_embed_streamlit_shell_css():
+    """Return CSS that lets the trainer use the full Streamlit viewport."""
+    return """
     .main,
     section.main,
     [data-testid="stAppViewContainer"],
@@ -504,7 +510,12 @@ def render_mbe_embed_layout_css():
         display: flex !important;
         flex-direction: column !important;
     }
+    """
 
+
+def mbe_embed_iframe_css():
+    """Return CSS for the iframe chain that hosts the trainer."""
+    return """
     /* Trainer iframe chain grows to fill the main pane */
     div[data-testid="stElementContainer"]:has(iframe[srcdoc]) {
         flex: 1 1 auto !important;
@@ -534,7 +545,12 @@ def render_mbe_embed_layout_css():
         border: 0 !important;
         display: block !important;
     }
+    """
 
+
+def mbe_embed_sync_bridge_css():
+    """Return CSS that keeps hidden sync helpers from taking page space."""
+    return """
     /* Embed CSS + hidden stats sync bridge must not steal vertical space */
     [data-testid="stMain"] div[data-testid="stElementContainer"]:has([data-testid="stMarkdown"]),
     div[data-testid="stElementContainer"]:has(iframe[title*="mbe_stats_sync"]),
@@ -555,6 +571,26 @@ def render_mbe_embed_layout_css():
         margin: 0 !important;
         padding: 0 !important;
     }
+    """
+
+
+def build_mbe_embed_layout_css():
+    """Build the full CSS payload for the embedded MBE trainer."""
+    return "\n".join(
+        [
+            mbe_embed_header_css(),
+            mbe_embed_streamlit_shell_css(),
+            mbe_embed_iframe_css(),
+            mbe_embed_sync_bridge_css(),
+        ]
+    )
+
+
+def render_mbe_embed_layout_css():
+    """Apply full-width Streamlit layout overrides for the embedded MBE trainer."""
+    render_html_body(f"""
+    <style>
+    {build_mbe_embed_layout_css()}
     </style>
     """)
 
@@ -648,8 +684,32 @@ def read_mbe_trainer_html(mbe_path):
         return None
 
 
-def mbe_database_cards_payload(*, source_filter=None, subject_filter=None, exclude_sources=None):
-    """Return JSON-safe database cards for the trainer iframe."""
+def _exclude_sources_tuple(exclude_sources):
+    if not exclude_sources:
+        return tuple()
+    return tuple(sorted(exclude_sources))
+
+
+def invalidate_mbe_trainer_session_cache():
+    """Clear cached trainer iframe payloads after imports or deck changes."""
+    for key in (
+        "_mbe_iframe_doc",
+        "_mbe_iframe_doc_key",
+        "_mbe_practice_embed_blob",
+        "_mbe_practice_stats_sig",
+    ):
+        session_state.pop(key, None)
+    clear_cached_data()
+
+
+@st.cache_data(show_spinner=False)
+def _cached_mbe_embed_cards(
+    source_filter,
+    subject_filter,
+    exclude_sources_tuple,
+    card_revision,
+):
+    exclude_sources = set(exclude_sources_tuple) if exclude_sources_tuple else None
     db_rows = _filter_mbe_card_rows(
         get_mbe_cards(),
         source_filter=source_filter,
@@ -657,6 +717,25 @@ def mbe_database_cards_payload(*, source_filter=None, subject_filter=None, exclu
         exclude_sources=exclude_sources,
     )
     return database_rows_to_mbe_cards(db_rows)
+
+
+def mbe_cards_cache_revision():
+    """Return a cheap revision token that changes when the MBE deck changes."""
+    row = fetch_one("SELECT COUNT(*), COALESCE(MAX(updated_at), ''), COALESCE(MAX(id), 0) FROM mbe_cards")
+    if not row:
+        return (0, "", 0)
+    return (int(row[0] or 0), str(row[1] or ""), int(row[2] or 0))
+
+
+def mbe_database_cards_payload(*, source_filter=None, subject_filter=None, exclude_sources=None):
+    """Return JSON-safe database cards for the trainer iframe."""
+    revision = mbe_cards_cache_revision()
+    return _cached_mbe_embed_cards(
+        source_filter,
+        subject_filter,
+        _exclude_sources_tuple(exclude_sources),
+        revision,
+    )
 
 
 def mbe_practice_blob_payload(username):
@@ -696,6 +775,50 @@ def inject_mbe_trainer_bootstrap(html, injection):
     return injection + html
 
 
+def _mbe_iframe_cache_key(embed_mode, source_filter, subject_filter, exclude_sources):
+    return (
+        embed_mode,
+        source_filter,
+        subject_filter,
+        _exclude_sources_tuple(exclude_sources),
+        mbe_cards_cache_revision(),
+    )
+
+
+def build_mbe_trainer_iframe_document(
+    mbe_path,
+    *,
+    embed_mode="drill",
+    source_filter=None,
+    subject_filter=None,
+    exclude_sources=None,
+    username=None,
+):
+    """Build or reuse the injected trainer HTML for the current deck and filters."""
+    cache_key = _mbe_iframe_cache_key(embed_mode, source_filter, subject_filter, exclude_sources)
+    if (
+        session_state.get("_mbe_iframe_doc_key") == cache_key
+        and session_state.get("_mbe_iframe_doc")
+    ):
+        return session_state["_mbe_iframe_doc"]
+
+    html = read_mbe_trainer_html(mbe_path)
+    if html is None:
+        return None
+
+    cards = mbe_database_cards_payload(
+        source_filter=source_filter,
+        subject_filter=subject_filter,
+        exclude_sources=exclude_sources,
+    )
+    practice_blob = mbe_practice_blob_payload(username)
+    injection = build_mbe_trainer_injection(cards, practice_blob, embed_mode)
+    document = inject_mbe_trainer_bootstrap(html, injection)
+    session_state["_mbe_iframe_doc"] = document
+    session_state["_mbe_iframe_doc_key"] = cache_key
+    return document
+
+
 def render_mbe_trainer_iframe(html):
     """Render the trainer iframe in the wide page surface."""
     # Height is overridden to 100vh via embed CSS; use a large fallback for Streamlit's wrapper.
@@ -725,18 +848,18 @@ def render_mbe_trainer_embed(
 ):
     """Render the trainer with app-database MBE cards injected as the shared card store."""
     username = get_authed_user()
-    html = read_mbe_trainer_html(mbe_path)
-    if html is None:
-        return
-
-    cards = mbe_database_cards_payload(
+    document = build_mbe_trainer_iframe_document(
+        mbe_path,
+        embed_mode=embed_mode,
         source_filter=source_filter,
         subject_filter=subject_filter,
         exclude_sources=exclude_sources,
+        username=username,
     )
-    practice_blob = mbe_practice_blob_payload(username)
-    injection = build_mbe_trainer_injection(cards, practice_blob, embed_mode)
-    render_mbe_trainer_iframe(inject_mbe_trainer_bootstrap(html, injection))
+    if document is None:
+        return
+
+    render_mbe_trainer_iframe(document)
     render_mbe_stats_sync_bridge(username)
 
 
