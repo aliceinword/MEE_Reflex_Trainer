@@ -34,6 +34,12 @@ elif menu in {"MEE Question Bank", "Question Bank"}:
     render_question_bank_page(reading_settings["compact_mode"])
 
 
+elif menu == "Attack Outline Rules":
+    from main_pages import render_attack_outline_rules_page
+
+    render_attack_outline_rules_page(reading_mode=reading_settings["reading_mode"])
+
+
 elif menu in {"MEE Advanced Tools", "Advanced Tools", "Import Questions", "Manual Entry"}:
     from content_tools import render_advanced_tools_page
 

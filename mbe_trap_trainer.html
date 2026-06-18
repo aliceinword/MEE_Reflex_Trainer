@@ -6573,7 +6573,7 @@ const ATTACK_SEQUENCE = {
     more:"Between competing theories, pick the one with the lowest bar to prove on these exact facts."}
 };
 function attackSeqHTML(subj){
-  const a = ATTACK_SEQUENCE[subj];
+  const a = ATTACK_SEQUENCE[normalizeMBESubject(subj)];
   if(!a) return '';
   return `<details class="attack"><summary><span class="attack-tag">Attack order</span> ${a.short}</summary><div class="attack-body">${a.more}</div></details>`;
 }

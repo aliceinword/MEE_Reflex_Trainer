@@ -30,7 +30,7 @@ from ui_components import (
 )
 
 NAV_GROUPS = [
-    ("MEE Practice", ["Home", "MEE Question Bank", "MEE Muscle Ladder"]),
+    ("MEE Practice", ["Home", "MEE Question Bank", "Attack Outline Rules", "MEE Muscle Ladder"]),
     ("MBE Practice", ["MBE Drills", "Bridge Drill", "Rule Recall", "Flashcards Drill", "MBE Drills Question Bulk Upload"]),
     ("MEE Advanced Tools", ["Import Questions", "Manual Entry"]),
     ("App", ["Settings"]),
@@ -50,7 +50,7 @@ MENU_ALIASES = {
     "Timed IRAC Drill": "MEE Muscle Ladder",
     "Due Review Queue": "MEE Muscle Ladder",
     "Question Bank": "MEE Question Bank",
-    "Attack Outline Rules": "MEE Question Bank",
+    "Attack Outline Rules": "Attack Outline Rules",
     "Plug & Play Templates": "MEE Question Bank",
     "Review Attempts": "Settings",
     "MEE Advanced Tools": "Import Questions",

@@ -3,57 +3,70 @@
 
 from datetime import date, timedelta
 from html import escape
+from io import StringIO
 
 import pandas as pd
 
 from app_state import get_authed_user, is_admin
 from database import (
     DB_NAME,
+    add_outline_rule,
     get_dashboard_stats,
     get_exam_years,
     get_mbe_content_quality,
     get_mbe_mastery_stats,
     get_mee_content_quality,
+    get_outline_rules,
     get_question_bank_rows,
     get_question_by_id,
     get_rule_flashcards,
     get_statuses,
     get_subjects,
     get_user_notification_settings,
+    search_outline_rules,
     upsert_user_notification_settings,
 )
 from daily_error_config import describe_email_delivery_mode
 from daily_error_sheet_service import send_daily_error_sheet_for_user
 from missed_answer_service import build_daily_error_report, render_daily_error_report_text
 from question_utils import unpack_question
+from text_rendering import render_attack_rule_box
 from ui_components import (
     compact_card_container,
-    render_checkbox,
+    format_bank_question_label,
+    preview_table_height,
+    render_action_button,
     render_caption,
-    render_control_row,
+    render_checkbox,
     render_compact_card,
+    render_control_row,
     render_divider,
+    render_download_button,
+    render_error,
     render_expander,
+    render_file_uploader,
+    render_form,
+    render_form_submit_button,
     render_html_close,
     render_html_open,
     render_info,
     render_markdown_body,
-    render_action_button,
+    render_match_count,
     render_metric_row,
     render_nav_button,
     render_number_input,
     render_page_title,
-    preview_table_height,
     render_preview_table,
-    format_bank_question_label,
-    render_match_count,
     render_question_detail_tabs,
     render_question_identity,
     render_section_heading,
     render_selectbox,
     render_success,
+    render_tab_set,
+    render_text_area,
     render_text_input,
     render_warning,
+    rerun_app,
 )
 
 
@@ -498,12 +511,8 @@ def render_mbe_content_quality_panel():
             render_success("No MBE duplicate fingerprints detected.")
 
 
-def render_settings_page(reading_mode, compact_mode, font_size, line_height):
-    render_page_title(
-        "Settings",
-        "Reading comfort, layout preferences, and app health.",
-    )
-
+def render_settings_layout_panel(reading_mode, compact_mode, font_size, line_height):
+    """Render current sidebar-driven reading and layout settings."""
     render_section_heading("Layout")
     layout_values = [
         ("Reading mode", "on" if reading_mode else "off"),
@@ -515,6 +524,9 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
 
     render_info("Use the sidebar Reading Comfort controls to change these values.")
 
+
+def render_settings_data_panel():
+    """Render database and content-health diagnostics for Settings."""
     stats = get_dashboard_stats()
     render_section_heading("Data")
     data_values = [
@@ -528,10 +540,12 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
     render_mee_content_quality_panel()
     render_mbe_content_quality_panel()
 
+
+def render_notification_settings_panel(username):
+    """Render daily error-sheet notification settings and return send-empty choice."""
     render_divider()
     render_section_heading("Daily Error Sheet")
     render_info(describe_email_delivery_mode())
-    username = get_authed_user()
     notify_settings = get_user_notification_settings(username)
     enabled = render_checkbox(
         "Email me a daily error sheet",
@@ -573,6 +587,11 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
         )
         render_success("Notification settings saved.")
 
+    return send_empty
+
+
+def render_daily_error_admin_panel(username, send_empty):
+    """Render admin-only preview/send controls for the daily error sheet."""
     if is_admin():
         render_caption("Admin: preview or send today's sheet for your account.")
         preview_date = render_text_input(
@@ -616,9 +635,212 @@ def render_settings_page(reading_mode, compact_mode, font_size, line_height):
                 else:
                     render_warning(result.get("error") or result.get("status"))
 
+
+def render_settings_workflow_panel():
+    """Render workflow guidance for Settings."""
     render_divider()
     render_section_heading("Workflow")
     render_info(
         "Daily MEE work lives in MEE Muscle Ladder. MBE Drills is separate because it trains multiple-choice reflexes. "
         "Use MEE Advanced Tools only when you need to import data or add a question by hand."
     )
+
+
+def render_settings_page(reading_mode, compact_mode, font_size, line_height):
+    render_page_title(
+        "Settings",
+        "Reading comfort, layout preferences, and app health.",
+    )
+
+    render_settings_layout_panel(reading_mode, compact_mode, font_size, line_height)
+    render_settings_data_panel()
+    username = get_authed_user()
+    send_empty = render_notification_settings_panel(username)
+    render_daily_error_admin_panel(username, send_empty)
+    render_settings_workflow_panel()
+
+
+def _outline_rule_expander_label(rule):
+    """Build a readable expander title for one outline rule row."""
+    _rule_id, subject, rule_title, appearance_rate, *_rest = rule
+    label = f"{rule_title} — {subject}"
+    if appearance_rate:
+        label += f" — {appearance_rate}"
+    return label
+
+
+def _render_attack_outline_add_form(existing_subjects):
+    """Render the single-rule add form for Attack Outline Rules."""
+    with render_form("add_outline_rule_form", clear_on_submit=True):
+        subject_col, rate_col = render_control_row([2, 1])
+        with subject_col:
+            new_subject = render_text_input(
+                "Subject",
+                placeholder="e.g., Evidence, Contracts, Civil Procedure",
+            )
+        with rate_col:
+            new_appearance = render_text_input(
+                "Appearance rate (optional)",
+                placeholder="e.g., High",
+            )
+
+        if existing_subjects:
+            render_caption("Existing subjects: " + ", ".join(existing_subjects))
+
+        new_title = render_text_input(
+            "Rule title",
+            placeholder="e.g., Hearsay — definition and exceptions",
+        )
+        new_rule_text = render_text_area(
+            "Rule text",
+            placeholder="Write or paste the rule statement, elements, and any exceptions.",
+            height=180,
+        )
+        new_source = render_text_input("Source label", value="My outline")
+        submitted_rule = render_form_submit_button("Save rule")
+
+    if not submitted_rule:
+        return
+
+    if not new_subject.strip() or not new_title.strip() or not new_rule_text.strip():
+        render_error("Subject, rule title, and rule text are all required.")
+        return
+
+    created = add_outline_rule(
+        new_subject.strip(),
+        new_title.strip(),
+        new_appearance.strip(),
+        new_rule_text.strip(),
+        None,
+        "",
+        new_source.strip() or "My outline",
+    )
+    if created:
+        render_success("Rule added.")
+        rerun_app()
+    else:
+        render_warning("A matching rule already exists (same subject, title, and source).")
+
+
+def _render_attack_outline_bulk_import():
+    """Render CSV bulk import for Attack Outline Rules."""
+    render_caption(
+        "Upload a CSV with columns: subject, rule_title, rule_text "
+        "(optional: appearance_rate, source)."
+    )
+
+    rule_template = pd.DataFrame([
+        {
+            "subject": "Evidence",
+            "rule_title": "Hearsay — definition",
+            "rule_text": "Hearsay is an out-of-court statement offered to prove the truth of the matter asserted...",
+            "appearance_rate": "High",
+            "source": "My outline",
+        }
+    ])
+    rule_buffer = StringIO()
+    rule_template.to_csv(rule_buffer, index=False)
+    render_download_button(
+        "Download CSV template",
+        data=rule_buffer.getvalue(),
+        file_name="outline_rules_template.csv",
+        mime="text/csv",
+    )
+
+    rules_csv = render_file_uploader("Upload rules CSV", type=["csv"], key="rules_csv")
+    if rules_csv is None:
+        return
+
+    rules_df = pd.read_csv(rules_csv).fillna("")
+    required = ["subject", "rule_title", "rule_text"]
+    missing = [column for column in required if column not in rules_df.columns]
+    if missing:
+        render_error(f"Missing required columns: {missing}")
+        return
+
+    render_preview_table(rules_df, max_rows=20)
+
+    if not render_action_button("Import rules from CSV", key="import_outline_rules_csv"):
+        return
+
+    added = 0
+    skipped = 0
+    for _, row in rules_df.iterrows():
+        subject_value = str(row.get("subject", "")).strip()
+        title_value = str(row.get("rule_title", "")).strip()
+        text_value = str(row.get("rule_text", "")).strip()
+        if not subject_value or not title_value or not text_value:
+            skipped += 1
+            continue
+
+        created = add_outline_rule(
+            subject_value,
+            title_value,
+            str(row.get("appearance_rate", "")).strip(),
+            text_value,
+            None,
+            "",
+            str(row.get("source", "")).strip() or "My outline (CSV)",
+        )
+        if created:
+            added += 1
+        else:
+            skipped += 1
+
+    render_success(f"Imported {added} rule(s). Skipped {skipped} (duplicate or incomplete).")
+    rerun_app()
+
+
+def render_attack_outline_rules_page(*, reading_mode=False):
+    """Browse and search personal attack-outline rules by subject."""
+    render_page_title(
+        "Attack Outline Rules",
+        "Search your rule outline by subject and keyword, or add your own rules.",
+    )
+
+    all_rules = get_outline_rules()
+    existing_subjects = sorted({row[1] for row in all_rules if row[1]})
+    outline_subjects = ["All"] + existing_subjects
+
+    if not all_rules:
+        render_info(
+            'No rules yet. Use "Add your own rules" below to type or paste rules from '
+            "your own outline. You can also bulk-import from a CSV."
+        )
+
+    with render_expander("Add your own rules", expanded=not all_rules):
+        add_tab, bulk_tab = render_tab_set(["Add one rule", "Bulk add (CSV)"])
+        with add_tab:
+            _render_attack_outline_add_form(existing_subjects)
+        with bulk_tab:
+            _render_attack_outline_bulk_import()
+
+    query_col, subject_col = render_control_row([2, 1])
+    with query_col:
+        outline_query = render_text_input(
+            "Search rules",
+            placeholder="personal jurisdiction, hearsay, statute of frauds",
+            key="attack_outline_query",
+        )
+    with subject_col:
+        outline_subject = render_selectbox(
+            "Subject",
+            outline_subjects,
+            key="attack_outline_subject",
+        )
+
+    subject_filter = None if outline_subject == "All" else outline_subject
+    if outline_query.strip():
+        outline_results = search_outline_rules(
+            outline_query.strip(),
+            subject=subject_filter,
+            limit=25,
+        )
+    else:
+        outline_results = get_outline_rules(subject=subject_filter)[:25]
+
+    render_caption(f"{len(outline_results)} result(s)")
+
+    for rule in outline_results:
+        with render_expander(_outline_rule_expander_label(rule), expanded=False):
+            render_attack_rule_box(rule, reading_mode=reading_mode)
