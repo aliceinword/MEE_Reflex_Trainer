@@ -11,8 +11,15 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from app_state import get_current_page, set_current_page
-from database import get_questions, get_statuses, get_subjects
+from app_state import get_authed_user, get_current_page, set_current_page
+from database import (
+    delete_user_question_answer,
+    get_questions,
+    get_statuses,
+    get_user_question_answer,
+    get_subjects,
+    save_user_question_answer,
+)
 from text_rendering import (
     escape_display_text,
     get_clean_trigger_facts,
@@ -378,6 +385,99 @@ Conclusion:
 Therefore, ___."""
 
 
+def _question_bank_irac_state_keys(question_id):
+    qid = int(question_id)
+    return {
+        "draft": f"question_bank_irac_answer_{qid}",
+        "loaded": f"question_bank_irac_loaded_{qid}",
+        "saved_at": f"question_bank_irac_saved_at_{qid}",
+    }
+
+
+def _ensure_question_bank_irac_state(question_id):
+    """Load a saved answer from the database into session state once per question."""
+    keys = _question_bank_irac_state_keys(question_id)
+    if st.session_state.get(keys["loaded"]):
+        return keys
+
+    username = get_authed_user()
+    saved = get_user_question_answer(username, question_id) if username else None
+    st.session_state[keys["draft"]] = (
+        saved["answer_text"] if saved and str(saved.get("answer_text") or "").strip() else irac_answer_template()
+    )
+    st.session_state[keys["saved_at"]] = saved["updated_at"] if saved else None
+    st.session_state[keys["loaded"]] = True
+    return keys
+
+
+def render_question_bank_irac_panel(qd):
+    """Render the editable IRAC draft with save / revert controls."""
+    question_id = qd["id"]
+    username = get_authed_user()
+    keys = _ensure_question_bank_irac_state(question_id)
+
+    render_text_area(
+        "Your IRAC Answer",
+        height=TEXTAREA_HEIGHT_XXL,
+        key=keys["draft"],
+        caption="Draft your answer here, then save it to reopen later from this question.",
+    )
+
+    save_col, revert_col, clear_col = render_control_row([1.1, 1, 1], gap="small")
+    with save_col:
+        if render_primary_action_button("Save My Answer", key=f"save_my_answer_{question_id}"):
+            if not username:
+                render_error("Sign in to save your answer.")
+            else:
+                updated_at = save_user_question_answer(
+                    username,
+                    question_id,
+                    st.session_state.get(keys["draft"], ""),
+                )
+                st.session_state[keys["saved_at"]] = updated_at
+                render_success("Saved. You can return to this question anytime to review or edit it.")
+
+    with revert_col:
+        if render_action_button("Reload Saved", key=f"reload_my_answer_{question_id}"):
+            saved = get_user_question_answer(username, question_id) if username else None
+            st.session_state[keys["draft"]] = (
+                saved["answer_text"]
+                if saved and str(saved.get("answer_text") or "").strip()
+                else irac_answer_template()
+            )
+            st.session_state[keys["saved_at"]] = saved["updated_at"] if saved else None
+            rerun_app()
+
+    with clear_col:
+        if render_action_button("Clear Saved", key=f"clear_my_answer_{question_id}"):
+            if username:
+                delete_user_question_answer(username, question_id)
+            st.session_state[keys["draft"]] = irac_answer_template()
+            st.session_state[keys["saved_at"]] = None
+            render_success("Cleared saved answer.")
+            rerun_app()
+
+    saved_at = st.session_state.get(keys["saved_at"])
+    if saved_at:
+        render_caption(f"Last saved: {saved_at}")
+
+
+def render_saved_answer_preview(qd):
+    """Show the user's saved answer on the Answer tab for side-by-side review."""
+    username = get_authed_user()
+    if not username:
+        return
+
+    saved = get_user_question_answer(username, qd["id"])
+    if not saved or not str(saved.get("answer_text") or "").strip():
+        return
+
+    with render_expander("Your Saved Answer", expanded=False):
+        render_readable_text("Saved IRAC", saved["answer_text"])
+        if saved.get("updated_at"):
+            render_caption(f"Last saved: {saved['updated_at']}")
+
+
 def render_question_detail_tabs(qd, compact_mode=False):
     """Render one question's prompt, answer, outline, and metadata tabs."""
     prompt_tab, answer_tab, outline_tab = render_tab_set(["Prompt", "Answer", "Rule Outline"])
@@ -388,14 +488,10 @@ def render_question_detail_tabs(qd, compact_mode=False):
         with question_col:
             render_question_text("Question Text", qd["question_text"])
         with answer_col:
-            render_text_area(
-                "Your IRAC Answer",
-                value=irac_answer_template(),
-                height=TEXTAREA_HEIGHT_XXL,
-                key=f"question_bank_irac_answer_{qd['id']}",
-            )
+            render_question_bank_irac_panel(qd)
 
     with answer_tab:
+        render_saved_answer_preview(qd)
         render_sample_answer_text("Sample Answer / Model Analysis", qd["model_points"])
 
     with outline_tab:

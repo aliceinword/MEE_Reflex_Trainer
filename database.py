@@ -51,6 +51,7 @@ _INDEX_STATEMENTS = (
     "CREATE INDEX IF NOT EXISTS idx_missed_answer_username_date ON missed_answer_events(username, event_date)",
     "CREATE INDEX IF NOT EXISTS idx_missed_answer_event_key ON missed_answer_events(username, event_key)",
     "CREATE INDEX IF NOT EXISTS idx_daily_error_sheet_sent_user_date ON daily_error_sheet_sent(username, report_date)",
+    "CREATE INDEX IF NOT EXISTS idx_user_question_answers_user_q ON user_question_answers(username, question_id)",
 )
 
 
@@ -478,6 +479,18 @@ def init_db():
                 provider_message_id TEXT,
                 error_message TEXT,
                 UNIQUE(username, report_date)
+            )
+        """)
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS user_question_answers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                question_id INTEGER NOT NULL,
+                answer_text TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(question_id) REFERENCES questions(id),
+                UNIQUE(username, question_id)
             )
         """)
 
@@ -2678,6 +2691,71 @@ def count_missed_answer_events_for_date(username, event_date):
         (username, event_date),
     )
     return int(row[0] or 0) if row else 0
+
+
+# ---------------------------------------------------------------------------
+# Per-user saved MEE Question Bank answers
+# ---------------------------------------------------------------------------
+
+def get_user_question_answer(username, question_id):
+    """Return the saved IRAC answer for one user/question, or None."""
+    if not username or not question_id:
+        return None
+
+    row = fetch_one(
+        """
+        SELECT answer_text, updated_at
+        FROM user_question_answers
+        WHERE LOWER(username) = LOWER(?) AND question_id = ?
+        LIMIT 1
+        """,
+        (username, int(question_id)),
+    )
+    if not row:
+        return None
+
+    return {
+        "answer_text": row[0] or "",
+        "updated_at": row[1] or "",
+    }
+
+
+def save_user_question_answer(username, question_id, answer_text):
+    """Upsert the user's saved answer for a question. Returns updated_at."""
+    normalized_username = (username or "").strip().lower()
+    if not normalized_username:
+        raise ValueError("username is required")
+
+    updated_at = now()
+    with write_transaction() as conn:
+        conn.execute(
+            """
+            INSERT INTO user_question_answers (username, question_id, answer_text, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(username, question_id) DO UPDATE SET
+                answer_text = excluded.answer_text,
+                updated_at = excluded.updated_at
+            """,
+            (normalized_username, int(question_id), answer_text or "", updated_at),
+        )
+    return updated_at
+
+
+def delete_user_question_answer(username, question_id):
+    """Remove the user's saved answer for a question."""
+    normalized_username = (username or "").strip().lower()
+    if not normalized_username:
+        return 0
+
+    with write_transaction() as conn:
+        cursor = conn.execute(
+            """
+            DELETE FROM user_question_answers
+            WHERE LOWER(username) = LOWER(?) AND question_id = ?
+            """,
+            (normalized_username, int(question_id)),
+        )
+        return cursor.rowcount
 
 
 # ---------------------------------------------------------------------------
