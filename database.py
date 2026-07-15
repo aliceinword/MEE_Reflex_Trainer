@@ -1142,6 +1142,126 @@ def get_outline_rules(subject=None):
     )
 
 
+def get_outline_rules_for_subjects(subjects):
+    """Return outline_rules rows whose subject is in the given name list."""
+    names = [str(name).strip() for name in (subjects or []) if str(name).strip()]
+    if not names:
+        return []
+
+    placeholders = ", ".join("?" for _ in names)
+    return fetch_all(
+        f"""
+        SELECT
+            id,
+            subject,
+            rule_title,
+            appearance_rate,
+            rule_text,
+            pdf_page,
+            printed_page,
+            source_file
+        FROM outline_rules
+        WHERE subject IN ({placeholders})
+        ORDER BY subject, pdf_page, rule_title
+        """,
+        names,
+    )
+
+
+def get_issue_spotting_question_rows(subjects):
+    """Return active July 2026 question rows used to build spotting fallback cards."""
+    names = [str(name).strip() for name in (subjects or []) if str(name).strip()]
+    if not names:
+        return []
+
+    placeholders = ", ".join("?" for _ in names)
+    return fetch_all(
+        f"""
+        SELECT
+            id,
+            subject,
+            tested_issues,
+            trigger_facts
+        FROM questions
+        WHERE active_for_july_2026 = 1
+        AND subject IN ({placeholders})
+        AND COALESCE(TRIM(tested_issues), '') != ''
+        AND COALESCE(TRIM(trigger_facts), '') != ''
+        ORDER BY priority DESC, exam_year DESC, id ASC
+        """,
+        names,
+    )
+
+
+def parse_issue_trigger_from_rule_text(rule_text):
+    """Extract Issue trigger: text from attack-table style outline rule_text."""
+    from issue_spotting_utils import parse_issue_trigger_from_rule_text as _parse
+
+    return _parse(rule_text)
+
+
+def get_issue_spotting_cards(subjects, *, high_yield_only=False, limit=None):
+    """
+    Build normalized MEE Issue Spotting cards for the given subjects.
+
+    Primary source: outline_rules rows that contain an Issue trigger: prefix
+    (July 2026 Attack Table and similar imports). Fallback per subject: active
+    July 2026 question bank trigger_facts + tested_issues when no attack-table
+    cards exist for that subject.
+    """
+    from issue_spotting_utils import (
+        build_attack_table_card,
+        build_question_bank_cards,
+        dedupe_spotting_cards,
+        expand_subject_names,
+        filter_high_yield_cards,
+        issue_frequency_map,
+        sort_spotting_cards,
+        canonical_subject_name,
+        MEE_ISSUE_SPOTTING_SUBJECTS,
+    )
+
+    selected = [str(s).strip() for s in (subjects or []) if str(s).strip()]
+    if not selected:
+        selected = list(MEE_ISSUE_SPOTTING_SUBJECTS)
+
+    db_names = expand_subject_names(selected)
+    question_rows = get_issue_spotting_question_rows(db_names)
+    frequency_counts = issue_frequency_map(question_rows)
+
+    outline_rows = get_outline_rules_for_subjects(db_names)
+    attack_cards = []
+    for row in outline_rows:
+        card = build_attack_table_card(row, frequency_counts)
+        if card:
+            attack_cards.append(card)
+
+    subjects_with_attack = {card["subject"] for card in attack_cards}
+    question_cards = []
+    for row in question_rows:
+        subject = canonical_subject_name(row[1] if len(row) > 1 else "")
+        if subject in subjects_with_attack:
+            continue
+        question_cards.extend(
+            build_question_bank_cards(row, frequency_counts)
+        )
+
+    cards = dedupe_spotting_cards(attack_cards + question_cards)
+    if high_yield_only:
+        cards = filter_high_yield_cards(cards)
+    cards = sort_spotting_cards(cards)
+
+    if limit is not None:
+        try:
+            limit_n = int(limit)
+        except (TypeError, ValueError):
+            limit_n = None
+        if limit_n is not None and limit_n > 0:
+            cards = cards[:limit_n]
+
+    return cards
+
+
 def search_outline_rules(query, subject=None, limit=5):
     search_terms = [
         term.strip()

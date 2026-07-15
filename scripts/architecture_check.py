@@ -26,9 +26,11 @@ APP_MODULES = [
     "import_markdown_mee_qa_bank.py",
     "import_mee_pq_bank_docx.py",
     "import_services.py",
+    "issue_spotting_utils.py",
     "main_pages.py",
     "mbe_import_services.py",
     "mbe_pages.py",
+    "mee_issue_spotting.py",
     "practice_components.py",
     "practice_pages.py",
     "question_utils.py",
@@ -42,6 +44,7 @@ PAGE_MODULES = [
     "content_tools.py",
     "main_pages.py",
     "mbe_pages.py",
+    "mee_issue_spotting.py",
     "practice_components.py",
     "practice_pages.py",
     "user_pages.py",
@@ -122,8 +125,23 @@ def check_navigation_and_shell(checker):
     checker.check("app.py has no local functions/classes", not any(isinstance(n, (ast.FunctionDef, ast.ClassDef)) for n in tree.body))
     checker.check("app.py stays focused", len(app.splitlines()) <= 120, f"{len(app.splitlines())} lines")
 
-    for label in ["Home", "MEE Question Bank", "MEE Muscle Ladder", "MBE Drills", "Import Questions", "Manual Entry", "Settings"]:
+    for label in [
+        "Home",
+        "MEE Question Bank",
+        "MEE Muscle Ladder",
+        "MEE Issue Spotting",
+        "MBE Drills",
+        "Import Questions",
+        "Manual Entry",
+        "Settings",
+    ]:
         checker.check(f"navigation includes {label}", label in shell)
+
+    checker.check(
+        "app.py routes MEE Issue Spotting",
+        'menu == "MEE Issue Spotting"' in app
+        and "render_issue_spotting_page" in app,
+    )
 
     checker.check("MBE navigation is separated from MEE", '"MBE Practice"' in shell and '"MEE Practice"' in shell)
     checker.check("advanced MEE tools are grouped", '"MEE Advanced Tools"' in shell)
@@ -438,6 +456,63 @@ def check_mee_invariants(checker):
     practice_pages = read_text("practice_pages.py")
     practice_components = read_text("practice_components.py")
     database = read_text("database.py")
+    mee_issue_spotting = read_text("mee_issue_spotting.py")
+    issue_utils = read_text("issue_spotting_utils.py")
+    attack_import = read_text("scripts/import_july_2026_attack_table.py")
+
+    checker.check(
+        "July 2026 attack table import includes Torts",
+        '"torts": "Torts"' in attack_import,
+    )
+    checker.check(
+        "Issue spotting utils define subject list",
+        "MEE_ISSUE_SPOTTING_SUBJECTS" in issue_utils and "SUBJECT_ALIASES" in issue_utils,
+    )
+    checker.check(
+        "Issue spotting parse helpers exist",
+        all(
+            f"def {name}(" in issue_utils
+            for name in [
+                "parse_issue_trigger_from_rule_text",
+                "parse_oneliner_from_rule_text",
+                "build_attack_table_card",
+                "build_question_bank_cards",
+                "dedupe_spotting_cards",
+            ]
+        ),
+    )
+    checker.check(
+        "database exposes issue spotting card query",
+        all(
+            f"def {name}(" in database
+            for name in [
+                "parse_issue_trigger_from_rule_text",
+                "get_issue_spotting_cards",
+                "get_outline_rules_for_subjects",
+                "get_issue_spotting_question_rows",
+            ]
+        ),
+    )
+    checker.check(
+        "MEE Issue Spotting uses modular helpers",
+        all(
+            f"def {name}(" in mee_issue_spotting
+            for name in [
+                "render_issue_spotting_filters",
+                "ensure_issue_spotting_queue",
+                "render_issue_spotting_prompt",
+                "render_issue_spotting_retrieval_controls",
+                "render_issue_spotting_answer",
+                "render_issue_spotting_answer_actions",
+            ]
+        ),
+    )
+    spotting_page_lines = function_line_count(mee_issue_spotting, "render_issue_spotting_page")
+    checker.check(
+        "MEE Issue Spotting router stays compact",
+        spotting_page_lines is not None and spotting_page_lines <= 55,
+        str(spotting_page_lines),
+    )
 
     checker.check(
         "Question Bank preview is capped at 3 rows",

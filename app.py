@@ -53,6 +53,12 @@ elif menu == "MEE Muscle Ladder":
     )
 
 
+elif menu == "MEE Issue Spotting":
+    from mee_issue_spotting import render_issue_spotting_page
+
+    render_issue_spotting_page()
+
+
 elif menu == "Settings":
     from main_pages import render_settings_page
 
